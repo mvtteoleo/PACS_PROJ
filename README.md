@@ -5,10 +5,10 @@ tests in ```./tests/```
 ```make <nome_test(SENZA.cpp)>``` per generare l'eseguibile
 
 Milestones: 
-    - Scalar and Vector Fields
-    - Working math operators
-    - Working dumps (binary and VTK format)
-    - Working time step (Serial)
-    - Implementation of the pressure correction (Serial and then parallel)
-    - Full solver (And validation)
-    - Add the porosity part to the problem (IBM)
+  - Scalar and Vector Fields
+  - Working math operators
+  - Working dumps (binary and VTK format)
+  - Working time step (Serial)
+  - Implementation of the pressure correction (Serial and then parallel)
+  - Full solver (And validation)
+  - Add the porosity part to the problem (IBM)
