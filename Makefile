@@ -11,8 +11,9 @@ COMMON_LIBS := -fopenmp
 
 # Groups
 
-NEEDS_EIGEN := eigen laplacian
-NEEDS_GINAC := test_ginac
+Tests := laplacian packs
+NEEDS_EIGEN := 
+NEEDS_GINAC := 
 NEEDS_FFTW  := 
 
 # Utility Functions
@@ -27,7 +28,7 @@ EXES := $(addprefix ./,$(EXE_NAMES))
 OBJS := $(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(EXE_NAMES)))
 
 # Default target
-all: $(EXES)
+all: $(Tests)
 
 # Ensure build dir exists
 $(BUILD_DIR):
@@ -48,7 +49,7 @@ $(BUILD_DIR)/%.o: $(TESTS_DIR)/%.cpp | $(BUILD_DIR)
 	$(if $(call contains,$(NEEDS_GINAC),$*),-lginac -lcln,) \
 	# Add specific group logic as needed here
 
-.PHONY: all clean
+.PHONY: all clean $(Tests)
 
 clean:
 	rm -rf $(BUILD_DIR) $(EXES)

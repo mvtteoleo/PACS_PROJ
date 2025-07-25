@@ -1,5 +1,6 @@
 #pragma once
 #include "tensors.hpp"
+#include <cstddef>
 #include <vector>
 
 namespace numPDE
@@ -46,6 +47,21 @@ namespace numPDE
                 prev[i] += 1, next[i] -= 1;
             }
             return lap;
+        }
+
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        std::vector<T> position(Ts... idxs)
+        {
+            std::vector<size_t> indices{idxs...};
+            return position(indices);
+        }
+
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        std::vector<T> position(std::vector<T> idxs)
+        {
+        // cREATE A PROPER MESH CLASS
         }
 
       private:
