@@ -7,6 +7,7 @@ namespace numPDE
 {
 
     template <typename T>
+        requires std::is_floating_point_v<T>
     class ScalarField //: AbstractField<T>
     {
       public:
@@ -61,7 +62,6 @@ namespace numPDE
             requires UnsignedInt<Ts...>
         std::vector<T> position(std::vector<T> idxs)
         {
-        // cREATE A PROPER MESH CLASS
         }
 
       private:

@@ -26,7 +26,7 @@ namespace numPDE
       public:
         size_t get_rank() const noexcept { return m_Rank; };
         size_t get_nElems() const noexcept { return m_N_element; };
-        auto get_Sizes() const noexcept { return m_Sizes; };
+        auto   get_Sizes() const noexcept { return m_Sizes; };
         ~Tensor() = default;
 
         Tensor() = default;
