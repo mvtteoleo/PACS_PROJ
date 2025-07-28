@@ -1,7 +1,7 @@
 #pragma once
 // ABSTRACT CLASS FROM WHICH ALL OTHERS INHERIT
 #include "tensors.hpp"
-#include "packs.hpp"
+#include "mesh.hpp"
 namespace numPDDE
 {
     template <typename T>
@@ -10,13 +10,13 @@ namespace numPDDE
     {
 
       public:
+        Mesh<T> mesh;
         AbstractField(AbstractField&&)                 = default;
         AbstractField(const AbstractField&)            = default;
         AbstractField& operator=(AbstractField&&)      = default;
         AbstractField& operator=(const AbstractField&) = default;
         ~AbstractField()                               = default;
 
-        Mesh<T> mesh;
 
         T get_Delta_x() const { return m_H; };
 

@@ -62,8 +62,8 @@ namespace numPDE
             requires UnsignedInt<Ts...>
         std::vector<T> position(std::vector<T> idxs)
         {
+        //
         }
-
       private:
         // Vector containing the δx for each direction
         // (Different in each direction ideally)
