@@ -15,13 +15,6 @@ namespace numPDE
     struct Mesh
     {
       public:
-        Mesh()                       = default;
-        Mesh(Mesh&&)                 = default;
-        Mesh(const Mesh&)            = default;
-        Mesh& operator=(Mesh&&)      = default;
-        Mesh& operator=(const Mesh&) = default;
-        ~Mesh()                      = default;
-
         /* DATA */
         const size_t              N_dims;
         const std::vector<size_t> Size_dims;
