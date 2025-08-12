@@ -70,6 +70,11 @@ namespace numPDE
             // Computation of the index
             size_t index{std::transform_reduce(std::execution::par, m_Slices_size.begin(),
                                                m_Slices_size.end(), indices.begin(), size_t(0))};
+            /*
+            for(std::size_t i=0; i<m_Rank; ++i)
+                index += m_Slices_size[i] * indices[i];
+                                      size_t(0), std::plus<>(), std::multiplies<>());
+            */
 
             return m_Datas.at(index);
         }

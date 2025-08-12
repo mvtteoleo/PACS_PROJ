@@ -16,24 +16,31 @@ namespace numPDE
     {
       public:
         /* DATA */
-        const size_t              N_dims;
-        const std::vector<size_t> Size_dims;
+         size_t              N_dims;
+         std::vector<size_t> Size_dims;
         // start of the mesh
-        const std::vector<T> X0;
+         std::vector<T> X0;
         // end of the mesh
-        const std::vector<T> X_end;
-        const std::vector<T> Delta_x_i;
-        const T              H;
+         std::vector<T> X_end;
+         std::vector<T> Delta_x_i;
+         T              H;
 
         /* CONSTRUCTORS BASED ON DIFFERENT INPUTS TO AVOID HEADACHE */
         using Vector = std::vector<T>;
         using VecInt = std::vector<size_t>;
 
         Mesh(Vector x0, Vector xend, VecInt nDims)
-            : Size_dims{nDims}, X0{x0}, X_end{xend}, N_dims{X0.size()}
+            : Size_dims{nDims}, X0{x0}, X_end{xend}, N_dims{x0.size()}
         {
             for (size_t i = 0; i < N_dims; ++i)
                 Delta_x_i[i] = (X_end[i] - X0[i]) / Size_dims[i];
+        };
+
+        Mesh(Vector x0, VecInt nDims, T dx)
+            : Size_dims{nDims}, X0{x0}, H{dx}, N_dims{x0.size()}
+        {
+            for (size_t i = 0; i < N_dims; ++i)
+                X_end[i] = X0[i] + dx * Size_dims[i];
         };
 
         Mesh(Vector x0, VecInt nDims, Vector dx)
