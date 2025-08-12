@@ -8,7 +8,7 @@
 
 struct Circ_info
 {
-    std::vector<float> circ_cent{0, 0, 0};
+    std::vector<float> circ_cent;
     float              radius{};
 };
 
@@ -28,12 +28,10 @@ int main(int argc, char* argv[])
     Circ_info                  circ;
     std::cout << "Insert radious: ";
     std::cin >> circ.radius;
-    std::cout << "Insert circ_center x: ";
-    std::cin >> circ.circ_cent[0];
-    std::cout << "Insert circ_center y: ";
-    std::cin >> circ.circ_cent[1];
-    std::cout << "Insert circ_center z: ";
-    std::cin >> circ.circ_cent[2];
+    std::cout << "Insert circ_center : ";
+    float r;
+    std::cin >> r;
+    circ.circ_cent.resize(x0.size(), r);
 
     auto chi = [&circ](std::vector<float> x) -> float
     {
