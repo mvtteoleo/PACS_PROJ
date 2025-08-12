@@ -23,7 +23,7 @@ int main(int argc, char* argv[])
     std::cin >> N;
     std::vector<float>         x0            = {0, 0, 0};
     std::vector<size_t>        elems_for_dir = {N, N, N};
-    float h             = 1. / N;
+    float                      h             = 1. / N;
     numPDE::ScalarField<float> mask(x0, h, elems_for_dir);
     Circ_info                  circ;
     std::cout << "Insert radious: ";
@@ -35,9 +35,9 @@ int main(int argc, char* argv[])
 
     auto chi = [&circ](std::vector<float> x) -> float
     {
-        std::vector<float> d = x-circ.circ_cent ;
-        float dist_sq = norm(d);
-        float radius_sq = circ.radius ;
+        std::vector<float> d         = x - circ.circ_cent;
+        float              dist_sq   = norm(d);
+        float              radius_sq = circ.radius;
         return static_cast<float>(dist_sq >= radius_sq);
     };
 
@@ -46,14 +46,14 @@ int main(int argc, char* argv[])
 
     // mask.print_all();
     for (auto [i, j, k] : mask.all_elements())
-    if(i==0)
-    {
-        if(k==0) std::cout << "\n";
-        // if(j==0 and k==0) std::cout << "x = "<< i << "\n| -> z \n\\/y  " <<std::endl;
-        if(j==0 and k==0) std::cout << "x = "<< i << "\n+-> z \n↓ y  " <<std::endl;
+        if (i == 0)
+        {
+            if (k == 0) std::cout << "\n";
+            // if(j==0 and k==0) std::cout << "x = "<< i << "\n| -> z \n\\/y  " <<std::endl;
+            if (j == 0 and k == 0) std::cout << "x = " << i << "\n+-> z \n↓ y  " << std::endl;
             const char* tmp = (mask(i, j, k)) ? "+" : " ";
-            std::cout << tmp  << " ";
-    }
+            std::cout << tmp << " ";
+        }
 
     return 0;
 }

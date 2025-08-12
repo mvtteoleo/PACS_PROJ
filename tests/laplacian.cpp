@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
     numPDE::ScalarField<double> p_updated = p;
 
     auto test = p.internal_elements();
-    for (auto [i, j, k] : test) 
+    for (auto [i, j, k] : test)
         std::printf("%ld %ld %ld \n", i, j, k);
 
 #if 0
