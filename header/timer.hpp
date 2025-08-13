@@ -47,6 +47,7 @@ namespace myUtilities
             m_End   = std::chrono::high_resolution_clock::now();
             m_Delta = m_End - m_Start;
         };
+
         void inline print_time(size_t N_ops = 1)
         {
             get_time();

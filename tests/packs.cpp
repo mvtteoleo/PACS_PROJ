@@ -28,18 +28,18 @@ int main()
     for (size_t i = 0; i < Nx_dyn; ++i)
         for (size_t j = 0; j < Ny_dyn; ++j)
             for (size_t k = 0; k < Nz_dyn; ++k)
-            {
-                mask(i, j, k) = count;
-                count++;
-            }
+                mask(i, j, k) = count, count++;
+
     c.print_time();
     c.print_time(Nx_dyn * Ny_dyn * Nz_dyn);
+    std::cout << "Time above is for the normal for loop\n";
     count = 0;
     myUtilities::ChronoTimer c_("Acces time");
     for (auto [i, j, k] : mask.all_elements())
         mask(i, j, k) = count, count++;
     c_.print_time();
     c_.print_time(Nx_dyn * Ny_dyn * Nz_dyn);
+    std::cout << "Time above is for the all_element loop\n";
     /*
     for (size_t i = 0; i < Nx_dyn; ++i)
         for (size_t j = 0; j < Ny_dyn; ++j)

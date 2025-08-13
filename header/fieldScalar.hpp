@@ -1,6 +1,7 @@
 #pragma once
-#include "tensors.hpp"
 #include "customvec.hpp"
+#include "mesh.hpp"
+#include "tensors.hpp"
 #include <cstddef>
 #include <cstdio>
 #include <locale>
@@ -14,10 +15,17 @@ namespace numPDE
         requires std::is_floating_point_v<T>
     class ScalarField //: AbstractField<T>
     {
-    friend Tensor<T>;
+        friend Tensor<T>;
+
       public:
         ScalarField(std::vector<T> x0, T dx, std::vector<size_t> elems_for_dir)
             : m_H(dx), m_Position_x0(x0), m_Field_values(elems_for_dir) {};
+
+        ScalarField(const Mesh<T>& mesh)
+            : m_H{mesh.get_h()}, m_Position_x0{mesh.get_x0()},
+              m_Field_values{mesh.get_N_nodes()} {};
+
+        // Rule of 5 
         ScalarField(ScalarField&&)                 = default;
         ScalarField(const ScalarField&)            = default;
         ScalarField& operator=(ScalarField&&)      = default;
@@ -60,11 +68,11 @@ namespace numPDE
             auto                dim     = sizes.size();
             auto                i_range = std::views::iota(size_t{1}, sizes[0] - 1);
 
-            auto                j_range = (dim >= 2) ? std::views::iota(size_t{1}, sizes[1] - 1)
-                                                     : std::views::iota(size_t{1}, size_t{2});
+            auto j_range = (dim >= 2) ? std::views::iota(size_t{1}, sizes[1] - 1)
+                                      : std::views::iota(size_t{1}, size_t{2});
 
-            auto                k_range = (dim >= 3) ? std::views::iota(size_t{1}, sizes[2] - 1)
-                                                     : std::views::iota(size_t{1}, size_t{2});
+            auto k_range = (dim >= 3) ? std::views::iota(size_t{1}, sizes[2] - 1)
+                                      : std::views::iota(size_t{1}, size_t{2});
 
             // Order in cartesian_product: leftmost slowest, rightmost fastest
             return std::views::cartesian_product(i_range, j_range, k_range);
@@ -76,28 +84,17 @@ namespace numPDE
             auto                dim     = sizes.size();
             auto                i_range = std::views::iota(size_t{0}, sizes[0]);
 
-            auto                j_range = (dim >= 2) ? std::views::iota(size_t{0}, sizes[1])
-                                                     : std::views::iota(size_t{0}, size_t{1});
+            auto j_range = (dim >= 2) ? std::views::iota(size_t{0}, sizes[1])
+                                      : std::views::iota(size_t{0}, size_t{1});
 
-            auto                k_range = (dim >= 3) ? std::views::iota(size_t{0}, sizes[2])
-                                                     : std::views::iota(size_t{0}, size_t{1});
+            auto k_range = (dim >= 3) ? std::views::iota(size_t{0}, sizes[2])
+                                      : std::views::iota(size_t{0}, size_t{1});
 
             // Order in cartesian_product: leftmost slowest, rightmost fastest
             return std::views::cartesian_product(i_range, j_range, k_range);
         }
 
-    /*
-    void print_all() const 
-    {
-        std::vector<size_t> sizes{m_Field_values.get_Sizes()};
-        size_t count{0};
-        std::cout << " \n";
-        for(size_t j=0; j<sizes[i]; ++j)
-        {
-            std::cout << m_Field_values.m_Datas.at(count) << " ", ++count; 
-        }
-    }
-*/
+      
       private:
         // Vector containing the δx for each direction
         // (Different in each direction ideally)
