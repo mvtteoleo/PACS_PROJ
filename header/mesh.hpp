@@ -42,6 +42,7 @@ namespace numPDE
                 assert(n_nodes[i] > 1 && "Number of nodes in each dimension must be > 1.");
                 m_Delta_x_i[i] = (m_X_end[i] - m_X0[i]) / static_cast<T>(n_nodes[i] - 1);
             }
+            m_H = m_Delta_x_i[0];
         }
 
         // Constructor 2: Define by start, number of nodes, and uniform step size H
