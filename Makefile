@@ -1,56 +1,62 @@
+  # ==============================
+# Compiler and Flags
+CXX       := g++
+CXXFLAGS  := -std=c++23 -O3 -Wall -Wextra -pedantic -fopenmp
+CPPFLAGS  := -Iheader -Isrc -I.
+
 # Directories
+SRC_DIR   := src
+TEST_DIR  := tests
 BUILD_DIR := build
-TESTS_DIR := tests
-HEADER_DIR := header
-SRC_DIR := src
 
-# Tools and Flags
-CXX := g++
-COMMON_FLAGS := -Wall -std=c++23 -I$(HEADER_DIR) -I$(SRC_DIR) -g -fsanitize=address -O0
-COMMON_LIBS := -fopenmp 
+# Main target
+EXEC      := main
 
-# Groups
+# ==============================
+# Sources & Objects
+SRCS      := $(wildcard $(SRC_DIR)/*.cpp) 
+OBJS      := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(SRCS))
 
-Tests := laplacian packs
-NEEDS_EIGEN := 
-NEEDS_GINAC := 
-NEEDS_FFTW  := 
+# Tests
+TEST_SRCS := $(wildcard $(TEST_DIR)/*.cpp)
+TESTS     := $(patsubst $(TEST_DIR)/%.cpp,$(BUILD_DIR)/%,$(TEST_SRCS))
+TEST_OBJS := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(TEST_SRCS))
 
-# Utility Functions
-# Check if a name is in a list
-# Usage: $(call contains, list, item)
-contains = $(filter $(2),$(1))
+# ==============================
+# Default goal
+.DEFAULT_GOAL := all
+.PHONY: all clean distclean tests run_tests
 
-# All .cpp sources in tests
-TEST_SRCS := $(wildcard $(TESTS_DIR)/*.cpp)
-EXE_NAMES := $(patsubst $(TESTS_DIR)/%.cpp,%,$(TEST_SRCS))
-EXES := $(addprefix ./,$(EXE_NAMES))
-OBJS := $(addprefix $(BUILD_DIR)/,$(addsuffix .o,$(EXE_NAMES)))
+all: $(EXEC)
 
-# Default target
-all: $(Tests)
+tests: $(TESTS)
 
-# Ensure build dir exists
-$(BUILD_DIR):
-	mkdir -p $@
+run_tests: tests
+	@for t in $(TESTS); do \
+		echo "Running $$t..."; \
+		./$$t || exit 1; \
+	done
 
-# Rule to compile any .cpp into a .o
-$(BUILD_DIR)/%.o: $(TESTS_DIR)/%.cpp | $(BUILD_DIR)
-	$(CXX) $(COMMON_FLAGS) -c $< -o $@
+# ==============================
+# Build rules
 
-# Rule to link .o to executable
-./%: $(BUILD_DIR)/%.o
-	@echo "Linking $@..."
-	$(CXX) $< -o $@ \
-	$(COMMON_FLAGS) \
-	$(COMMON_LIBS) \
-	$(if $(call contains,$(NEEDS_FFTW),$*),-Ifftw3,) \
-	$(if $(call contains,$(NEEDS_EIGEN),$*),-leigen3,) \
-	$(if $(call contains,$(NEEDS_GINAC),$*),-lginac -lcln,) \
-	# Add specific group logic as needed here
+$(EXEC): $(OBJS)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -o $@
 
-.PHONY: all clean $(Tests)
+# Compile sources
+$(BUILD_DIR)/%.o: %.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 
+# Link test executables
+$(BUILD_DIR)/%: $(BUILD_DIR)/tests/%.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -o $@
+
+# ==============================
+# Cleaning
 clean:
-	rm -rf $(BUILD_DIR) $(EXES)
+	$(RM) -r $(BUILD_DIR) *.o
+
+distclean: clean
+	$(RM) $(EXEC) $(TESTS)
 

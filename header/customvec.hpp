@@ -12,8 +12,7 @@
 template <typename T>
 T norm_squared(const std::vector<T>& v)
 {
-    auto square = [](const T& acc, const T& x) -> T { return acc + x * x; };
-    return std::accumulate(v.begin(), v.end(), T{0}, square);
+    return std::inner_product(v.begin(), v.end(), v.begin(), T{0});
 }
 
 /*
@@ -22,7 +21,7 @@ T norm_squared(const std::vector<T>& v)
 template <typename T>
 T norm(const std::vector<T>& v)
 {
-    return std::sqrt(norm_squared<T>(v));
+    return std::sqrt(norm_squared(v));
 }
 
 /*
@@ -140,7 +139,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
         return os;
     }
 
-    os << "(" << v[0]; // Print the first element without a comma
+    os << "(" << v[0];
 
     for (size_t i = 1; i < v.size(); ++i)
     {

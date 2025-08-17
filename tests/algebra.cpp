@@ -3,18 +3,21 @@
 #include <cstddef>
 #include <cstdio>
 #include <iostream>
+#include <string>
 #include <vector>
 
 int main(int argc, char* argv[])
 {
 
-    std::size_t N;
-    std::cout << "Insert N: \n";
-    std::cin >> N;
+    std::cout << std::endl;
+    std::cout << std::endl;
+    std::cout << "/****** TEST : algebra.cpp ******/" << std::endl;
+    std::size_t                 N             = (argc > 1) ? std::stoul(argv[1]) : 10;
     std::vector<double>         x0            = {0, 0};
     std::vector<size_t>         elems_for_dir = {N, N};
-    double                      h             = 1. / N;
-    numPDE::ScalarField<double> p(x0, h, elems_for_dir);
+    double                      h             = 1. / (N - 1);
+    numPDE::Mesh<double>        mesh(x0, elems_for_dir, h);
+    numPDE::ScalarField<double> p(mesh);
     numPDE::ScalarField<double> p_updated = p;
 
     for (size_t i = 0; i < N; ++i)
@@ -35,5 +38,6 @@ int main(int argc, char* argv[])
             std::cout << p_updated(i, j) << ", ";
     }
 
+    std::cout << std::endl;
     return 0;
 }

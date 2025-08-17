@@ -8,7 +8,7 @@ Milestones:
   - Scalar and Vector Fields
   - Working math operators
   - Working dumps (binary and VTK format)
-  - Working time step (Serial)
+  - Working time step (Serial)                          
   - Implementation of the pressure correction (Serial and then parallel)
   - Full solver (And validation)
   - Add the porosity part to the problem (IBM)

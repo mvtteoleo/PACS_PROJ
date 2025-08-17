@@ -19,10 +19,13 @@ using VecInt = std::vector<size_t>;
 int main(int argc, char* argv[])
 {
 
-    constexpr size_t N = 100; //(argc>0) ?  static_cast<size_t>(argv[0]) : 100;
+    std::cout << std::endl;
+    std::cout << std::endl;
+    std::cout << "/****** TEST : mesh_init.cpp ******/" << std::endl;
+    size_t N = (argc>1) ? std::stoul(argv[1]) :  100; //(argc>0) ?  static_cast<size_t>(argv[0]) : 100;
 
-    constexpr Real pi = 3.141592653589793238462643383279502884197169399375105820974944;
-    constexpr Real dx = (2 * pi) / (N - 1);
+    constexpr Real pi = std::numbers::pi;
+    Real dx = (2 * pi) / (N - 1);
     Vector         x0{0.0, 0.0, 0.0};
     VecInt         Dims{N, N, N};
     Vector         xEnd{pi * 2, pi * 2, pi * 2};

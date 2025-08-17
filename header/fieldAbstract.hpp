@@ -10,7 +10,6 @@ namespace numPDDE
     {
 
       public:
-        Mesh<T> mesh;
         AbstractField(AbstractField&&)                 = default;
         AbstractField(const AbstractField&)            = default;
         AbstractField& operator=(AbstractField&&)      = default;
@@ -46,5 +45,6 @@ namespace numPDDE
       private:
         // Tensor type containing the values of the said field
         Tensor<T> m_Field_values;
+        Mesh<T>   mesh;
     };
 }; // namespace numPDDE

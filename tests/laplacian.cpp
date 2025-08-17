@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <iostream>
 #include <ranges>
+#include <string>
 #include <vector>
 
 #define PRINT_VALS 0
@@ -22,9 +23,10 @@ using VecInt = std::vector<size_t>;
 int main(int argc, char* argv[])
 {
 
-    std::size_t N;
-    std::cout << "Insert N: \n";
-    std::cin >> N;
+    std::cout << std::endl;
+    std::cout << std::endl;
+    std::cout << "/****** TEST : laplacian.cpp ******/" << std::endl;
+    std::size_t               N             = (argc > 1) ? std::stoul(argv[1]) : 10;
     std::vector<Real>         x0            = {0, 0};
     std::vector<size_t>       elems_for_dir = {N, N};
     Real                      h             = 2 * std::numbers::pi / (N - 1);
@@ -53,8 +55,8 @@ int main(int argc, char* argv[])
     // Initialize the field
     for (auto [i, j, k] : p.all_elements())
     {
-        Vector pos = mesh.position(i, j);
-        p(i, j)    = ex_sol(pos);
+        Vector pos = mesh.position(i, j, k);
+        p(i, j, k) = ex_sol(pos);
     }
 
     // Update with the laplacian

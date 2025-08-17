@@ -18,19 +18,21 @@ struct Circ_info
 
 int main(int argc, char* argv[])
 {
-    std::size_t N;
-    std::cout << "Insert N: ";
-    std::cin >> N;
+    std::cout << std::endl;
+    std::cout << std::endl;
+    std::cout << "/****** TEST : porous_mesh.cpp ******/" << std::endl;
+    std::size_t N = 10;
+    if (argc > 1) N = std::stoul(argv[1]);
     std::vector<float>         x0            = {0, 0, 0};
     std::vector<size_t>        elems_for_dir = {N, N, N};
     float                      h             = 1. / N;
-    numPDE::ScalarField<float> mask(x0, h, elems_for_dir);
+    numPDE::Mesh<float>        mesh(x0, elems_for_dir, h);
+    numPDE::ScalarField<float> mask(mesh);
     Circ_info                  circ;
-    std::cout << "Insert radious: ";
-    std::cin >> circ.radius;
-    std::cout << "Insert circ_center : ";
-    float r;
-    std::cin >> r;
+
+    circ.radius = (argc > 2) ? std::stof(argv[2]) : 1.0f;
+    float r     = (argc > 3) ? std::stof(argv[3]) : 0.0f;
+
     circ.circ_cent.resize(x0.size(), r);
 
     auto chi = [&circ](std::vector<float> x) -> float
@@ -42,8 +44,7 @@ int main(int argc, char* argv[])
     };
 
     for (auto [i, j, k] : mask.all_elements())
-        mask(i, j, k) = chi({i, j, k});
-
+        mask(i, j, k) = chi(mask.pos(i, j, k));
     // mask.print_all();
     for (auto [i, j, k] : mask.all_elements())
         if (i == 0)

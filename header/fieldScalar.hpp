@@ -4,6 +4,7 @@
 #include "tensors.hpp"
 #include <cstddef>
 #include <cstdio>
+#include <memory>
 #include <ranges>
 #include <type_traits>
 #include <vector>
@@ -15,16 +16,12 @@ namespace numPDE
         requires std::is_floating_point_v<T>
     class ScalarField //: AbstractField<T>
     {
-        friend Tensor<T>;
+        template <typename U>
+        friend class Tensor;
 
       public:
-        ScalarField(std::vector<T> x0, T dx, std::vector<size_t> elems_for_dir)
-            : m_H(dx), m_Position_x0(x0), m_Field_values(elems_for_dir),
-              m_mesh(x0, dx, elems_for_dir) {};
-
         ScalarField(const Mesh<T>& mesh)
-            : m_H{mesh.get_h()}, m_Position_x0{mesh.get_x0()}, m_Field_values{mesh.get_N_nodes()},
-              m_mesh(mesh) {};
+            : m_Field_values{mesh.get_N_nodes()}, p_mesh(std::make_shared<Mesh<T>>(mesh)) {};
 
         // Rule of 5
         ScalarField(ScalarField&&)                 = default;
@@ -39,8 +36,11 @@ namespace numPDE
             requires std::is_integral_v<Ts>
         T& operator()(std::span<Ts> indices)
         {
-            if (indices.size() != m_mesh.get_N_dims())
-                throw std::out_of_range("Dimensions not matching");
+            if (indices.size() != p_mesh->get_N_dims())
+            {
+                // throw std::out_of_range("Dimensions not matching");
+                indices = indices.first(p_mesh->get_N_dims());
+            }
 
             return m_Field_values(indices);
         }
@@ -51,7 +51,7 @@ namespace numPDE
         T& operator()(Ts... idxs)
         {
             static_assert(sizeof...(Ts) > 0, "At least one index required");
-        // Does not work with the array, no clue why
+            // Does not work with the array, no clue why
             // std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
             std::vector<size_t> arr{static_cast<size_t>(idxs)...};
             return (*this)(std::span(arr));
@@ -61,8 +61,8 @@ namespace numPDE
             requires std::is_integral_v<Ts>
         T& operator()(std::vector<Ts> indices)
         {
-            if (indices.size() >= m_mesh.get_N_dims())
-                indices = std::span(indices.data(), m_mesh.get_N_dims());
+            if (indices.size() >= p_mesh->get_N_dims())
+                indices = std::span(indices.data(), p_mesh->get_N_dims());
             return m_Field_values(indices);
         }
 
@@ -79,7 +79,7 @@ namespace numPDE
                 prev[i] -= 1, next[i] += 1;
                 lap +=
                     ((m_Field_values(prev) - 2 * m_Field_values(position) + m_Field_values(next)) /
-                     (m_H * m_H));
+                     (p_mesh->get_h(i) * p_mesh->get_h(i)));
                 prev[i] += 1, next[i] -= 1;
             }
 
@@ -92,6 +92,22 @@ namespace numPDE
         {
             std::vector<size_t> position{idxs...};
             return laplacian(position);
+        }
+
+        auto make_iterator(size_t start_offset, size_t end_offset) const
+        {
+            std::vector<size_t> sizes{m_Field_values.get_Sizes()};
+            auto                dim     = sizes.size();
+            auto                i_range = std::views::iota(start_offset, sizes[0] - end_offset);
+
+            auto j_range = (dim >= 2) ? std::views::iota(start_offset, sizes[1] - end_offset)
+                                      : std::views::iota(size_t{0}, size_t{1});
+
+            auto k_range = (dim >= 3) ? std::views::iota(start_offset, sizes[2] - end_offset)
+                                      : std::views::iota(size_t{0}, size_t{1});
+
+            // Order in cartesian_product: leftmost slowest, rightmost fastest
+            return std::ranges::views::cartesian_product(i_range, j_range, k_range);
         }
 
         auto internal_elements() const { return make_iterator(1, 1); }
@@ -108,7 +124,6 @@ namespace numPDE
             {
                 bool on_boundary = false;
 
-                // The rest of your logic, using the captured 'sizes'
                 if (std::get<0>(indices) == 0 || std::get<0>(indices) == sizes[0] - 1)
                 {
                     on_boundary = true;
@@ -128,49 +143,24 @@ namespace numPDE
             return all_elements() | std::views::filter(is_on_boundary);
         }
 
-        T L2norm() const
-        {
-            return norm(m_Field_values.m_Datas) * std::pow(m_H, m_Field_values.m_Rank);
-        }
+        T L2norm() const { return norm(m_Field_values.raw_datas()) * p_mesh->get_dOmega(); }
 
         // Overload using variadic templates for convenience
         template <typename... Ts>
             requires UnsignedInt<Ts...>
         auto pos(Ts... idxs) const
         {
-            return m_mesh.position({static_cast<size_t>(idxs)...});
+            return p_mesh->position({static_cast<size_t>(idxs)...});
         }
-        auto pos(const std::vector<size_t>& idxs) const { return m_mesh.position(idxs); }
+        auto pos(const std::vector<size_t>& idxs) const { return p_mesh->position(idxs); }
 
-        T      get_Delta_x() const { return m_H; };
+        T      get_Delta_x(const size_t idx) const { return p_mesh->get_h(idx); };
         size_t get_nElements() const { return m_Field_values.get_nElements; };
 
       private:
-        auto make_iterator(size_t start_offset, size_t end_offset) const
-        {
-            std::vector<size_t> sizes{m_Field_values.get_Sizes()};
-            auto                dim     = sizes.size();
-            auto                i_range = std::views::iota(start_offset, sizes[0] - end_offset);
-
-            auto j_range = (dim >= 2) ? std::views::iota(start_offset, sizes[1] - end_offset)
-                                      : std::views::iota(size_t{0}, size_t{1});
-
-            auto k_range = (dim >= 3) ? std::views::iota(start_offset, sizes[2] - end_offset)
-                                      : std::views::iota(size_t{0}, size_t{1});
-
-            // Order in cartesian_product: leftmost slowest, rightmost fastest
-            return std::views::cartesian_product(i_range, j_range, k_range);
-        }
-
-        // Vector containing the δx for each direction
-        // (Different in each direction ideally)
-        // const std::vector<T> m_Delta_x_i;
-        T m_H;
-        // Vector containing the position of the "0-point"
-        std::vector<T> m_Position_x0;
         // Tensor type containing the values of the said field
         Tensor<T> m_Field_values;
         // Mesh datas
-        Mesh<T> m_mesh;
+        std::shared_ptr<Mesh<T>> p_mesh;
     };
 } // namespace numPDE

@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <iostream>
+#include <numbers>
 #include <vector>
 
 using std::cos;
@@ -142,16 +143,17 @@ Real get_error(numPDE::ScalarField<Real>& u, Real t)
 
 int main(int argc, char* argv[])
 {
+    std::cout << std::endl;
+    std::cout << std::endl;
+    std::cout << "/****** TEST : time_int.cpp ******/" << std::endl;
     constexpr Real pi = std::numbers::pi;
     // Define the initial values
-    Real           dt   = 0.0001;
+    size_t         N    = (argc > 1) ? std::stoul(argv[1]) : 10     ;
+    Real           dt   = (argc > 2) ? std::stod(argv[2])  : 0.0001 ;
     constexpr Real Tmax = 0.02;
     Real           t    = 0.;
 
     // Define domain specific values
-    size_t N{100};
-    if (argc > 1) N = std::stoul(argv[1]);
-    if (argc > 2) dt = std::stod(argv[2]);
     if (dt > Tmax / 2)
     {
         printf("dt reset to its original value!");
@@ -160,33 +162,21 @@ int main(int argc, char* argv[])
     Real               dx = (2 * pi) / (N - 1);
     Vector             x0{0.0};
     VecInt             Dims{N};
-    Vector             xEnd{pi * 2};
-    numPDE::Mesh<Real> mesh(x0, xEnd, Dims);
+    numPDE::Mesh<Real> mesh(x0, Dims, dx);
 
     // Define the fields
     numPDE::ScalarField<Real> u(mesh), u_upd(mesh), err(mesh);
 
-    /*
-    // Print all the elements
-    std::cout << "(";
-    for (auto [i, j, k] : u.all_elements())
-        std::cout << u(i) << " ";
-    std::cout << ")";
-    */
-
-    // u(x, 0) = u_0
-    // Initialize to the initial values
     for (auto [i, j, k] : u.all_elements())
     {
-        std::vector<Real> pos = u.pos(i);
-        u(i)                  = ex_sol(pos, pi / 2);
+        auto pos = std::vector<Real>{u.pos(i)};
+        u(i)     = ex_sol(pos, pi / 2);
     }
 
     // Explicit Euler implementation
     while (t <= Tmax)
     {
-        u_upd = time_step(u, t, dt);
-        std::swap(u_upd, u);
+        u = time_step(u, t, dt);
         t += dt;
     }
     std::cout << "\nError in L2 norm at time " << t << " for EE is: " << get_error(u, t)
@@ -199,7 +189,6 @@ int main(int argc, char* argv[])
     }
 
     t         = 0;
-    Real t_k1 = 0, t_k2 = 0, t_old = 0;
     while (t <= Tmax)
     {
         u = SSP_RK3_step(u, t, dt);

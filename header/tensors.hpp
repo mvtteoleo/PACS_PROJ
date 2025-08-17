@@ -52,27 +52,30 @@ namespace numPDE
         // ***** GET LINEAR INDEX ***** //
         template <typename Ts>
             requires std::is_integral_v<Ts>
-        size_t get_linear_index(std::span<Ts> indices) const
+        size_t get_linear_index(const std::span<Ts> indices) const
         {
             return std::inner_product(m_Slices_size.begin(), m_Slices_size.end(), indices.begin(),
-                                      size_t(0));
+                                      size_t{0});
         }
 
         template <typename Ts>
             requires std::is_integral_v<Ts>
-        size_t get_liner_index(std::vector<Ts> indices) const
+        size_t get_liner_index(const std::vector<Ts>& indices) const
         {
             return get_liner_index(std::span(indices));
         }
         // ***** ACCESS OPERATORS ***** //
-        // Access operator using span (no copy)
+        // Access operator using span
         template <typename Ts>
             requires std::is_integral_v<Ts>
         T& operator()(std::span<Ts> indices)
         {
-            if (indices.size() != m_Rank) throw std::out_of_range("Dimensions not matching");
+            // if (indices.size() != m_Rank) throw std::out_of_range("Dimensions not matching");
+            [[unlikely]]
+            if (indices.size() != m_Rank)
+                indices = indices.first(m_Rank);
 
-            for (size_t i = 0; i < indices.size(); ++i)
+            for (size_t i = 0; i < indices.size(); ++i) [[unlikely]]
                 if (indices[i] >= m_Sizes[i]) throw std::out_of_range("Index out of bounds");
 
             size_t index = get_linear_index(indices);
@@ -83,19 +86,22 @@ namespace numPDE
             requires UnsignedInt<Ts...>
         T& operator()(Ts... idxs)
         {
-             std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
+            std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
             // std::vector<size_t> arr{static_cast<size_t>(idxs)...};
             return (*this)(std::span(arr));
         }
 
-        // Access operator
         template <typename Ts>
             requires std::is_integral_v<Ts>
-        T& operator()(std::vector<Ts> indices)
+        T& operator()(std::vector<Ts>& indices)
         {
             return (*this)(std::span(indices));
         }
 
+        // *****      GETTER       **** //
+        const std::vector<T>& raw_datas() const { return m_Datas; };
+
+      private:
         // Array containing m_N_element for each dimension
         std::vector<size_t> m_Sizes;
         // Rank of the tensor
@@ -106,8 +112,6 @@ namespace numPDE
         std::vector<size_t> m_Slices_size;
         // Actual data
         std::vector<T> m_Datas;
-
-      private:
     };
 
 }; // namespace numPDE

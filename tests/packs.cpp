@@ -8,20 +8,23 @@
 #include <iostream>
 #include <vector>
 
-int main()
+int main(int argc, char* argv[])
 {
-    size_t Nx_dyn, Ny_dyn, Nz_dyn;
-    std::cout << "Insert Nx : ";
-    std::cin >> Nx_dyn;
-    std::cout << "Insert Ny : ";
-    std::cin >> Ny_dyn;
-    std::cout << "Insert Nz : ";
-    std::cin >> Nz_dyn;
+
     std::cout << std::endl;
+    std::cout << std::endl;
+    std::cout << "/****** TEST : packs.cpp ******/" << std::endl;
+    size_t N, Nx_dyn, Ny_dyn, Nz_dyn;
+
+    N = (argc > 1) ? std::stoul(argv[1]) : 10;
+    Nx_dyn = N;
+    Ny_dyn = N;
+    Nz_dyn = N;
     std::vector<float>         x0{0, 0, 0};
     std::vector<size_t>        elems_for_dir{Nx_dyn, Ny_dyn, Nz_dyn};
     float                      h = 1;
-    numPDE::ScalarField<float> mask(x0, h, elems_for_dir);
+    numPDE::Mesh<float>        mesh(x0, elems_for_dir, h);
+    numPDE::ScalarField<float> mask(mesh);
 
     int                      count = 0;
     myUtilities::ChronoTimer c("Acces time");

@@ -1,7 +1,9 @@
 
+#include <cstdio>
 int main (int argc, char *argv[]) {
     // Ideally here there should be something like:
 
+    /*
 
 
 
@@ -16,6 +18,8 @@ int main (int argc, char *argv[]) {
         if(t%meshDatas.writeTime<1e-8)
             simulation.writeVTK;
     }
+    */
+    std::printf("Nothing to see here!\n");
 
     return 0;
 }
