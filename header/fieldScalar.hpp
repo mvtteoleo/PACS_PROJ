@@ -20,11 +20,12 @@ namespace numPDE
 
       public:
         ScalarField(std::vector<T> x0, T dx, std::vector<size_t> elems_for_dir)
-            : m_H(dx), m_Position_x0(x0), m_Field_values(elems_for_dir) {};
+            : m_H(dx), m_Position_x0(x0), m_Field_values(elems_for_dir),
+              m_mesh(x0, dx, elems_for_dir) {};
 
         ScalarField(const Mesh<T>& mesh)
-            : m_H{mesh.get_h()}, m_Position_x0{mesh.get_x0()},
-              m_Field_values{mesh.get_N_nodes()} {};
+            : m_H{mesh.get_h()}, m_Position_x0{mesh.get_x0()}, m_Field_values{mesh.get_N_nodes()},
+              m_mesh(mesh) {};
 
         // Rule of 5
         ScalarField(ScalarField&&)                 = default;
@@ -61,10 +62,10 @@ namespace numPDE
                      (m_H * m_H));
                 prev[i] += 1, next[i] -= 1;
             }
-            
+
             return lap;
         }
-    
+
         template <typename... Ts>
             requires UnsignedInt<Ts...>
         T laplacian(Ts... idxs)
@@ -114,6 +115,15 @@ namespace numPDE
             return norm(m_Field_values.m_Datas) * std::pow(m_H, m_Field_values.m_Rank);
         }
 
+        // Overload using variadic templates for convenience
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        auto pos(Ts... idxs) const
+        {
+            return m_mesh.position({static_cast<size_t>(idxs)...});
+        }
+        auto pos(const std::vector<size_t>& idxs) const { return m_mesh.position(idxs); }
+
       private:
         auto make_iterator(size_t start_offset, size_t end_offset) const
         {
@@ -140,5 +150,6 @@ namespace numPDE
         // Tensor type containing the values of the said field
         Tensor<T> m_Field_values;
         // Mesh datas
+        Mesh<T> m_mesh;
     };
 } // namespace numPDE

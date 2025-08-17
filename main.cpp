@@ -1,6 +1,6 @@
 
 int main (int argc, char *argv[]) {
-    // Ideally here there shoul be something like:
+    // Ideally here there should be something like:
 
 
 
