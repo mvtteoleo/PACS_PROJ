@@ -4,7 +4,6 @@
 #include "tensors.hpp"
 #include <cstddef>
 #include <cstdio>
-#include <locale>
 #include <ranges>
 #include <type_traits>
 #include <vector>
@@ -34,19 +33,39 @@ namespace numPDE
         ScalarField& operator=(const ScalarField&) = default;
         ~ScalarField()                             = default;
 
-        T      get_Delta_x() const { return m_H; };
-        size_t get_nElements() const { return m_Field_values.get_nElements; };
+        // ACCESS OPERATOR
+        // Access operator using std::span
+        template <typename Ts>
+            requires std::is_integral_v<Ts>
+        T& operator()(std::span<Ts> indices)
+        {
+            if (indices.size() != m_mesh.get_N_dims())
+                throw std::out_of_range("Dimensions not matching");
 
-        // Access operator
+            return m_Field_values(indices);
+        }
+
+        // Variadic template version using std::span
         template <typename... Ts>
             requires UnsignedInt<Ts...>
         T& operator()(Ts... idxs)
         {
-            std::vector<size_t> indices{idxs...};
+            static_assert(sizeof...(Ts) > 0, "At least one index required");
+            // std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
+            std::vector<size_t> arr {static_cast<size_t>(idxs)...};
+            return (*this)(std::span(arr));
+        }
+
+        template <typename Ts>
+            requires std::is_integral_v<Ts>
+        T& operator()(std::vector<Ts> indices)
+        {
+            if (indices.size() >= m_mesh.get_N_dims())
+                indices = std::span(indices.data(), m_mesh.get_N_dims());
             return m_Field_values(indices);
         }
 
-        // Implementation of ΔP so that
+        // Implementation of ΔP
         template <typename Ts>
             requires std::is_integral_v<Ts>
         T laplacian(std::vector<Ts> position)
@@ -70,11 +89,9 @@ namespace numPDE
             requires UnsignedInt<Ts...>
         T laplacian(Ts... idxs)
         {
-            std::vector<std::size_t> position{idxs...};
+            std::vector<size_t> position{idxs...};
             return laplacian(position);
         }
-
-        // Implementation of ΔP so that
 
         auto internal_elements() const { return make_iterator(1, 1); }
 
@@ -123,6 +140,9 @@ namespace numPDE
             return m_mesh.position({static_cast<size_t>(idxs)...});
         }
         auto pos(const std::vector<size_t>& idxs) const { return m_mesh.position(idxs); }
+
+        T      get_Delta_x() const { return m_H; };
+        size_t get_nElements() const { return m_Field_values.get_nElements; };
 
       private:
         auto make_iterator(size_t start_offset, size_t end_offset) const

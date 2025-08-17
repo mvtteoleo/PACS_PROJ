@@ -9,10 +9,8 @@
  *
  */
 
-// Recall that all this would be nice encapsulated in a good wrapper like heat_eq class or smth like that
-// Check the dt respects the CFL for viscosity condition
-// Check with proper convergence checks
-
+// Recall that all this would be nice encapsulated in a good wrapper like heat_eq class or smth like
+// that Check the dt respects the CFL for viscosity condition Check with proper convergence checks
 
 #include "../header/fieldScalar.hpp"
 #include <cstddef>

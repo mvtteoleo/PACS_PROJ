@@ -6,6 +6,7 @@
 #include <ctime>
 #include <execution>
 #include <numeric>
+#include <span>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -46,39 +47,60 @@ namespace numPDE
                 m_Slices_size[i] = m_Slices_size[i + 1] * m_Sizes[i + 1];
         };
 
-        template <typename... Ts>
-            requires UnsignedInt<Ts...>
-        Tensor(Ts... idxs) : Tensor(std::vector<size_t>{idxs...}){};
+        // GET LINEAR INDEX
+        template <typename Ts>
+            requires std::is_integral_v<Ts>
+        size_t get_linear_index(std::span<Ts> indices) const
+        {
+            return std::inner_product(m_Slices_size.begin(), m_Slices_size.end(), indices.begin(),
+                                      size_t(0));
+        }
 
-        // Access operator
+        template <typename Ts>
+            requires std::is_integral_v<Ts>
+        size_t get_liner_index(std::vector<Ts> indices)  const
+        {
+            return get_liner_index(std::span(indices));
+        }
+        // ***** ACCESS OPERATORS ***** //
+        // Access operator using span (no copy)
+        template <typename Ts>
+            requires std::is_integral_v<Ts>
+        T& operator()(std::span<Ts> indices) 
+        {
+            if (indices.size() != m_Rank) throw std::out_of_range("Dimensions not matching");
+
+            for (size_t i = 0; i < indices.size(); ++i)
+                if (indices[i] >= m_Sizes[i]) throw std::out_of_range("Index out of bounds");
+
+            size_t index = get_linear_index(indices);
+            return m_Datas.at(index);
+        }
+
         template <typename... Ts>
             requires UnsignedInt<Ts...>
         T& operator()(Ts... idxs)
         {
-            // std::array<size_t, sizeof...(Ts)> indices{idxs...};
-            std::vector indices{idxs...};
-            return (*this)(indices);
+            // std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
+        std::vector<size_t> arr{static_cast<size_t>(idxs)...};
+            return (*this)(std::span(arr));
         }
+
         // Access operator
         template <typename Ts>
-            requires UnsignedInt<Ts>
+            requires std::is_integral_v<Ts>
         T& operator()(std::vector<Ts> indices)
         {
-            // Check indexes and Dimension check
-            if (indices.size() != m_Rank) throw "Dimensions not matching";
-            for (size_t i = 0; i < indices.size(); ++i)
-                if (indices[i] >= m_Sizes[i]) throw std::out_of_range("Index out of bounds");
-
-            // Computation of the index
-            size_t index{std::transform_reduce(std::execution::par, m_Slices_size.begin(),
-                                               m_Slices_size.end(), indices.begin(), size_t(0))};
             /*
-            for(std::size_t i=0; i<m_Rank; ++i)
-                index += m_Slices_size[i] * indices[i];
-                                      size_t(0), std::plus<>(), std::multiplies<>());
-            */
+                // Check indexes and Dimension check
+                if (indices.size() != m_Rank) throw "Dimensions not matching";
+                for (size_t i = 0; i < indices.size(); ++i)
+                    if (indices[i] >= m_Sizes[i]) throw std::out_of_range("Index out of bounds");
 
-            return m_Datas.at(index);
+                size_t index{get_linear_index(indices)};
+                return m_Datas.at(index);
+            */
+            return (*this)(std::span(indices));
         }
 
         // Array containing m_N_element for each dimension
