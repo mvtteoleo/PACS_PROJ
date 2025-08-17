@@ -33,6 +33,8 @@ namespace numPDE
         ~Tensor() = default;
 
         Tensor() = default;
+
+        // ***** CONSTRUCTORS ***** //
         Tensor(std::vector<size_t> sizes)
             : m_Sizes{sizes}, m_Rank{sizes.size()},
               m_N_element{std::accumulate(sizes.begin(), sizes.end(), size_t(1), std::multiplies{})}
@@ -47,7 +49,7 @@ namespace numPDE
                 m_Slices_size[i] = m_Slices_size[i + 1] * m_Sizes[i + 1];
         };
 
-        // GET LINEAR INDEX
+        // ***** GET LINEAR INDEX ***** //
         template <typename Ts>
             requires std::is_integral_v<Ts>
         size_t get_linear_index(std::span<Ts> indices) const
@@ -58,7 +60,7 @@ namespace numPDE
 
         template <typename Ts>
             requires std::is_integral_v<Ts>
-        size_t get_liner_index(std::vector<Ts> indices)  const
+        size_t get_liner_index(std::vector<Ts> indices) const
         {
             return get_liner_index(std::span(indices));
         }
@@ -66,7 +68,7 @@ namespace numPDE
         // Access operator using span (no copy)
         template <typename Ts>
             requires std::is_integral_v<Ts>
-        T& operator()(std::span<Ts> indices) 
+        T& operator()(std::span<Ts> indices)
         {
             if (indices.size() != m_Rank) throw std::out_of_range("Dimensions not matching");
 
@@ -81,8 +83,8 @@ namespace numPDE
             requires UnsignedInt<Ts...>
         T& operator()(Ts... idxs)
         {
-            // std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
-        std::vector<size_t> arr{static_cast<size_t>(idxs)...};
+             std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
+            // std::vector<size_t> arr{static_cast<size_t>(idxs)...};
             return (*this)(std::span(arr));
         }
 
@@ -91,15 +93,6 @@ namespace numPDE
             requires std::is_integral_v<Ts>
         T& operator()(std::vector<Ts> indices)
         {
-            /*
-                // Check indexes and Dimension check
-                if (indices.size() != m_Rank) throw "Dimensions not matching";
-                for (size_t i = 0; i < indices.size(); ++i)
-                    if (indices[i] >= m_Sizes[i]) throw std::out_of_range("Index out of bounds");
-
-                size_t index{get_linear_index(indices)};
-                return m_Datas.at(index);
-            */
             return (*this)(std::span(indices));
         }
 

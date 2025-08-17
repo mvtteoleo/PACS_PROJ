@@ -51,8 +51,9 @@ namespace numPDE
         T& operator()(Ts... idxs)
         {
             static_assert(sizeof...(Ts) > 0, "At least one index required");
+        // Does not work with the array, no clue why
             // std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
-            std::vector<size_t> arr {static_cast<size_t>(idxs)...};
+            std::vector<size_t> arr{static_cast<size_t>(idxs)...};
             return (*this)(std::span(arr));
         }
 
