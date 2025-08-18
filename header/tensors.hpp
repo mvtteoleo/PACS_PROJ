@@ -21,15 +21,12 @@ namespace numPDE
 
     /*
      * Dynamic tensor class that handles n-dimensional tensors
-     *
+     * the key idea is to do a std::md_span, but with easier to use indexing
      */
     template <typename T>
     class Tensor
     {
       public:
-        size_t get_rank() const noexcept { return m_Rank; };
-        size_t get_nElems() const noexcept { return m_N_element; };
-        auto   get_Sizes() const noexcept { return m_Sizes; };
         ~Tensor() = default;
 
         Tensor() = default;
@@ -37,7 +34,7 @@ namespace numPDE
         // ***** CONSTRUCTORS ***** //
         Tensor(std::vector<size_t> sizes)
             : m_Sizes{sizes}, m_Rank{sizes.size()},
-              m_N_element{std::accumulate(sizes.begin(), sizes.end(), size_t(1), std::multiplies{})}
+              m_N_element{std::accumulate(sizes.begin(), sizes.end(), size_t{1}, std::multiplies{})}
         {
             // Allocate memory
             m_Datas.resize(m_N_element);
@@ -52,7 +49,7 @@ namespace numPDE
         // ***** GET LINEAR INDEX ***** //
         template <typename Ts>
             requires std::is_integral_v<Ts>
-        size_t get_linear_index(const std::span<Ts> indices) const
+        size_t get_linear_index(const std::span<Ts> indices) const noexcept
         {
             return std::inner_product(m_Slices_size.begin(), m_Slices_size.end(), indices.begin(),
                                       size_t{0});
@@ -60,10 +57,11 @@ namespace numPDE
 
         template <typename Ts>
             requires std::is_integral_v<Ts>
-        size_t get_liner_index(const std::vector<Ts>& indices) const
+        size_t get_liner_index(const std::vector<Ts>& indices) const noexcept
         {
             return get_liner_index(std::span(indices));
         }
+
         // ***** ACCESS OPERATORS ***** //
         // Access operator using span
         template <typename Ts>
@@ -99,7 +97,11 @@ namespace numPDE
         }
 
         // *****      GETTER       **** //
-        const std::vector<T>& raw_datas() const { return m_Datas; };
+        size_t                     get_rank() const noexcept { return m_Rank; }
+        size_t                     get_n_element() const noexcept { return m_N_element; }
+        const std::vector<T>&      raw_datas() const noexcept { return m_Datas; }
+        const std::vector<T>&      get_slices() const noexcept { return m_Slices_size; }
+        const std::vector<size_t>& get_sizes() const noexcept { return m_Sizes; }
 
       private:
         // Array containing m_N_element for each dimension

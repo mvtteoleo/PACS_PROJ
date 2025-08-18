@@ -22,10 +22,11 @@ int main(int argc, char* argv[])
     std::cout << std::endl;
     std::cout << std::endl;
     std::cout << "/****** TEST : mesh_init.cpp ******/" << std::endl;
-    size_t N = (argc>1) ? std::stoul(argv[1]) :  100; //(argc>0) ?  static_cast<size_t>(argv[0]) : 100;
+    size_t N =
+        (argc > 1) ? std::stoul(argv[1]) : 100; //(argc>0) ?  static_cast<size_t>(argv[0]) : 100;
 
     constexpr Real pi = std::numbers::pi;
-    Real dx = (2 * pi) / (N - 1);
+    Real           dx = (2 * pi) / (N - 1);
     Vector         x0{0.0, 0.0, 0.0};
     VecInt         Dims{N, N, N};
     Vector         xEnd{pi * 2, pi * 2, pi * 2};

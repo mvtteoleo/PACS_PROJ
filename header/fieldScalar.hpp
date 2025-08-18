@@ -4,10 +4,9 @@
 #include "tensors.hpp"
 #include <cstddef>
 #include <cstdio>
-#include <memory>
+#include <iterator>
+#include <numeric>
 #include <ranges>
-#include <type_traits>
-#include <vector>
 
 namespace numPDE
 {
@@ -96,7 +95,7 @@ namespace numPDE
 
         auto make_iterator(size_t start_offset, size_t end_offset) const
         {
-            std::vector<size_t> sizes{m_Field_values.get_Sizes()};
+            std::vector<size_t> sizes{m_Field_values.get_sizes()};
             auto                dim     = sizes.size();
             auto                i_range = std::views::iota(start_offset, sizes[0] - end_offset);
 
@@ -116,7 +115,7 @@ namespace numPDE
 
         auto boundary_elements() const
         {
-            std::vector<size_t> sizes{m_Field_values.get_Sizes()};
+            std::vector<size_t> sizes{m_Field_values.get_sizes()};
             auto                dim = sizes.size();
 
             // CAPTURE BY VALUE to ensure lifetime safety
@@ -155,7 +154,7 @@ namespace numPDE
         auto pos(const std::vector<size_t>& idxs) const { return p_mesh->position(idxs); }
 
         T      get_Delta_x(const size_t idx) const { return p_mesh->get_h(idx); };
-        size_t get_nElements() const { return m_Field_values.get_nElements; };
+        size_t get_nElements() const { return m_Field_values.get_n_element(); };
 
       private:
         // Tensor type containing the values of the said field

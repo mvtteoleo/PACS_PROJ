@@ -148,8 +148,8 @@ int main(int argc, char* argv[])
     std::cout << "/****** TEST : time_int.cpp ******/" << std::endl;
     constexpr Real pi = std::numbers::pi;
     // Define the initial values
-    size_t         N    = (argc > 1) ? std::stoul(argv[1]) : 10     ;
-    Real           dt   = (argc > 2) ? std::stod(argv[2])  : 0.0001 ;
+    size_t         N    = (argc > 1) ? std::stoul(argv[1]) : 10;
+    Real           dt   = (argc > 2) ? std::stod(argv[2]) : 0.0001;
     constexpr Real Tmax = 0.02;
     Real           t    = 0.;
 
@@ -188,7 +188,7 @@ int main(int argc, char* argv[])
         u(i)                  = ex_sol(pos, pi / 2);
     }
 
-    t         = 0;
+    t = 0;
     while (t <= Tmax)
     {
         u = SSP_RK3_step(u, t, dt);

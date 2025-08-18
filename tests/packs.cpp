@@ -16,7 +16,7 @@ int main(int argc, char* argv[])
     std::cout << "/****** TEST : packs.cpp ******/" << std::endl;
     size_t N, Nx_dyn, Ny_dyn, Nz_dyn;
 
-    N = (argc > 1) ? std::stoul(argv[1]) : 10;
+    N      = (argc > 1) ? std::stoul(argv[1]) : 10;
     Nx_dyn = N;
     Ny_dyn = N;
     Nz_dyn = N;

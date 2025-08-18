@@ -146,7 +146,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
         os << ", " << v[i];
     }
 
-    os << ")\n";
+    os << ")";
 
     return os;
 }
