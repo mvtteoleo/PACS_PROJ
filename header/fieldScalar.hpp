@@ -34,21 +34,22 @@ namespace numPDE
         // ***** ACCESS OPERATORS ***** //
         // -----------------------------//
         // Span access
-        T& operator()(std::span<const size_t> indices)
-        {
-            return m_Field_values(indices);
-        }
+        T&       operator()(std::span<const size_t> indices) { return m_Field_values(indices); }
+        const T& operator()(std::span<size_t> indices) const { return m_Field_values(indices); }
 
         // Variadic indices
         template <typename... Ts>
             requires(std::conjunction_v<std::is_integral<Ts>...>)
         decltype(auto) operator()(Ts... idxs)
         {
-            static_assert(sizeof...(Ts) > 0, "At least one index required");
             std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
             return (*this)(std::span<const size_t>(arr));
         }
-
+        template <typename... Ts>
+        const T& operator()(Ts... idxs) const
+        {
+            return m_Field_values(idxs...); // call internal storage
+        }
         // Vector access
         decltype(auto) operator()(const std::vector<size_t>& indices)
         {
@@ -58,10 +59,15 @@ namespace numPDE
         // Implementation of ΔP
         template <typename Ts>
             requires std::is_integral_v<Ts>
-        T laplacian(std::vector<Ts> position)
+        T laplacian(std::vector<Ts> position_)
         {
-            std::vector<std::size_t> prev{position}, next{position};
-            T                        lap = 0;
+            std::vector<size_t> prev_{position_}, next_{position_};
+            // Ugly but the policy is that to access tensor we give him a span, also this will go in
+            // FieldAlgebra or smth like that
+            auto position = std::span(position_);
+            auto prev     = std::span(prev_);
+            auto next     = std::span(next_);
+            T    lap      = 0;
 
             for (size_t i = 0; i < position.size(); ++i)
             {
@@ -74,7 +80,6 @@ namespace numPDE
 
             return lap;
         }
-
         template <typename... Ts>
             requires UnsignedInt<Ts...>
         T laplacian(Ts... idxs)

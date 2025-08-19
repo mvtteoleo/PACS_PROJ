@@ -1,5 +1,5 @@
 #pragma once
-#include "fieldsAbstract.hpp"
+#include "fieldAbstract.hpp"
 #include "mesh.hpp"
 #include "tensors.hpp"
 #include <memory>
@@ -21,7 +21,7 @@ namespace numPDE
                    [&]
                    {
                        auto ini = mesh.get_N_nodes();
-                       ini.push_back(mesh.get_N_dims(); 
+                       ini.push_back(mesh.get_N_dims());
                        return ini;
                    }())
         {

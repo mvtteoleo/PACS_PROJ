@@ -1,5 +1,6 @@
 #pragma once
 #include "tensors.hpp"
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdlib>

@@ -18,7 +18,8 @@ namespace numPDE
         Tensor<T>                m_Field_values;
 
       public:
-        AbstractField() = default;
+        using value_type = T;
+        AbstractField()  = default;
         explicit AbstractField(const Mesh<T>& mesh, const std::vector<size_t>& sizes)
             : p_mesh(std::make_shared<Mesh<T>>(mesh)), m_Field_values(sizes)
         {
