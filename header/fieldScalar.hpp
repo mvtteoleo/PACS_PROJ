@@ -22,7 +22,7 @@ namespace numPDE
         using Base::p_mesh;
 
         // Initialize the Abstract class
-        explicit ScalarField(const Mesh<T>& mesh) : Base(mesh) {}
+        explicit ScalarField(const Mesh<T>& mesh) : Base(mesh, mesh.get_N_nodes()) {}
 
         // Rule of 5
         ScalarField(ScalarField&&)                 = default;
@@ -30,6 +30,34 @@ namespace numPDE
         ScalarField& operator=(ScalarField&&)      = default;
         ScalarField& operator=(const ScalarField&) = default;
         ~ScalarField()                             = default;
+        // -----------------------------//
+        // ***** ACCESS OPERATORS ***** //
+        // -----------------------------//
+        // Span access
+        T& operator()(std::span<const size_t> indices)
+        {
+            if (indices.size() != p_mesh->get_N_dims())
+            {
+                indices = indices.first(p_mesh->get_N_dims());
+            }
+            return m_Field_values(indices);
+        }
+
+        // Variadic indices
+        template <typename... Ts>
+            requires(std::conjunction_v<std::is_integral<Ts>...>)
+        decltype(auto) operator()(Ts... idxs)
+        {
+            static_assert(sizeof...(Ts) > 0, "At least one index required");
+            std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
+            return (*this)(std::span<const size_t>(arr));
+        }
+
+        // Vector access
+        decltype(auto) operator()(const std::vector<size_t>& indices)
+        {
+            return (*this)(std::span<const size_t>(indices));
+        }
 
         // Implementation of ΔP
         template <typename Ts>
@@ -58,6 +86,5 @@ namespace numPDE
             std::vector<size_t> position{idxs...};
             return laplacian(position);
         }
-
     };
 } // namespace numPDE

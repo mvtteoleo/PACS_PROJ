@@ -6,7 +6,6 @@
 #include <memory>
 namespace numPDE
 {
-    // ========= BASE FIELD (CRTP) =========
     template <typename Derived, typename T>
         requires std::is_floating_point_v<T>
     class AbstractField
@@ -15,43 +14,14 @@ namespace numPDE
         friend class Tensor;
 
       protected:
-        Tensor<T>                m_Field_values;
         std::shared_ptr<Mesh<T>> p_mesh;
+        Tensor<T>                m_Field_values;
 
       public:
         AbstractField() = default;
-        explicit AbstractField(const Mesh<T>& mesh)
-            : m_Field_values(mesh.get_N_nodes()), p_mesh(std::make_shared<Mesh<T>>(mesh))
+        explicit AbstractField(const Mesh<T>& mesh, const std::vector<size_t>& sizes)
+            : p_mesh(std::make_shared<Mesh<T>>(mesh)), m_Field_values(sizes)
         {
-        }
-
-        // -----------------------------//
-        // ***** ACCESS OPERATORS ***** //
-        // -----------------------------//
-        // Span access
-        T& operator()(std::span<const size_t> indices)
-        {
-            if (indices.size() != p_mesh->get_N_dims())
-            {
-                indices = indices.first(p_mesh->get_N_dims());
-            }
-            return m_Field_values(indices);
-        }
-
-        // Variadic indices
-        template <typename... Ts>
-            requires(std::conjunction_v<std::is_integral<Ts>...>)
-        decltype(auto) operator()(Ts... idxs)
-        {
-            static_assert(sizeof...(Ts) > 0, "At least one index required");
-            std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
-            return (*this)(std::span<const size_t>(arr));
-        }
-
-        // Vector access
-        decltype(auto) operator()(const std::vector<size_t>& indices)
-        {
-            return (*this)(std::span<const size_t>(indices));
         }
 
         // -----------------------------//

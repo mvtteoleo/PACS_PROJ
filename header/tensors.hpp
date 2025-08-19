@@ -36,10 +36,9 @@ namespace numPDE
         // -----------------------------//
         Tensor(std::vector<size_t> sizes)
             : m_Rank{sizes.size()}, m_N_element{std::accumulate(sizes.begin(), sizes.end(),
-                                                                size_t{1}, std::multiplies{})},
-              m_Sizes{sizes}
+                                                                size_t{1}, std::multiplies{})}
         {
-            m_Slices_size.resize(m_Rank);
+                std::copy(sizes.begin(), sizes.end(), m_Sizes.begin());
             // Precompute the size of the slices
             // (Nz*Ny for i_x, Ny for i_y and 1 for i_z)
             m_Slices_size[m_Rank - 1] = 1;
@@ -56,7 +55,7 @@ namespace numPDE
             requires std::is_integral_v<Ts>
         size_t get_linear_index(const std::span<Ts> indices) const noexcept
         {
-            return std::inner_product(m_Slices_size.begin(), m_Slices_size.end(), indices.begin(),
+            return std::inner_product(indices.begin(), indices.end(), m_Slices_size.begin(),
                                       size_t{0});
         }
 
@@ -77,7 +76,7 @@ namespace numPDE
         {
             // if (indices.size() != m_Rank) throw std::out_of_range("Dimensions not matching");
             [[unlikely]]
-            if (indices.size() != m_Rank)
+            if (indices.size() > m_Rank)
                 indices = indices.first(m_Rank);
 
             for (size_t i = 0; i < indices.size(); ++i) [[unlikely]]
@@ -160,8 +159,8 @@ namespace numPDE
         size_t                     get_rank() const noexcept { return m_Rank; }
         size_t                     get_n_element() const noexcept { return m_N_element; }
         const std::vector<T>&      raw_datas() const noexcept { return m_Datas; }
-        const std::vector<T>&      get_slices() const noexcept { return m_Slices_size; }
-        const std::vector<size_t>& get_sizes() const noexcept { return m_Sizes; }
+        const std::span<T>&        get_slices() const noexcept { return std::span(m_Slices_size); }
+        const std::span<size_t>& get_sizes() const noexcept { return std::span(m_Sizes); }
 
       private:
         // Rank of the tensor
@@ -169,9 +168,9 @@ namespace numPDE
         // Total number of elements
         size_t m_N_element{1};
         // Array containing m_N_element for each dimension
-        std::vector<size_t> m_Sizes;
+        std::array<size_t, 3> m_Sizes{{0, 0, 0}};
         // Helper for the indexing (Gave 10x speed)
-        std::vector<size_t> m_Slices_size;
+        std::array<size_t, 3> m_Slices_size{{0, 0, 0}};
         // Actual data
         std::vector<T> m_Datas;
     };
