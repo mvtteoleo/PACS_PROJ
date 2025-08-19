@@ -55,7 +55,7 @@ $(BUILD_DIR)/%: $(BUILD_DIR)/tests/%.o $(OBJS)
 # ==============================
 # Cleaning
 clean:
-	$(RM) -r $(BUILD_DIR) *.o
+	$(RM) -r $(BUILD_DIR)/* *.o
 
 distclean: clean
 	$(RM) $(EXEC) $(TESTS)

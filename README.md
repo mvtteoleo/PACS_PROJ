@@ -12,3 +12,10 @@ Milestones:
   - Implementation of the pressure correction (Serial and then parallel)
   - Full solver (And validation)
   - Add the porosity part to the problem (IBM)
+
+
+Some more notes:
+    - Curiously recurring templates instead of inheritance from virtual
+    - Policy based designed instead of a solver class that inherits
+    - Expression templates
+    - Static reflections and compile time dispatch

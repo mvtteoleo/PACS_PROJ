@@ -2,49 +2,80 @@
 // ABSTRACT CLASS FROM WHICH ALL OTHERS INHERIT
 #include "mesh.hpp"
 #include "tensors.hpp"
-namespace numPDDE
+#include <cstddef>
+#include <memory>
+namespace numPDE
 {
-    template <typename T>
+    // ========= BASE FIELD (CRTP) =========
+    template <typename Derived, typename T>
         requires std::is_floating_point_v<T>
     class AbstractField
     {
+        template <typename U>
+        friend class Tensor;
+
+      protected:
+        Tensor<T>                m_Field_values;
+        std::shared_ptr<Mesh<T>> p_mesh;
 
       public:
-        AbstractField(AbstractField&&)                 = default;
-        AbstractField(const AbstractField&)            = default;
-        AbstractField& operator=(AbstractField&&)      = default;
-        AbstractField& operator=(const AbstractField&) = default;
-        ~AbstractField()                               = default;
-
-        T get_Delta_x() const { return m_H; };
-
-        // Access operator
-        template <typename... Ts>
-            requires UnsignedInt<Ts...>
-        T& operator()(Ts... idxs)
+        AbstractField() = default;
+        explicit AbstractField(const Mesh<T>& mesh)
+            : m_Field_values(mesh.get_N_nodes()), p_mesh(std::make_shared<Mesh<T>>(mesh))
         {
-            // std::array<size_t, sizeof...(Ts)> indices{idxs...};
-            std::vector<size_t> indices{idxs...};
+        }
+
+        // -----------------------------//
+        // ***** ACCESS OPERATORS ***** //
+        // -----------------------------//
+        // Span access
+        T& operator()(std::span<const size_t> indices)
+        {
+            if (indices.size() != p_mesh->get_N_dims())
+            {
+                indices = indices.first(p_mesh->get_N_dims());
+            }
             return m_Field_values(indices);
         }
 
+        // Variadic indices
         template <typename... Ts>
-            requires UnsignedInt<Ts...>
-        std::vector<T> position(Ts... idxs)
+            requires(std::conjunction_v<std::is_integral<Ts>...>)
+        decltype(auto) operator()(Ts... idxs)
         {
-            std::vector<size_t> indices{idxs...};
-            return position(indices);
+            static_assert(sizeof...(Ts) > 0, "At least one index required");
+            std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
+            return (*this)(std::span<const size_t>(arr));
         }
 
-        template <typename... Ts>
-            requires UnsignedInt<Ts...>
-        std::vector<T> position(std::vector<T> idxs)
+        // Vector access
+        decltype(auto) operator()(const std::vector<size_t>& indices)
         {
+            return (*this)(std::span<const size_t>(indices));
         }
 
-      private:
-        // Tensor type containing the values of the said field
-        Tensor<T> m_Field_values;
-        Mesh<T>   mesh;
+        // -----------------------------//
+        // *****     ITERATORS    ***** //
+        // -----------------------------//
+        decltype(auto) internal_elements() const { return m_Field_values.int_elems(); }
+        decltype(auto) all_elements() const { return m_Field_values.all_elems(); }
+        decltype(auto) boundary_elements() const { return m_Field_values.bou_elems(); }
+
+        // -----------------------------//
+        // *****     UTILITIES    ***** //
+        // -----------------------------//
+        T L2norm() const { return norm(m_Field_values.raw_datas()) * p_mesh->get_dOmega(); }
+        // Overload using variadic templates for convenience
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        auto pos(Ts... idxs) const
+        {
+            return p_mesh->position({static_cast<size_t>(idxs)...});
+        }
+        auto pos(const std::vector<size_t>& idxs) const { return p_mesh->position(idxs); }
+
+        T      get_Delta_x(const size_t idx) const { return p_mesh->get_h(idx); };
+        size_t get_nElements() const { return m_Field_values.get_n_element(); };
     };
-}; // namespace numPDDE
+
+} // namespace numPDE

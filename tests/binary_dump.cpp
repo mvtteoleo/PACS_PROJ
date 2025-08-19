@@ -157,11 +157,12 @@ int main(int argc, char* argv[])
         std::vector<float> pos   = mask.pos(i, j, k); // {x, y, z}
         float              value = mask(i, j, k);     // field value
 
-    /*
-     *  // OPTIONAL DEBUG
-     *  if (i < 5 && j == 0 && k == 0)
-     *      std::cout << pos[0] << ", " << pos[1] << ", " << pos[2] << " -> " << value << std::endl;
-     */
+        /*
+         *  // OPTIONAL DEBUG
+         *  if (i < 5 && j == 0 && k == 0)
+         *      std::cout << pos[0] << ", " << pos[1] << ", " << pos[2] << " -> " << value <<
+         * std::endl;
+         */
 
         // write position as 3 doubles
         double px = static_cast<double>(pos[0]);

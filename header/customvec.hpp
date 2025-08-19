@@ -1,4 +1,7 @@
 #pragma once
+#define EXPRESSION_TEMPLATE 0
+
+#if EXPRESSION_TEMPLATE == 0
 
 #include <algorithm>
 #include <cmath>
@@ -150,3 +153,6 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 
     return os;
 }
+#elif EXPRESSION_TEMPLATE == 1
+// Here goes my expression template implementation
+#endif //  == 0
