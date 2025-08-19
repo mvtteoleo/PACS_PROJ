@@ -36,10 +36,6 @@ namespace numPDE
         // Span access
         T& operator()(std::span<const size_t> indices)
         {
-            if (indices.size() != p_mesh->get_N_dims())
-            {
-                indices = indices.first(p_mesh->get_N_dims());
-            }
             return m_Field_values(indices);
         }
 
