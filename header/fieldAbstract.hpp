@@ -33,6 +33,67 @@ namespace numPDE
         decltype(auto) boundary_elements() const { return m_Field_values.bou_elems(); }
 
         // -----------------------------//
+        // *****    PRINT & DUMP   **** //
+        // -----------------------------//
+        /// Generic helper: write a range of numeric values as doubles
+        template <typename Range>
+        void write_as_doubles(std::ofstream& ofs, const Range& range)
+        {
+            static_assert(std::is_arithmetic_v<typename Range::value_type>,
+                          "Range must contain arithmetic types");
+
+            for (auto&& v : range)
+            {
+                double val_as_double = static_cast<double>(v);
+                ofs.write(reinterpret_cast<const char*>(&val_as_double), sizeof(double));
+            }
+        }
+        /*
+         *  Dump to file all the data in the Tensor
+         *  WARNING! The values are casted to doubles and numbers of elements to integers to uint_64
+         *  WARNING! Need to add also in a smart way the number of dimensions and sizes, maybe
+         * another "mesh" file for each rank could be a good idea
+         */
+        void dump_values_as_binary(std::string& file_path = "build/tensor_dump.bin")
+        {
+            std::ofstream ofs(file_path, std::ios::binary);
+            if (!ofs)
+            {
+                throw std::runtime_error("Cannot open file for writing");
+            }
+
+            uint_fast64_t count = m_Field_values.get_nElements();
+
+            ofs.write(reinterpret_cast<const char*>(&count), sizeof(count));
+
+            write_as_doubles(ofs, m_Field_values.raw_datas());
+
+            ofs.close();
+            std::cout << "Wrote field values to " << file << "\n";
+        }
+
+        /*
+         * This method will dump the data of the mesh in order to then allow the python code to read
+         * it and reconstruct the mesh in the most efficient way.
+         */
+        void print_mesh_vals(std::string& file_path = "build/mesh_datas.bin")
+        {
+            std::ofstream ofs(file_path, std::ios::binary);
+            if (!ofs)
+            {
+                throw std::runtime_error("Cannot open file for writing");
+            }
+
+            // Write x0, n_nodes, delta_x (All as vectors)
+            write_as_doubles(ofs, mp_mesh->get_x0());
+            write_as_doubles(ofs, mp_mesh->get_x_end());
+            write_as_doubles(ofs, mp_mesh->get_delta_x());
+
+            ofs.close();
+            std::cout << "Wrote mesh entries to " << file << "\n";
+        }
+
+        // -----------------------------//
         // *****     UTILITIES    ***** //
         // -----------------------------//
         T L2norm() const { return norm(m_Field_values.raw_datas()) * p_mesh->get_dOmega(); }

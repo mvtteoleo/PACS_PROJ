@@ -17,6 +17,7 @@ namespace numPDE
     {
       public:
         // Type aliases cause I'm lazy
+        // WARNING!! This will need to be handled as a std::array !!
         using Vector = std::vector<T>;
         using VecInt = std::vector<size_t>;
 
