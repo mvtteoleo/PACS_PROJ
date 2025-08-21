@@ -1,4 +1,6 @@
 #pragma once
+#include "tensorExpressionTemplates.hpp"
+#include "customvec.hpp"
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -24,9 +26,10 @@ namespace numPDE
      * the key idea is to do a std::md_span, but with easier to use indexing
      */
     template <typename T>
-    class Tensor
+    class Tensor : public Expr<Tensor<T>>
     {
       public:
+        using value_type = T;
         ~Tensor() = default;
 
         Tensor() = default;
@@ -34,21 +37,40 @@ namespace numPDE
         // -----------------------------//
         // *****   CONSTRUCTORS   ***** //
         // -----------------------------//
-        Tensor(std::vector<size_t> sizes)
-            : m_Rank{sizes.size()}, m_N_element{std::accumulate(sizes.begin(), sizes.end(),
-                                                                size_t{1}, std::multiplies{})},
-              m_Sizes{sizes}
+        template <typename Range>
+        Tensor(const Range& sizes)
+            : m_Rank{sizes.size()},
+              m_N_element{std::accumulate(sizes.begin(), sizes.end(), size_t(1), std::multiplies{})}
         {
-            m_Slices_size.resize(m_Rank);
+            assert(sizes.size() <= 4);
+            std::copy(sizes.begin(), sizes.begin() + sizes.size(), m_Sizes.begin());
+            // j
             // Precompute the size of the slices
             // (Nz*Ny for i_x, Ny for i_y and 1 for i_z)
             m_Slices_size[m_Rank - 1] = 1;
             for (int i = m_Rank - 2; i >= 0; --i)
                 m_Slices_size[i] = m_Slices_size[i + 1] * m_Sizes[i + 1];
             // Allocate memory
-            m_Datas.resize(m_N_element);
-        };
+            m_Datas.resize(
+                std::accumulate(sizes.begin(), sizes.end(), size_t{1}, std::multiplies{}));
+        }
 
+        // -----------------------------//
+        // *****  LAZY ASSIGNMENT ***** //
+        // -----------------------------//
+        template <typename E>
+        auto& operator=(const Expr<E>& expr)
+        {
+            // Cast expression to Derived type
+            const E& e = static_cast<const E&>(expr);
+            // Loop over all elements of the tensor
+            for (size_t i = 0; i < e.size(); ++i)
+            {
+                m_Datas[i] = e[i]; // assign expression value
+            }
+
+            return (*this);
+        }
         // -----------------------------//
         // ***** GET LINEAR INDEX ***** //
         // -----------------------------//
@@ -56,8 +78,15 @@ namespace numPDE
             requires std::is_integral_v<Ts>
         size_t get_linear_index(const std::span<Ts> indices) const noexcept
         {
-            return std::inner_product(m_Slices_size.begin(), m_Slices_size.end(), indices.begin(),
+
+            // Need to have CLEAN indices (AKA filtered by size by the () operator)
+            return std::inner_product(indices.begin(), indices.end(), m_Slices_size.begin(),
                                       size_t{0});
+
+            /*
+             *  return std::inner_product(m_Slices_size.begin(), m_Slices_size.end(),
+             * indices.begin(), size_t{0});
+             */
         }
 
         template <typename Ts>
@@ -83,13 +112,27 @@ namespace numPDE
             for (size_t i = 0; i < indices.size(); ++i) [[unlikely]]
                 if (indices[i] >= m_Sizes[i]) throw std::out_of_range("Index out of bounds");
 
-            size_t index = get_linear_index(indices);
-            return m_Datas.at(index);
+            return m_Datas[get_linear_index(indices)];
+        }
+
+        // Vector-like access operator
+        template <typename Ts>
+            requires std::is_integral_v<Ts>
+        T& operator[](Ts i)
+        {
+            return m_Datas[i];
+        }
+        template <typename Ts>
+            requires std::is_integral_v<Ts>
+        const T& operator[](Ts i) const
+        {
+            return m_Datas[i];
         }
 
         // -----------------------------//
         // *****     ITERATORS    ***** //
         // -----------------------------//
+        auto all_linear_elements() const { return std::views::iota(size_t{0}, m_N_element); };
         auto make_iterator(size_t start_offset, size_t end_offset) const
         {
             auto& sizes   = m_Sizes;
@@ -113,7 +156,7 @@ namespace numPDE
         auto bou_elems() const
         {
             const auto& sizes = m_Sizes;
-            const auto  dim   = m_Rank;
+            const auto& dim   = m_Rank;
 
             // CAPTURE BY VALUE to ensure lifetime safety
             auto is_on_boundary = [=](const auto& indices)
@@ -142,21 +185,22 @@ namespace numPDE
         // -----------------------------//
         // *****      GETTER       **** //
         // -----------------------------//
-        size_t                     get_rank() const noexcept { return m_Rank; }
-        size_t                     get_n_element() const noexcept { return m_N_element; }
-        const std::vector<T>&      raw_datas() const noexcept { return m_Datas; }
-        const std::vector<T>&      get_slices() const noexcept { return m_Slices_size; }
-        const std::vector<size_t>& get_sizes() const noexcept { return m_Sizes; }
+        size_t      get_rank() const noexcept { return m_Rank; }
+        size_t      size() const noexcept { return m_Datas.size(); }
+        const auto& raw_datas() const noexcept { return m_Datas; }
+        const auto  get_slices() const noexcept { return m_Slices_size; }
+        const auto  get_sizes() const noexcept { return m_Sizes; }
 
-      private:
+      protected:
+    using Small_vec = std::array<size_t, 4>;
         // Rank of the tensor
         size_t m_Rank{};
-        // Total number of elements
+        // Number of elements
         size_t m_N_element{1};
         // Array containing m_N_element for each dimension
-        std::vector<size_t> m_Sizes;
+        Small_vec m_Sizes{{0, 0, 0, 0}};
         // Helper for the indexing (Gave 10x speed)
-        std::vector<size_t> m_Slices_size;
+        Small_vec m_Slices_size{{0, 0, 0, 0}};
         // Actual data
         std::vector<T> m_Datas;
     };

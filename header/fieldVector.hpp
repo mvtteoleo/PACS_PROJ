@@ -8,10 +8,10 @@ namespace numPDE
     // Template class aims to handle a staggered vector field with the upcoming difficulties.
     template <typename T>
         requires std::is_floating_point_v<T>
-    class VectorField : public AbstractField<VectorField<T>, T>
+    class VectorField : public AbstractField<T>
     {
       public:
-        using Base = AbstractField<VectorField<T>, T>;
+        using Base = AbstractField<T>;
         using Base::m_Field_values;
         using Base::p_mesh;
 

@@ -37,9 +37,10 @@ int main(int argc, char* argv[])
 
     auto chi = [&circ](std::vector<float> x) -> float
     {
-        std::vector<float> d         = x - circ.circ_cent;
-        float              dist_sq   = norm(d);
-        float              radius_sq = circ.radius;
+        std::vector<float> d;
+        std::transform(x.begin(), x.end(), circ.circ_cent.begin(), d.begin(), std::plus<>{});
+        float dist_sq   = norm(d);
+        float radius_sq = circ.radius;
         return static_cast<float>(dist_sq >= radius_sq);
     };
 

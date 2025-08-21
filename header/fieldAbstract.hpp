@@ -3,10 +3,13 @@
 #include "mesh.hpp"
 #include "tensors.hpp"
 #include <cstddef>
+#include <fstream>
+#include <iostream>
 #include <memory>
 namespace numPDE
 {
-    template <typename Derived, typename T>
+
+    template <typename T>
         requires std::is_floating_point_v<T>
     class AbstractField
     {
@@ -28,6 +31,7 @@ namespace numPDE
         // -----------------------------//
         // *****     ITERATORS    ***** //
         // -----------------------------//
+        decltype(auto) all_linear_elements() const { return m_Field_values.all_linear_elements(); }
         decltype(auto) internal_elements() const { return m_Field_values.int_elems(); }
         decltype(auto) all_elements() const { return m_Field_values.all_elems(); }
         decltype(auto) boundary_elements() const { return m_Field_values.bou_elems(); }
@@ -36,16 +40,16 @@ namespace numPDE
         // *****    PRINT & DUMP   **** //
         // -----------------------------//
         /// Generic helper: write a range of numeric values as doubles
-        template <typename Range>
-        void write_as_doubles(std::ofstream& ofs, const Range& range)
+        template <typename Range, typename U>
+        void write_as(std::ofstream& ofs, const Range& range)
         {
             static_assert(std::is_arithmetic_v<typename Range::value_type>,
                           "Range must contain arithmetic types");
 
             for (auto&& v : range)
             {
-                double val_as_double = static_cast<double>(v);
-                ofs.write(reinterpret_cast<const char*>(&val_as_double), sizeof(double));
+                U val_as_double = static_cast<U>(v);
+                ofs.write(reinterpret_cast<const char*>(&val_as_double), sizeof(U));
             }
         }
         /*
@@ -66,10 +70,10 @@ namespace numPDE
 
             ofs.write(reinterpret_cast<const char*>(&count), sizeof(count));
 
-            write_as_doubles(ofs, m_Field_values.raw_datas());
+            write_as<double>(ofs, m_Field_values.raw_datas());
 
             ofs.close();
-            std::cout << "Wrote field values to " << file << "\n";
+            std::cout << "Wrote field values to " << file_path << "\n";
         }
 
         /*
@@ -85,12 +89,12 @@ namespace numPDE
             }
 
             // Write x0, n_nodes, delta_x (All as vectors)
-            write_as_doubles(ofs, mp_mesh->get_x0());
-            write_as_doubles(ofs, mp_mesh->get_x_end());
-            write_as_doubles(ofs, mp_mesh->get_delta_x());
+            write_as<double>(ofs, p_mesh->get_x0());
+            write_as<double>(ofs, p_mesh->get_x_end());
+            write_as<double>(ofs, p_mesh->get_delta_x());
 
             ofs.close();
-            std::cout << "Wrote mesh entries to " << file << "\n";
+            std::cout << "Wrote mesh entries to " << file_path << "\n";
         }
 
         // -----------------------------//
@@ -107,7 +111,7 @@ namespace numPDE
         auto pos(const std::vector<size_t>& idxs) const { return p_mesh->position(idxs); }
 
         T      get_Delta_x(const size_t idx) const { return p_mesh->get_h(idx); };
-        size_t get_nElements() const { return m_Field_values.get_n_element(); };
+        size_t size() const { return m_Field_values.size(); };
     };
 
 } // namespace numPDE

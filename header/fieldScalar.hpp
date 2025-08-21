@@ -1,23 +1,16 @@
 #pragma once
-#include "customvec.hpp"
 #include "fieldAbstract.hpp"
-#include "mesh.hpp"
-#include "tensors.hpp"
-#include <cstddef>
 #include <cstdio>
-#include <iterator>
-#include <numeric>
-#include <ranges>
 
 namespace numPDE
 {
 
     template <typename T>
         requires std::is_floating_point_v<T>
-    class ScalarField : public AbstractField<ScalarField<T>, T>
+    class ScalarField : public AbstractField<T>
     {
       public:
-        using Base = AbstractField<ScalarField<T>, T>;
+        using Base = AbstractField<T>;
         using Base::m_Field_values;
         using Base::p_mesh;
 
