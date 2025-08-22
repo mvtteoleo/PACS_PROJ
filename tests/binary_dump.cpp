@@ -148,7 +148,7 @@ int main(int argc, char* argv[])
         throw std::runtime_error("Cannot open file for writing");
     }
 
-    uint_fast64_t count = mask.size();
+    uint_fast64_t count = mask.get_N_elems();
 
     ofs.write(reinterpret_cast<const char*>(&count), sizeof(count));
 

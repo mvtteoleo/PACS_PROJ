@@ -8,7 +8,7 @@ namespace numPDE
 
     template <typename T>
         requires std::is_floating_point_v<T>
-    class ScalarField : public AbstractField<T>, public Expr<ScalarField>
+    class ScalarField : public AbstractField<T>
     {
       public:
         using Base = AbstractField<T>;

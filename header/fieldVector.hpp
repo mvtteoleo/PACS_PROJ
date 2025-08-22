@@ -2,6 +2,8 @@
 #include "fieldAbstract.hpp"
 #include "mesh.hpp"
 #include "tensors.hpp"
+#include <algorithm>
+#include <cstddef>
 #include <memory>
 namespace numPDE
 {
@@ -16,6 +18,8 @@ namespace numPDE
         using Base::p_mesh;
 
         // Initialize the Abstract class
+        // explicit VectorField(const Mesh<T>& mesh) : Base(mesh, mesh.ini_vec_field()) {}
+
         explicit VectorField(const Mesh<T>& mesh)
             : Base(mesh,
                    [&]
@@ -26,7 +30,6 @@ namespace numPDE
                    }())
         {
         }
-
         // Rule of 5
         VectorField(VectorField&&)                 = default;
         VectorField(const VectorField&)            = default;
@@ -38,7 +41,7 @@ namespace numPDE
         // ***** ACCESS OPERATORS ***** //
         // -----------------------------//
         // Span access
-        const std::span<T> operator()(std::span<const size_t> indices)
+        auto operator()(std::span<const size_t> indices)
         {
             if (indices.size() != p_mesh->get_N_dims())
             {
@@ -62,5 +65,17 @@ namespace numPDE
         {
             return (*this)(std::span<const size_t>(indices));
         }
+        // Assignment from span
+        // -----------------------------//
+        // ***** ASSIGNMENT OPER  ***** //
+        // -----------------------------//
+        /*
+         *  auto assign_values(std::span<T> values, const std::vector<size_t>& sizes)
+         *  {
+         *      assert(values.size() == p_mesh->get_N_dims());
+         *      auto base = m_Field_values.ptr_at(std::span(sizes));
+         *      std::copy(values.begin(), values.end(), base);
+         *  }
+         */
     };
 } // namespace numPDE

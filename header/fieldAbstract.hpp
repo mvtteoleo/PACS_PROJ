@@ -23,9 +23,26 @@ namespace numPDE
       public:
         using value_type = T;
         AbstractField()  = default;
-        explicit AbstractField(const Mesh<T>& mesh, const std::vector<size_t>& sizes)
+        explicit AbstractField(const Mesh<T>& mesh, std::vector<size_t> sizes)
             : p_mesh(std::make_shared<Mesh<T>>(mesh)), m_Field_values(sizes)
         {
+        }
+
+        // -----------------------------//
+        // ***** ACCESS OPERATORS ***** //
+        // -----------------------------//
+        // Vector-like access operators
+        template <typename Ts>
+            requires std::is_integral_v<Ts>
+        T& operator[](Ts i)
+        {
+            return m_Field_values[i];
+        }
+        template <typename Ts>
+            requires std::is_integral_v<Ts>
+        const T& operator[](Ts i) const
+        {
+            return m_Field_values[i];
         }
 
         // -----------------------------//
@@ -101,6 +118,7 @@ namespace numPDE
         // *****     UTILITIES    ***** //
         // -----------------------------//
         T L2norm() const { return norm(m_Field_values.raw_datas()) * p_mesh->get_dOmega(); }
+        decltype(auto) raw_data() const { return m_Field_values.raw_datas(); }
         // Overload using variadic templates for convenience
         template <typename... Ts>
             requires UnsignedInt<Ts...>
@@ -112,6 +130,7 @@ namespace numPDE
 
         T      get_Delta_x(const size_t idx) const { return p_mesh->get_h(idx); };
         size_t size() const { return m_Field_values.size(); };
+        size_t get_N_elems() const { return m_Field_values.size(); };
     };
 
 } // namespace numPDE

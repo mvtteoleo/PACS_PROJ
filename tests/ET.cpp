@@ -36,9 +36,9 @@ int main(int argc, char* argv[])
     // Expression template evaluation
     D = (B + C * A - B) + B / 3.0 + 1.0 * B + C * 2.0;
     E.assign_internal(B + C * A - B + B / 3.0 + 1.0 * B + C * 2.0);
-    F.assign_internal(laplacian(D));
+    // F.assign_internal(laplacian(D));
     std::cout << D.raw_datas() << std::endl;
-    
+
     D = E;
 
     // Check a sample

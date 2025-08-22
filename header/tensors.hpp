@@ -55,6 +55,22 @@ namespace numPDE
                 std::accumulate(sizes.begin(), sizes.end(), size_t{1}, std::multiplies{}));
         }
 
+        Tensor(std::vector<size_t> sizes)
+            : m_Rank{sizes.size()},
+              m_N_element{std::accumulate(sizes.begin(), sizes.end(), size_t(1), std::multiplies{})}
+        {
+            assert(sizes.size() <= 4);
+            std::copy(sizes.begin(), sizes.begin() + sizes.size(), m_Sizes.begin());
+            // j
+            // Precompute the size of the slices
+            // (Nz*Ny for i_x, Ny for i_y and 1 for i_z)
+            m_Slices_size[m_Rank - 1] = 1;
+            for (int i = m_Rank - 2; i >= 0; --i)
+                m_Slices_size[i] = m_Slices_size[i + 1] * m_Sizes[i + 1];
+            // Allocate memory
+            m_Datas.resize(
+                std::accumulate(sizes.begin(), sizes.end(), size_t{1}, std::multiplies{}));
+        }
         // -----------------------------//
         // *****  LAZY ASSIGNMENT ***** //
         // -----------------------------//
@@ -149,6 +165,21 @@ namespace numPDE
         }
 
         // -----------------------------//
+        // *****     RAW ACCESS   ***** //
+        // -----------------------------//
+        T* ptr_at(const std::span<const size_t> indices) noexcept
+        {
+            size_t lin = get_linear_index(indices);
+            return &m_Datas[lin];
+        }
+
+        const T* ptr_at(const std::span<const size_t> indices) const noexcept
+        {
+            size_t lin = get_linear_index(indices);
+            return &m_Datas[lin];
+        }
+
+        // -----------------------------//
         // *****     ITERATORS    ***** //
         // -----------------------------//
         auto all_linear_elements() const { return std::views::iota(size_t{0}, m_N_element); };
@@ -219,7 +250,7 @@ namespace numPDE
         // Array containing m_N_element for each dimension
         Small_vec m_Sizes{{0, 0, 0, 0}};
         // Helper for the indexing (Gave 10x speed)
-        std::array<size_t, 3> m_Slices_size{{0, 0, 0}};
+        std::array<size_t, 4> m_Slices_size{{0, 0, 0}};
         // Actual data
         std::vector<T> m_Datas;
     };
