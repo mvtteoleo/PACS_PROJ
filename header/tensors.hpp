@@ -1,6 +1,6 @@
 #pragma once
-#include "tensorExpressionTemplates.hpp"
 #include "customvec.hpp"
+#include "tensorExpressionTemplates.hpp"
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -30,7 +30,7 @@ namespace numPDE
     {
       public:
         using value_type = T;
-        ~Tensor() = default;
+        ~Tensor()        = default;
 
         Tensor() = default;
 
@@ -71,6 +71,23 @@ namespace numPDE
 
             return (*this);
         }
+
+        template <typename E>
+        auto& assign_internal(const Expr<E>& expr)
+        {
+            // Cast expression to Derived type
+            const E& e = static_cast<const E&>(expr);
+            // Loop over all elements of the tensor
+            std::array<size_t, 3> idx;
+            for (auto [i, j, k] : int_elems())
+            {
+                idx        = {i, j, k};
+                size_t h   = get_linear_index(idx);
+                m_Datas[h] = e[h]; // assign expression value
+            }
+
+            return (*this);
+        }
         // -----------------------------//
         // ***** GET LINEAR INDEX ***** //
         // -----------------------------//
@@ -78,22 +95,24 @@ namespace numPDE
             requires std::is_integral_v<Ts>
         size_t get_linear_index(const std::span<Ts> indices) const noexcept
         {
-
             // Need to have CLEAN indices (AKA filtered by size by the () operator)
             return std::inner_product(indices.begin(), indices.end(), m_Slices_size.begin(),
                                       size_t{0});
-
-            /*
-             *  return std::inner_product(m_Slices_size.begin(), m_Slices_size.end(),
-             * indices.begin(), size_t{0});
-             */
         }
 
         template <typename Ts>
             requires std::is_integral_v<Ts>
         size_t get_liner_index(const std::vector<Ts>& indices) const noexcept
         {
-            return get_liner_index(std::span(indices));
+            return std::inner_product(indices.begin(), indices.end(), m_Slices_size.begin(),
+                                      size_t{0});
+        }
+
+        template <std::size_t N>
+        size_t get_linear_index(const std::array<size_t, N>& indices) const noexcept
+        {
+            return std::inner_product(indices.begin(), indices.end(), m_Slices_size.begin(),
+                                      size_t{0});
         }
 
         // -----------------------------//
@@ -115,7 +134,7 @@ namespace numPDE
             return m_Datas[get_linear_index(indices)];
         }
 
-        // Vector-like access operator
+        // Vector-like access operators
         template <typename Ts>
             requires std::is_integral_v<Ts>
         T& operator[](Ts i)
@@ -192,7 +211,7 @@ namespace numPDE
         const auto  get_sizes() const noexcept { return m_Sizes; }
 
       protected:
-    using Small_vec = std::array<size_t, 4>;
+        using Small_vec = std::array<size_t, 4>;
         // Rank of the tensor
         size_t m_Rank{};
         // Number of elements
@@ -200,7 +219,7 @@ namespace numPDE
         // Array containing m_N_element for each dimension
         Small_vec m_Sizes{{0, 0, 0, 0}};
         // Helper for the indexing (Gave 10x speed)
-        Small_vec m_Slices_size{{0, 0, 0, 0}};
+        std::array<size_t, 3> m_Slices_size{{0, 0, 0}};
         // Actual data
         std::vector<T> m_Datas;
     };

@@ -1,5 +1,6 @@
 #pragma once
 #include "fieldAbstract.hpp"
+#include "tensorExpressionTemplates.hpp"
 #include <cstdio>
 
 namespace numPDE
@@ -7,7 +8,7 @@ namespace numPDE
 
     template <typename T>
         requires std::is_floating_point_v<T>
-    class ScalarField : public AbstractField<T>
+    class ScalarField : public AbstractField<T>, public Expr<ScalarField>
     {
       public:
         using Base = AbstractField<T>;
