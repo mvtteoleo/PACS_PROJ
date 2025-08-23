@@ -21,14 +21,23 @@ namespace numPDE
     // concept UnsignedInt = (std::conjunction_v<std::is_unsigned<Ts>...>);
     concept UnsignedInt = (std::conjunction_v<std::is_integral<Ts>...>);
 
+    enum TypeIndex
+    {
+        // Indexing like T(i, j, k) => datas[ i + y*Nx + k*Nx*Ny ]
+        ROW_MAJOR,
+        // Indexing like T(i, j, k) => datas[ i*Nx*Ny + j*Ny + k ]
+        COMPACT
+    };
+
     /*
      * Dynamic tensor class that handles n-dimensional tensors
      * the key idea is to do a std::md_span, but with easier to use indexing
      */
-    template <typename T>
-    class Tensor : public Expr<Tensor<T>>
+    template <typename T, size_t N_DIMS = 3, TypeIndex TYPE = COMPACT>
+    class Tensor : public Expr<Tensor<T, N_DIMS, TYPE>>
     {
       public:
+        using Small_vec  = std::array<size_t, N_DIMS>;
         using value_type = T;
         ~Tensor()        = default;
 
@@ -42,35 +51,29 @@ namespace numPDE
             : m_Rank{sizes.size()},
               m_N_element{std::accumulate(sizes.begin(), sizes.end(), size_t(1), std::multiplies{})}
         {
-            assert(sizes.size() <= 4);
+            assert("In tensor initialization the initializer vector mismatchees the N_DIMS" &&
+                   sizes.size() <= N_DIMS);
             std::copy(sizes.begin(), sizes.begin() + sizes.size(), m_Sizes.begin());
-            // j
+
             // Precompute the size of the slices
             // (Nz*Ny for i_x, Ny for i_y and 1 for i_z)
-            m_Slices_size[m_Rank - 1] = 1;
-            for (int i = m_Rank - 2; i >= 0; --i)
-                m_Slices_size[i] = m_Slices_size[i + 1] * m_Sizes[i + 1];
+            if constexpr (TYPE == COMPACT)
+            {
+                m_Slices_size[m_Rank - 1] = 1;
+                for (int i = m_Rank - 2; i >= 0; --i)
+                    m_Slices_size[i] = m_Slices_size[i + 1] * m_Sizes[i + 1];
+            }
+            if constexpr (TYPE == ROW_MAJOR)
+            {
+                m_Slices_size[0] = 1;
+                for (size_t i = 1; i < m_Rank; ++i)
+                    m_Slices_size[i] = m_Slices_size[i - 1] * m_Sizes[i - 1];
+            }
             // Allocate memory
             m_Datas.resize(
                 std::accumulate(sizes.begin(), sizes.end(), size_t{1}, std::multiplies{}));
         }
 
-        Tensor(std::vector<size_t> sizes)
-            : m_Rank{sizes.size()},
-              m_N_element{std::accumulate(sizes.begin(), sizes.end(), size_t(1), std::multiplies{})}
-        {
-            assert(sizes.size() <= 4);
-            std::copy(sizes.begin(), sizes.begin() + sizes.size(), m_Sizes.begin());
-            // j
-            // Precompute the size of the slices
-            // (Nz*Ny for i_x, Ny for i_y and 1 for i_z)
-            m_Slices_size[m_Rank - 1] = 1;
-            for (int i = m_Rank - 2; i >= 0; --i)
-                m_Slices_size[i] = m_Slices_size[i + 1] * m_Sizes[i + 1];
-            // Allocate memory
-            m_Datas.resize(
-                std::accumulate(sizes.begin(), sizes.end(), size_t{1}, std::multiplies{}));
-        }
         // -----------------------------//
         // *****  LAZY ASSIGNMENT ***** //
         // -----------------------------//
@@ -206,7 +209,6 @@ namespace numPDE
         auto bou_elems() const
         {
             const auto& sizes = m_Sizes;
-            const auto& dim   = m_Rank;
 
             // CAPTURE BY VALUE to ensure lifetime safety
             auto is_on_boundary = [=](const auto& indices)
@@ -217,14 +219,16 @@ namespace numPDE
                 {
                     on_boundary = true;
                 }
-                if (dim >= 2 && (std::get<1>(indices) == 0 || std::get<1>(indices) == sizes[1] - 1))
-                {
-                    on_boundary = true;
-                }
-                if (dim >= 3 && (std::get<2>(indices) == 0 || std::get<2>(indices) == sizes[2] - 1))
-                {
-                    on_boundary = true;
-                }
+                if constexpr (N_DIMS >= 2)
+                    if (std::get<1>(indices) == 0 || std::get<1>(indices) == sizes[1] - 1)
+                    {
+                        on_boundary = true;
+                    }
+                if constexpr (N_DIMS >= 3)
+                    if (std::get<2>(indices) == 0 || std::get<2>(indices) == sizes[2] - 1)
+                    {
+                        on_boundary = true;
+                    }
 
                 return on_boundary;
             };
@@ -242,15 +246,14 @@ namespace numPDE
         const auto  get_sizes() const noexcept { return m_Sizes; }
 
       protected:
-        using Small_vec = std::array<size_t, 4>;
         // Rank of the tensor
-        size_t m_Rank{};
+        size_t m_Rank{N_DIMS};
         // Number of elements
         size_t m_N_element{1};
         // Array containing m_N_element for each dimension
-        Small_vec m_Sizes{{0, 0, 0, 0}};
+        Small_vec m_Sizes;
         // Helper for the indexing (Gave 10x speed)
-        std::array<size_t, 4> m_Slices_size{{0, 0, 0}};
+        Small_vec m_Slices_size;
         // Actual data
         std::vector<T> m_Datas;
     };

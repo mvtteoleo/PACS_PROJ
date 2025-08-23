@@ -9,17 +9,17 @@
 namespace numPDE
 {
 
-    template <typename T, bool IsScalar = true>
+    template <typename T, bool IsScalar = true, size_t N_DIMS = 3>
         requires std::is_floating_point_v<T>
     class AbstractField
     {
-        template <typename U>
+        template <typename U, size_t N, TypeIndex TYPE>
         friend class Tensor;
 
       protected:
-        std::shared_ptr<Mesh<T>> p_mesh;
-        size_t                   m_N_el_for_node{(IsScalar) ? 1 : 0};
-        Tensor<T>                m_Field_values;
+        std::shared_ptr<Mesh<T>>                    p_mesh;
+        size_t                                      m_N_el_for_node{(IsScalar) ? 1 : 0};
+        Tensor<T, (IsScalar) ? N_DIMS : N_DIMS + 1> m_Field_values;
 
       public:
         using value_type = T;
@@ -138,8 +138,8 @@ namespace numPDE
 
             for (auto&& v : range)
             {
-                U val_as_double = static_cast<U>(v);
-                ofs.write(reinterpret_cast<const char*>(&val_as_double), sizeof(U));
+                U val_as_U = static_cast<U>(v);
+                ofs.write(reinterpret_cast<const char*>(&val_as_U), sizeof(U));
             }
         }
         /*

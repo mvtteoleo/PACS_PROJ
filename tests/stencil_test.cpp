@@ -44,22 +44,13 @@ int main(int argc, char* argv[])
     auto value = S(0, 0, 0); // scalar
 
     // Non modifiable!
-    std::span<const Real> vec_const   = W(0, 0, 0); // vector, returns ConstElementProxy
+    std::span<const Real> vec_const = W(0, 0, 0); // vector, returns ConstElementProxy
 
     // Modifiable and binded to the Tensor!!
-    std::span<Real> vec_mod   = W(0, 0, 0); // vector, returns ConstElementProxy
+    std::span<Real> vec_mod = W(0, 0, 0); // vector, returns ConstElementProxy
 
     // To fill a vector just =>
-        std::vector<Real> Vec(vec_mod.begin(), vec_mod.end());
-
-
-    for(size_t i=0; i<vec.size(); ++i)
-        std::cout << vec[i] << " ";
-    std::cout << value << "  " << S(0, 0, 0) << std::endl;
-    ++vec[0];
-
-    for(size_t i=0; i<vec.size(); ++i)
-        std::cout << vec[i] << " ";
+    std::vector<Real> Vec(vec_mod.begin(), vec_mod.end());
 
     std::cout << S.raw_data() << std::endl;
     std::cout << V.raw_data() << std::endl;

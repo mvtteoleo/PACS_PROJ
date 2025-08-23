@@ -1,19 +1,84 @@
 #pragma once
+#include <algorithm>
 #include <array>
+#include <cassert>
 #include <cstddef>
+#include <initializer_list>
+#include <ostream>
+#include <span>
 #include <type_traits>
 
 namespace numPDE
 {
-
-    using Small_vec = std::array<size_t, 4>;
-
     // ---------- ET core ----------
     template <typename E>
     struct Expr
     {
         auto        operator[](std::size_t i) const { return static_cast<const E&>(*this)[i]; }
         std::size_t size() const { return static_cast<const E&>(*this).size(); }
+    };
+
+    template <typename T, size_t N = 3>
+    struct Vec : Expr<Vec<T, N>>
+    {
+      public:
+    Vec() = default;
+        Vec(std::initializer_list<T> l)
+        {
+            assert(l.size() <= N && "Value bigger than the size of the  element");
+            std::copy_n(l.begin(), l.size(), m_Datas.begin());
+        }
+
+        // -----------------------------//
+        // ***** ACCESS OPERATORS ***** //
+        // -----------------------------//
+        const T& operator[](size_t i) const { return m_Datas[i]; }
+        T&       operator[](size_t i) { return m_Datas[i]; }
+
+        // -----------------------------//
+        // ***** CONSTR FROM EXPR ***** //
+        // -----------------------------//
+        template <typename E>
+        auto operator()(const Expr<E>& expr)
+        {
+            const E& ex = static_cast<const E&>(expr);
+            assert("Size mismatch" && ex.size()==N);
+            for (size_t i = 0; i < ex.size(); ++i)
+                m_Datas[i] = ex[i];
+        }
+        template <typename E>
+        auto operator=(const Expr<E>& expr)
+        {
+            const E& ex = static_cast<const E&>(expr);
+            assert("Size mismatch" && ex.size()==N);
+            for (size_t i = 0; i < ex.size(); ++i)
+                m_Datas[i] = ex[i];
+            return (*this);
+        }
+        // -----------------------------//
+        // ***** CONSTR FROM SPAN ***** // aka from VectorField
+        // -----------------------------//
+    template<typename FromSpan>
+    auto operator=(FromSpan &span){
+    auto span_clean = static_cast<std::span<const T>>(span);
+    std::copy_n(span_clean.begin(), N, m_Datas.begin());
+    }
+        
+        
+    // auto operator
+    // std::copy_n(span.begin(), N_dim, test.begin());
+    
+
+        // -----------------------------//
+        // *****STL-LIKE UTILITIES***** //
+        // -----------------------------//
+        size_t constexpr size() const { return N; }
+        decltype(auto) begin() {return m_Datas.begin();}
+        decltype(auto) end()  {return m_Datas.end();}
+        decltype(auto) begin() const {return m_Datas.begin();}
+        decltype(auto) end() const {return m_Datas.end();}
+      private:
+        std::array<T, N> m_Datas{};
     };
 
     // ---------- Tensor–Tensor node ----------
