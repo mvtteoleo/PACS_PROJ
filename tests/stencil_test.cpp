@@ -1,9 +1,11 @@
+
 #include "../header/fieldOperators.hpp"
 #include "../header/fieldScalar.hpp"
 #include "../header/fieldVector.hpp"
 #include <array>
 #include <cstddef>
 #include <iostream>
+#include <iterator>
 #include <vector>
 
 using Real   = double;
@@ -24,16 +26,20 @@ int main(int argc, char* argv[])
     numPDE::Tensor<Real>      T(elems_for_dir);
     numPDE::ScalarField<Real> S(mesh);
     numPDE::VectorField<Real> V(mesh);
-    for (auto i : V.all_linear_elements())
+    numPDE::VectorField<Real> W(mesh);
+    std::vector<size_t>       idx;
+    std::array<Real, 3>       vals{{1, 2, 3}};
+    Real c=1; 
+    for (auto [i, j, k] : V.all_elements())
     {
-        V[i] = i % 3 + 1;
-    }
-    for (auto i : S.all_linear_elements())
-    {
-        S[i] = 0;
+        S(i, j, k) = {c};
+        V.assign_values(std::span(vals), idx);
+        W(i, j, k) = {1.0, 2.0, 3.0};
+        ++c;
     }
 
-    std::cout << V.raw_data() << std::endl;
     std::cout << S.raw_data() << std::endl;
+    std::cout << V.raw_data() << std::endl;
+    std::cout << W.raw_data() << std::endl;
     return 0;
 }

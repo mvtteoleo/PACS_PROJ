@@ -1,6 +1,6 @@
 #include "../header/customvec.hpp"
 #include <cstdint>
-#define TEST 1
+#define TEST 0
 
 #if TEST == 0
 #include <fstream>
@@ -78,36 +78,6 @@ struct Circ_info
     float              radius{};
 };
 
-void dump_mask_positions(const auto& mask, const std::string& filename)
-{
-    std::ofstream ofs(filename, std::ios::binary);
-    if (!ofs)
-    {
-        throw std::runtime_error("Cannot open file for writing");
-    }
-
-    const size_t count = mask.get_nElements();
-
-    ofs.write(reinterpret_cast<const char*>(&count), sizeof(count));
-
-    // Write all positions + values
-    for (auto [i, j, k] : mask.all_elements())
-    {
-        std::vector<float> pos   = mask.pos(i, j, k); // e.g. {x,y,z}
-        float              value = mask(i, j, k);     // field value
-
-        // write position (3 doubles)
-        ofs.write(reinterpret_cast<const char*>(pos.data()), 3 * sizeof(double));
-
-        // write value (assuming double; if bool -> promote to char/int)
-        double val_as_double = static_cast<double>(value);
-        ofs.write(reinterpret_cast<const char*>(&val_as_double), sizeof(double));
-    }
-
-    ofs.close();
-    std::cout << "Wrote " << count << " entries to " << filename << "\n";
-}
-
 int main(int argc, char* argv[])
 {
     std::cout << std::endl;
@@ -130,7 +100,7 @@ int main(int argc, char* argv[])
 
     auto chi = [&circ](std::vector<float> x) -> float
     {
-        std::vector<float> d;
+        std::vector<float> d=x;
         std::transform(x.begin(), x.end(), circ.circ_cent.begin(), d.begin(), std::plus<>{});
         float dist_sq   = norm(d);
         float radius_sq = circ.radius;

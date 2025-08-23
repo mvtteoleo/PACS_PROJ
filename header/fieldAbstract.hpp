@@ -9,7 +9,7 @@
 namespace numPDE
 {
 
-    template <typename T>
+    template <typename T, bool IsScalar=true>
         requires std::is_floating_point_v<T>
     class AbstractField
     {
@@ -18,18 +18,21 @@ namespace numPDE
 
       protected:
         std::shared_ptr<Mesh<T>> p_mesh;
+        size_t                   m_N_el_for_node{(IsScalar) ? 1 : 0};
         Tensor<T>                m_Field_values;
 
       public:
         using value_type = T;
         AbstractField()  = default;
         explicit AbstractField(const Mesh<T>& mesh, std::vector<size_t> sizes)
-            : p_mesh(std::make_shared<Mesh<T>>(mesh)), m_Field_values(sizes)
+            : p_mesh(std::make_shared<Mesh<T>>(mesh)),
+              m_N_el_for_node((IsScalar) ? 1 : mesh.get_N_dims()), m_Field_values(sizes)
         {
         }
 
         // -----------------------------//
         // ***** ACCESS OPERATORS ***** //
+        // *****     (WRITE)      ***** //
         // -----------------------------//
         // Vector-like access operators
         template <typename Ts>
@@ -44,6 +47,52 @@ namespace numPDE
         {
             return m_Field_values[i];
         }
+
+        // Helper class to handle the write of the elements
+        class ElementProxy
+        {
+            T*     base;
+            size_t dim;
+
+          public:
+            ElementProxy(T* ptr, size_t size) : base(ptr), dim(size) {}
+
+            // Assign from initializer list
+            ElementProxy& operator=(std::initializer_list<T> values)
+            {
+                std::copy_n(values.begin(), dim, base);
+                return *this;
+            }
+
+            // Assign from span
+            ElementProxy& operator=(std::span<const T> values)
+            {
+                std::copy_n(values.begin(), dim, base);
+                return *this;
+            }
+
+            // Implicit conversion back to span (for reading)
+            operator std::span<T>() const { return {base, dim}; }
+        }; // end proxy class
+
+        // Return either T& (scalar) or proxy (vector)
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        decltype(auto) operator()(Ts... idxs)
+        {
+            std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
+            T*                                base = this->m_Field_values.ptr_at(arr);
+
+            if constexpr (IsScalar)
+            {
+                // Scalar field
+                return *base; // return T&
+        }
+                else
+                {
+                    return ElementProxy(base, m_N_el_for_node);
+                }
+            }
 
         // -----------------------------//
         // *****     ITERATORS    ***** //
@@ -71,9 +120,9 @@ namespace numPDE
         }
         /*
          *  Dump to file all the data in the Tensor
-         *  WARNING! The values are casted to doubles and numbers of elements to integers to uint_64
-         *  WARNING! Need to add also in a smart way the number of dimensions and sizes, maybe
-         * another "mesh" file for each rank could be a good idea
+         *  WARNING! The values are casted to doubles and numbers of elements to integers to
+         * uint_64 WARNING! Need to add also in a smart way the number of dimensions and sizes,
+         * maybe another "mesh" file for each rank could be a good idea
          */
         void dump_values_as_binary(std::string& file_path = "build/tensor_dump.bin")
         {
@@ -94,8 +143,8 @@ namespace numPDE
         }
 
         /*
-         * This method will dump the data of the mesh in order to then allow the python code to read
-         * it and reconstruct the mesh in the most efficient way.
+         * This method will dump the data of the mesh in order to then allow the python code to
+         * read it and reconstruct the mesh in the most efficient way.
          */
         void print_mesh_vals(std::string& file_path = "build/mesh_datas.bin")
         {

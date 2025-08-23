@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
 
     auto chi = [&circ](std::vector<float> x) -> float
     {
-        std::vector<float> d;
+        std::vector<float> d=x;
         std::transform(x.begin(), x.end(), circ.circ_cent.begin(), d.begin(), std::plus<>{});
         float dist_sq   = norm(d);
         float radius_sq = circ.radius;
@@ -56,6 +56,8 @@ int main(int argc, char* argv[])
             const char* tmp = (mask(i, j, k)) ? "+" : " ";
             std::cout << tmp << " ";
         }
+    /*
+    */
 
     return 0;
 }
