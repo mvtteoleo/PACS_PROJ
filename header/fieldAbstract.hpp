@@ -9,7 +9,7 @@
 namespace numPDE
 {
 
-    template <typename T, bool IsScalar=true>
+    template <typename T, bool IsScalar = true>
         requires std::is_floating_point_v<T>
     class AbstractField
     {
@@ -32,8 +32,8 @@ namespace numPDE
 
         // -----------------------------//
         // ***** ACCESS OPERATORS ***** //
-        // *****     (WRITE)      ***** //
         // -----------------------------//
+
         // Vector-like access operators
         template <typename Ts>
             requires std::is_integral_v<Ts>
@@ -48,7 +48,7 @@ namespace numPDE
             return m_Field_values[i];
         }
 
-        // Helper class to handle the write of the elements
+        // *****     *WRITE*      ***** //
         class ElementProxy
         {
             T*     base;
@@ -71,11 +71,14 @@ namespace numPDE
                 return *this;
             }
 
-            // Implicit conversion back to span (for reading)
+            // IMPLICIT CONVERSION BACK TO SPAN (FOR READING)
+            // Non const span => Modify this means modify Field!!
             operator std::span<T>() const { return {base, dim}; }
-        }; // end proxy class
+            // Const span => Read only!!
+            operator std::span<const T>() { return {base, dim}; }
+        };
 
-        // Return either T& (scalar) or proxy (vector)
+        // Return either T& or std::span
         template <typename... Ts>
             requires UnsignedInt<Ts...>
         decltype(auto) operator()(Ts... idxs)
@@ -87,12 +90,33 @@ namespace numPDE
             {
                 // Scalar field
                 return *base; // return T&
-        }
-                else
-                {
-                    return ElementProxy(base, m_N_el_for_node);
-                }
             }
+            else
+            {
+                return ElementProxy(base, m_N_el_for_node);
+            }
+        }
+
+        // *****      *READ*      ***** //
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        auto operator()(Ts... idxs) const
+            -> std::conditional_t<IsScalar, const T&, std::span<const T>>
+        {
+            std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
+            const T*                          base = this->m_Field_values.ptr_at(arr);
+
+            if constexpr (IsScalar)
+            {
+                // Scalar field: return const reference
+                return *base;
+            }
+            else
+            {
+                // Vector/tensor field: zero-copy view into underlying storage
+                return std::span<const T>{base, m_N_el_for_node};
+            }
+        }
 
         // -----------------------------//
         // *****     ITERATORS    ***** //

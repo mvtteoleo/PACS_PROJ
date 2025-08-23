@@ -100,7 +100,7 @@ int main(int argc, char* argv[])
 
     auto chi = [&circ](std::vector<float> x) -> float
     {
-        std::vector<float> d=x;
+        std::vector<float> d = x;
         std::transform(x.begin(), x.end(), circ.circ_cent.begin(), d.begin(), std::plus<>{});
         float dist_sq   = norm(d);
         float radius_sq = circ.radius;

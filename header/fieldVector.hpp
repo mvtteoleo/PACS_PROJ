@@ -21,14 +21,13 @@ namespace numPDE
         // explicit VectorField(const Mesh<T>& mesh) : Base(mesh, mesh.ini_vec_field()) {}
 
         explicit VectorField(const Mesh<T>& mesh)
-            : Base(
-                  mesh,
-                  [&]
-                  {
-                      auto ini = mesh.get_N_nodes();
-                      ini.push_back(mesh.get_N_dims());
-                      return ini;
-                  }())
+            : Base(mesh,
+                   [&]
+                   {
+                       auto ini = mesh.get_N_nodes();
+                       ini.push_back(mesh.get_N_dims());
+                       return ini;
+                   }())
         {
         }
         // Rule of 5
@@ -37,7 +36,6 @@ namespace numPDE
         VectorField& operator=(VectorField&&)      = default;
         VectorField& operator=(const VectorField&) = default;
         ~VectorField()                             = default;
-
 
         // Assignment from span
         // -----------------------------//
