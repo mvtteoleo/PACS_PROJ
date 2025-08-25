@@ -10,7 +10,7 @@
 namespace numPDE
 {
 
-    template <typename T, bool IsScalar = true, size_t N_DIMS = 3>
+    template <typename T, bool IsScalar = true, size_t N_DIMS = DEF_DIM>
         requires std::is_floating_point_v<T>
     class AbstractField
     {
@@ -18,9 +18,10 @@ namespace numPDE
         friend class Tensor;
 
       protected:
-        std::shared_ptr<Mesh<T>>                    p_mesh;
-        size_t                                      m_N_el_for_node{(IsScalar) ? 1 : 0};
         Tensor<T, (IsScalar) ? N_DIMS : N_DIMS + 1> m_Field_values;
+        size_t                                      m_N_el_for_node{(IsScalar) ? 1 : 0};
+        std::shared_ptr<Mesh<T>>                    p_mesh;
+        bool                                        m_Is_scalar{(IsScalar) ? true : false};
 
       public:
         using value_type = T;
@@ -98,8 +99,15 @@ namespace numPDE
         decltype(auto) all_elements() const { return m_Field_values.all_elems(); }
         decltype(auto) boundary_elements() const { return m_Field_values.bou_elems(); }
         template <typename Lambda>
+        decltype(auto) for_intern(Lambda&& func) const
+        {
+            // constexpr size_t ndims = (IsScalar) ? N_DIMS : N_DIMS - 1;
+            return m_Field_values.for_internal_elements(std::forward<Lambda>(func));
+        }
+        template <typename Lambda>
         decltype(auto) lambda_for(Lambda&& func) const
         {
+            // constexpr size_t ndims = (IsScalar) ? N_DIMS : N_DIMS - 1;
             return m_Field_values.for_all_elements(std::forward<Lambda>(func));
         }
 

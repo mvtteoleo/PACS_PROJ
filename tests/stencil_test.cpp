@@ -1,3 +1,4 @@
+#include <algorithm>
 #define TEST 1
 
 #include "../header/fieldOperators.hpp"
@@ -74,9 +75,12 @@ int main(int argc, char* argv[])
      *   Access time needed : 5.90331e-09s
      *   Plain-like approach
      *   Access time needed : 4.52653e-09s
+     *   .lambda_for()
+     *   Access time needed : 6.10176e-11s
      */
     numPDE::ScalarField<Real> S(mesh);
     numPDE::VectorField<Real> V(mesh);
+    numPDE::VectorField<Real> W(mesh);
     myUtilities::ChronoTimer  c("Access time");
 
     // ASSIGN VALUES
@@ -137,7 +141,7 @@ int main(int argc, char* argv[])
     for (size_t tt = 0; tt < N_TESTS; ++tt)
         for (auto [i, j, k] : V.internal_elements())
             V(i, j, k) = (V(i + 1, j, k) + V(i - 1, j, k) + V(i, j + 1, k) + V(i, j - 1, k) +
-                          V(i, j, k + 1) + V(i, j, k - 1) - 2. * V(i, j, k)) /
+                          V(i, j, k + 1) + V(i, j, k - 1) - 6. * V(i, j, k)) /
                          (h * h);
     c.print_time(test_dim);
 
@@ -164,6 +168,20 @@ int main(int argc, char* argv[])
                     }
     c.print_time(test_dim);
 
+    // 5 .lambda_for()
+    std::cout << ".lambda_for()" << std::endl;
+    c.reset();
+    W.lambda_for(
+        [&](auto idx)
+        {
+            auto [i, j, k] = idx;
+            W(i, j, k)     = (W(i + 1, j, k) + W(i - 1, j, k) + W(i, j + 1, k) + W(i, j - 1, k) +
+                          W(i, j, k + 1) + W(i, j, k - 1) - 6. * W(i, j, k)) /
+                         (h * h);
+        });
+    c.print_time(test_dim);
+
 #endif
+    std::cout << true;
     return 0;
 }

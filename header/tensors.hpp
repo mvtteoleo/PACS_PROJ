@@ -205,36 +205,40 @@ namespace numPDE
             return std::ranges::views::cartesian_product(i_range, j_range, k_range);
         }
 
-        template <typename Lambda>
+        template <typename Lambda, size_t ndims = DEF_DIM>
         void for_all_elements(Lambda&& func) const
         {
             // 1D index array for structured binding
-            std::array<size_t, N_DIMS> idx{};
+            std::array<size_t, ndims> idx{};
 
             for (idx[0] = 0; idx[0] < m_Sizes[0]; ++idx[0])
-            {
-                if constexpr (N_DIMS >= 2)
-                {
+                if constexpr (ndims >= 2)
                     for (idx[1] = 0; idx[1] < m_Sizes[1]; ++idx[1])
-                    {
-                        if constexpr (N_DIMS >= 3)
-                        {
+                        if constexpr (ndims >= 3)
                             for (idx[2] = 0; idx[2] < m_Sizes[2]; ++idx[2])
-                            {
                                 func(idx);
-                            }
-                        }
                         else
-                        {
                             func(idx); // 2D case
-                        }
-                    }
-                }
                 else
-                {
                     func(idx); // 1D case
-                }
-            }
+        }
+
+        template <typename Lambda, size_t ndims = DEF_DIM>
+        void for_internal_elements(Lambda&& func) const
+        {
+            // 1D index array for structured binding
+            std::array<size_t, ndims> idx{};
+
+            for (idx[0] = 1; idx[0] < m_Sizes[0]-1; ++idx[0])
+                if constexpr (ndims >= 2)
+                    for (idx[1] = 1; idx[1] < m_Sizes[1]-1; ++idx[1])
+                        if constexpr (ndims >= 3)
+                            for (idx[2] = 1; idx[2] < m_Sizes[2]-1; ++idx[2])
+                                func(idx);
+                        else
+                            func(idx); // 2D case
+                else
+                    func(idx); // 1D case
         }
 
         auto int_elems() const { return make_iterator(1, 1); }
@@ -281,12 +285,12 @@ namespace numPDE
         const auto  get_sizes() const noexcept { return m_Sizes; }
 
       protected:
+        // Actual data
+        std::vector<T> m_Datas;
         // Number of elements
         Small_vec m_Sizes;
         // Helper for the indexing (Gave 10x speed)
         Small_vec m_Slices_size;
-        // Actual data
-        std::vector<T> m_Datas;
     };
 
 }; // namespace numPDE

@@ -8,7 +8,7 @@
 #include <span>
 #include <type_traits>
 
-constexpr size_t DEF_DIM = 3;
+constexpr size_t DEF_DIM = 2;
 
 namespace numPDE
 {
