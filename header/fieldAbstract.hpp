@@ -50,24 +50,52 @@ namespace numPDE
             return m_Field_values[i];
         }
 
-        // *****     *WRITE*      ***** //
-        // Return either T& or std::span
-        template <typename... Ts>
-            requires UnsignedInt<Ts...>
-        decltype(auto) operator()(Ts... idxs)
+        // *****  Internal helper (to avoid duplication)  *****
+        template <typename ArrayLike>
+        decltype(auto) access(ArrayLike&& idxs)
         {
-            std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
-            T*                                base = this->m_Field_values.ptr_at(arr);
+            T* base = this->m_Field_values.ptr_at(idxs);
 
             if constexpr (IsScalar)
             {
-                // Scalar field
                 return *base; // return T&
             }
             else
             {
                 return ElementProxy(base, m_N_el_for_node);
             }
+        }
+
+        template <typename ArrayLike>
+        decltype(auto) access(ArrayLike&& idxs) const
+        {
+            const T* base = this->m_Field_values.ptr_at(idxs);
+
+            if constexpr (IsScalar)
+            {
+                return *base; // return const T&
+            }
+            else
+            {
+                return std::span<const T>{base, m_N_el_for_node};
+            }
+        }
+
+        // *****     *WRITE*      ***** //
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        decltype(auto) operator()(Ts... idxs)
+        {
+            std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
+            return access(arr);
+        }
+
+        decltype(auto) operator()(std::initializer_list<size_t> idxs)
+        {
+            // copy into array for uniform handling
+            std::array<size_t, N_DIMS> arr{};
+            std::copy(idxs.begin(), idxs.end(), arr.begin());
+            return access(arr);
         }
 
         // *****      *READ*      ***** //
@@ -77,18 +105,15 @@ namespace numPDE
             -> std::conditional_t<IsScalar, const T&, std::span<const T>>
         {
             std::array<size_t, sizeof...(Ts)> arr{static_cast<size_t>(idxs)...};
-            const T*                          base = this->m_Field_values.ptr_at(arr);
+            return access(arr);
+        }
 
-            if constexpr (IsScalar)
-            {
-                // Scalar field: return const reference
-                return *base;
-            }
-            else
-            {
-                // Vector/tensor field: zero-copy view into underlying storage
-                return std::span<const T>{base, m_N_el_for_node};
-            }
+        auto operator()(std::initializer_list<size_t> idxs) const
+            -> std::conditional_t<IsScalar, const T&, std::span<const T>>
+        {
+            std::array<size_t, N_DIMS> arr{};
+            std::copy(idxs.begin(), idxs.end(), arr.begin());
+            return access(arr);
         }
 
         // -----------------------------//
@@ -99,16 +124,19 @@ namespace numPDE
         decltype(auto) all_elements() const { return m_Field_values.all_elems(); }
         decltype(auto) boundary_elements() const { return m_Field_values.bou_elems(); }
         template <typename Lambda>
+        decltype(auto) for_all(Lambda&& func) const
+        {
+            return m_Field_values.for_all_elements(std::forward<Lambda>(func));
+        }
+        template <typename Lambda>
         decltype(auto) for_intern(Lambda&& func) const
         {
-            // constexpr size_t ndims = (IsScalar) ? N_DIMS : N_DIMS - 1;
             return m_Field_values.for_internal_elements(std::forward<Lambda>(func));
         }
         template <typename Lambda>
-        decltype(auto) lambda_for(Lambda&& func) const
+        decltype(auto) for_bound(Lambda&& func) const
         {
-            // constexpr size_t ndims = (IsScalar) ? N_DIMS : N_DIMS - 1;
-            return m_Field_values.for_all_elements(std::forward<Lambda>(func));
+            return m_Field_values.for_boundary_elements(std::forward<Lambda>(func));
         }
 
         // -----------------------------//

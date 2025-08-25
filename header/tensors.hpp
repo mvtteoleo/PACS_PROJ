@@ -229,16 +229,31 @@ namespace numPDE
             // 1D index array for structured binding
             std::array<size_t, ndims> idx{};
 
-            for (idx[0] = 1; idx[0] < m_Sizes[0]-1; ++idx[0])
+            for (idx[0] = 1; idx[0] < m_Sizes[0] - 1; ++idx[0])
                 if constexpr (ndims >= 2)
-                    for (idx[1] = 1; idx[1] < m_Sizes[1]-1; ++idx[1])
+                    for (idx[1] = 1; idx[1] < m_Sizes[1] - 1; ++idx[1])
                         if constexpr (ndims >= 3)
-                            for (idx[2] = 1; idx[2] < m_Sizes[2]-1; ++idx[2])
+                            for (idx[2] = 1; idx[2] < m_Sizes[2] - 1; ++idx[2])
                                 func(idx);
                         else
                             func(idx); // 2D case
                 else
                     func(idx); // 1D case
+        }
+
+        template <typename Lambda, size_t ndims = DEF_DIM>
+        void for_boundary_elements(Lambda&& func) const
+        {
+            // 1D index array for structured binding
+            std::array<size_t, ndims> idx{};
+
+            for (auto [i, j, k] : bou_elems())
+            {
+                if constexpr (ndims == 1) idx = {i};
+                if constexpr (ndims == 2) idx = {i, j};
+                if constexpr (ndims == 3) idx = {i, j, k};
+                func(idx);
+            }
         }
 
         auto int_elems() const { return make_iterator(1, 1); }

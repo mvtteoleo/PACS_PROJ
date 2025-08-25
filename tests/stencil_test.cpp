@@ -84,14 +84,34 @@ int main(int argc, char* argv[])
     myUtilities::ChronoTimer  c("Access time");
 
     // ASSIGN VALUES
-    S.lambda_for(
+    S.for_all(
         [&](auto idx)
         {
-            auto [i, j, k]       = idx;
-            std::span<Real> span = V(i, j, k);
+            auto [i, j, k]         = idx;
+            std::span<Real> span   = V(i, j, k);
+            std::span<Real> span_w = W(i, j, k);
             for (int h = 0; h < 3; ++h)
-                span[h] = h;
+            {
+                span[h]   = i * j * k;
+                span_w[h] = h % 3;
+            }
         });
+    // 5 .lambda_for()
+    std::cout << ".lambda_for()" << std::endl;
+    c.reset();
+    for (size_t tt = 0; tt < N_TESTS; ++tt)
+        W.for_intern(
+            [&](auto idx)
+            {
+                auto [i, j, k] = idx;
+                W(i, j, k) = (V(i + 1, j, k) + V(i - 1, j, k) + V(i, j + 1, k) + V(i, j - 1, k) +
+                              V(i, j, k + 1) + V(i, j, k - 1) - 6. * V(i, j, k)) /
+                             (h * h);
+            });
+    /*
+    c.print_time(test_dim);
+    std::cout << std::endl;
+
 
     std::vector<Real> vec(V.size(), 0);
     for (size_t i = 0; i < vec.size(); ++i)
@@ -121,6 +141,7 @@ int main(int argc, char* argv[])
                         center = (xp + xm + yp + ym + zp + zm - 6.0 * center) / (h * h);
                     }
     c.print_time(test_dim);
+    std::cout << std::endl;
 
     // 2 Manual triple for
     std::cout << "Manual triple for" << std::endl;
@@ -134,6 +155,7 @@ int main(int argc, char* argv[])
                          V(i, j, k + 1) + V(i, j, k - 1) - 6. * V(i, j, k)) /
                         (h * h);
     c.print_time(test_dim);
+    std::cout << std::endl;
 
     // 3 .internal_elements()
     std::cout << ".internal_elements()" << std::endl;
@@ -144,6 +166,7 @@ int main(int argc, char* argv[])
                           V(i, j, k + 1) + V(i, j, k - 1) - 6. * V(i, j, k)) /
                          (h * h);
     c.print_time(test_dim);
+    std::cout << std::endl;
 
     // 4 Plain-like approach
     std::cout << "Plain-like approach" << std::endl;
@@ -167,21 +190,55 @@ int main(int argc, char* argv[])
                         center = (xp + xm + yp + ym + zp + zm - 6.0 * center) / (h * h);
                     }
     c.print_time(test_dim);
+    std::cout << std::endl;
 
     // 5 .lambda_for()
     std::cout << ".lambda_for()" << std::endl;
     c.reset();
-    W.lambda_for(
-        [&](auto idx)
-        {
-            auto [i, j, k] = idx;
-            W(i, j, k)     = (W(i + 1, j, k) + W(i - 1, j, k) + W(i, j + 1, k) + W(i, j - 1, k) +
-                          W(i, j, k + 1) + W(i, j, k - 1) - 6. * W(i, j, k)) /
-                         (h * h);
-        });
+    for (size_t tt = 0; tt < N_TESTS; ++tt)
+        W.for_intern(
+            [&](auto idx)
+            {
+                auto [i, j, k] = idx;
+                W(i, j, k) = (V(i + 1, j, k) + V(i - 1, j, k) + V(i, j + 1, k) + V(i, j - 1, k) +
+                              V(i, j, k + 1) + V(i, j, k - 1) - 6. * V(i, j, k)) /
+                             (h * h);
+            });
     c.print_time(test_dim);
+    std::cout << std::endl;
+
+    // 6 .internal_elems()
+    std::cout << ".internal_elems()" << std::endl;
+    c.reset();
+    Real t = 0;
+    for (size_t tt = 0; tt < N_TESTS; ++tt)
+    {
+        for (auto [i, j, k] : V.internal_elements())
+        {
+            t += 3;
+            V(i, j, k) = {t, t, t};
+        }
+    }
+    c.print_time(t);
+    std::cout << std::endl;
+
+
+    // 7 .for_bond()
+    std::cout << ".for_bond()" << std::endl;
+    c.reset();
+    Real t_ = 0;
+    for (size_t tt = 0; tt < N_TESTS; ++tt)
+    {
+        W.for_bound([&](auto idx){
+            auto [i,j, k] = idx;
+            t_ += 3;
+            V(i, j, k) = {t_, t_, t_};
+        });
+    }
+    c.print_time(t_);
+    std::cout << std::endl;
+    */
 
 #endif
-    std::cout << true;
     return 0;
 }
