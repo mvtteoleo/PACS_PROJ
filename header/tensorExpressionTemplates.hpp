@@ -8,6 +8,8 @@
 #include <span>
 #include <type_traits>
 
+constexpr size_t DEF_DIM = 3;
+
 namespace numPDE
 {
     // ---------- ET core ----------
@@ -18,11 +20,11 @@ namespace numPDE
         std::size_t size() const { return static_cast<const E&>(*this).size(); }
     };
 
-    template <typename T, size_t N = 3>
+    template <typename T, size_t N = DEF_DIM>
     struct Vec : Expr<Vec<T, N>>
     {
       public:
-    Vec() = default;
+        Vec() = default;
         Vec(std::initializer_list<T> l)
         {
             assert(l.size() <= N && "Value bigger than the size of the  element");
@@ -42,7 +44,7 @@ namespace numPDE
         auto operator()(const Expr<E>& expr)
         {
             const E& ex = static_cast<const E&>(expr);
-            assert("Size mismatch" && ex.size()==N);
+            assert("Size mismatch" && ex.size() == N);
             for (size_t i = 0; i < ex.size(); ++i)
                 m_Datas[i] = ex[i];
         }
@@ -50,7 +52,7 @@ namespace numPDE
         auto operator=(const Expr<E>& expr)
         {
             const E& ex = static_cast<const E&>(expr);
-            assert("Size mismatch" && ex.size()==N);
+            assert("Size mismatch" && ex.size() == N);
             for (size_t i = 0; i < ex.size(); ++i)
                 m_Datas[i] = ex[i];
             return (*this);
@@ -58,27 +60,83 @@ namespace numPDE
         // -----------------------------//
         // ***** CONSTR FROM SPAN ***** // aka from VectorField
         // -----------------------------//
-    template<typename FromSpan>
-    auto operator=(FromSpan &span){
-    auto span_clean = static_cast<std::span<const T>>(span);
-    std::copy_n(span_clean.begin(), N, m_Datas.begin());
-    }
-        
-        
-    // auto operator
-    // std::copy_n(span.begin(), N_dim, test.begin());
-    
+        auto operator=(std::span<T> span)
+        {
+            auto span_clean = static_cast<std::span<T>>(span);
+            std::copy_n(span_clean.begin(), N, m_Datas.begin());
+            return *this;
+        }
+        auto operator=(std::span<const T> span)
+        {
+            auto span_clean = static_cast<std::span<const T>>(span);
+            std::copy_n(span_clean.begin(), N, m_Datas.begin());
+            return *this;
+        }
+
+        // auto operator
+        // std::copy_n(span.begin(), N_dim, test.begin());
 
         // -----------------------------//
         // *****STL-LIKE UTILITIES***** //
         // -----------------------------//
         size_t constexpr size() const { return N; }
-        decltype(auto) begin() {return m_Datas.begin();}
-        decltype(auto) end()  {return m_Datas.end();}
-        decltype(auto) begin() const {return m_Datas.begin();}
-        decltype(auto) end() const {return m_Datas.end();}
+        decltype(auto) begin() { return m_Datas.begin(); }
+        decltype(auto) end() { return m_Datas.end(); }
+        decltype(auto) begin() const { return m_Datas.begin(); }
+        decltype(auto) end() const { return m_Datas.end(); }
+
       private:
         std::array<T, N> m_Datas{};
+    };
+
+    template <typename T, size_t N = DEF_DIM>
+    class ElementProxy : public Expr<ElementProxy<T, N>>
+    {
+        T*     base;
+        size_t dim;
+
+      public:
+        ElementProxy(T* ptr, size_t size) : base(ptr), dim(size)
+        {
+            assert(size == N && "Proxy size mismatch with Vec size");
+        }
+
+        // element access
+        T&       operator[](size_t i) { return base[i]; }
+        const T& operator[](size_t i) const { return base[i]; }
+
+        size_t size() const { return dim; }
+
+        // assignment from expression
+        template <typename E>
+        ElementProxy& operator=(const Expr<E>& expr)
+        {
+            const E& ex = static_cast<const E&>(expr);
+            assert(ex.size() == dim && "Size mismatch in assignment");
+            for (size_t i = 0; i < dim; ++i)
+                base[i] = ex[i];
+            return *this;
+        }
+
+        // assignment from init list
+        ElementProxy& operator=(std::initializer_list<T> values)
+        {
+            assert(values.size() == dim && "Size mismatch in init list");
+            std::copy_n(values.begin(), dim, base);
+            return *this;
+        }
+
+        // assignment from span
+        ElementProxy& operator=(std::span<const T> values)
+        {
+            assert(values.size() == dim && "Size mismatch in span assignment");
+            std::copy_n(values.begin(), dim, base);
+            return *this;
+        }
+
+        // implicit conversions for legacy compatibility
+        operator std::span<T>() { return {base, dim}; }
+        operator std::span<const T>() const { return {base, dim}; }
     };
 
     // ---------- Tensor–Tensor node ----------

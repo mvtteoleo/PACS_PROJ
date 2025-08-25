@@ -1,6 +1,7 @@
 #include "../header/fieldScalar.hpp"
 #include "../header/mesh.hpp"
 #include "../header/timer.hpp"
+#include <array>
 #include <cassert>
 #include <chrono>
 #include <cstddef>
@@ -32,30 +33,75 @@ int main(int argc, char* argv[])
     float                      h = 1;
     numPDE::Mesh<float>        mesh(x0, elems_for_dir, h);
     numPDE::ScalarField<float> mask(mesh);
+    myUtilities::ChronoTimer   c("Acces time");
+    constexpr size_t           N_TESTS = 1000;
 
-    int                      count = 1;
-    myUtilities::ChronoTimer c("Acces time");
-    for (size_t i = 0; i < Nx_dyn; ++i)
-        for (size_t j = 0; j < Ny_dyn; ++j)
-            for (size_t k = 0; k < Nz_dyn; ++k)
-                mask(i, j, k) = count; //, count++;
+    int                   count = 1;
+    std::array<size_t, 3> idx;
 
-    c.print_time();
-    c.print_time(Nx_dyn * Ny_dyn * Nz_dyn);
-    std::cout << "Time above is for the normal for loop and " << Nx_dyn * Ny_dyn * Nz_dyn
-              << "access\n";
+    // Access time using fully vector-like access
     count = 0;
-    myUtilities::ChronoTimer c_("Acces time");
-    for (auto [i, j, k] : mask.all_elements())
-        mask(i, j, k) = count; //, count++;
-    c_.print_time();
-    c_.print_time(Nx_dyn * Ny_dyn * Nz_dyn);
-    std::cout << "Time above is for the all_element loopand " << Nx_dyn * Ny_dyn * Nz_dyn
-              << "access\n";
-    /*
-    for (size_t i = 0; i < Nx_dyn; ++i)
-        for (size_t j = 0; j < Ny_dyn; ++j)
-            for (size_t k = 0; k < Nz_dyn; ++k)
-                printf("%d ", tensor2(i, j, k));
-         */
+    c.reset();
+    for (size_t r = 0; r < N_TESTS; ++r)
+    {
+        for (auto i : mask.all_linear_elements())
+            mask[i] = count, count++;
+    }
+    c.print_time(Nx_dyn * Ny_dyn * Nz_dyn * N_TESTS);
+
+    std::cout << "\t all_linear_element() loop \n";
+
+    // Access time using fully vector-like access
+    count = 0;
+    c.reset();
+    for (size_t r = 0; r < N_TESTS; ++r)
+    {
+        for (size_t i = 0; i < Nx_dyn * Ny_dyn * Nz_dyn; ++i)
+            mask[i] = count, count++;
+    }
+    c.print_time(Nx_dyn * Ny_dyn * Nz_dyn * N_TESTS);
+
+    std::cout << "\t plain vector for loop \n";
+
+    // Access time using triple  for loop
+    count = 0;
+    c.reset();
+    for (size_t r = 0; r < N_TESTS; ++r)
+    {
+        for (size_t i = 0; i < Nx_dyn; ++i)
+            for (size_t j = 0; j < Ny_dyn; ++j)
+                for (size_t k = 0; k < Nz_dyn; ++k)
+                    mask(i, j, k) = count, count++;
+    }
+    c.print_time(Nx_dyn * Ny_dyn * Nz_dyn * N_TESTS);
+
+    std::cout << "\t Triple normal for loop \n";
+
+    // Access time using all_elements
+    count = 0;
+    c.reset();
+    for (size_t r = 0; r < N_TESTS; ++r)
+    {
+        for (auto [i, j, k] : mask.all_elements())
+            mask(i, j, k) = count, count++;
+    }
+    c.print_time(Nx_dyn * Ny_dyn * Nz_dyn * N_TESTS);
+
+    std::cout << "\t all_element() loop \n";
+
+    // Access time using all_elements
+    count = 0;
+    c.reset();
+    for (size_t r = 0; r < N_TESTS; ++r)
+    {
+        mask.lambda_for(
+            [&](auto idx)
+            {
+                auto [i, j, k] = idx;
+                mask(i, j, k)  = count, count++;
+            });
+    }
+    c.print_time(Nx_dyn * Ny_dyn * Nz_dyn * N_TESTS);
+
+    std::cout << "\t lamda_for() loop \n";
 }

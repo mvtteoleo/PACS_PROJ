@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <iostream>
 
-#define TEST 1
+#define TEST 0
 
 using Real   = double;
 using Vector = std::vector<Real>;
@@ -18,10 +18,10 @@ int main(int argc, char* argv[])
     std::cout << "/****** TEST : ET.cpp ******/" << std::endl;
     constexpr size_t N_dim = 3;
 
-    std::size_t         N             = (argc > 1) ? std::stoul(argv[1]) : 3;
-    std::vector<Real>   x0            (N_dim, 0);
-    std::vector<size_t> elems_for_dir (N_dim, N);
-    Real                h             = 2 * std::numbers::pi / (N - 1);
+    std::size_t         N = (argc > 1) ? std::stoul(argv[1]) : 3;
+    std::vector<Real>   x0(N_dim, 0);
+    std::vector<size_t> elems_for_dir(N_dim, N);
+    Real                h = 2 * std::numbers::pi / (N - 1);
     numPDE::Mesh<Real>  mesh(x0, elems_for_dir, h);
 #if TEST == 0
     numPDE::Tensor<Real, 2> A(elems_for_dir);
@@ -54,11 +54,11 @@ int main(int argc, char* argv[])
 #elif TEST == 1
 
     /*
-    */
-    numPDE::Vec<Real> test({1, 1, 1});
+     */
+    numPDE::Vec<Real>         test({1, 1, 1});
     numPDE::VectorField<Real> V(mesh);
-  auto span = V(0, 0, 0);
-    test=span;
+    auto                      span = V(0, 0, 0);
+    test                           = span;
     /*
     numPDE::Vec<Real> test({1, 1, 1});
     auto span_clean = static_cast<std::span<const Real>>(span);

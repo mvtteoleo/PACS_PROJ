@@ -48,8 +48,6 @@ namespace numPDE
         // -----------------------------//
         template <typename Range>
         Tensor(const Range& sizes)
-            : m_Rank{sizes.size()},
-              m_N_element{std::accumulate(sizes.begin(), sizes.end(), size_t(1), std::multiplies{})}
         {
             assert("In tensor initialization the initializer vector mismatchees the N_DIMS" &&
                    sizes.size() <= N_DIMS);
@@ -59,14 +57,14 @@ namespace numPDE
             // (Nz*Ny for i_x, Ny for i_y and 1 for i_z)
             if constexpr (TYPE == COMPACT)
             {
-                m_Slices_size[m_Rank - 1] = 1;
-                for (int i = m_Rank - 2; i >= 0; --i)
+                m_Slices_size[N_DIMS - 1] = 1;
+                for (int i = N_DIMS - 2; i >= 0; --i)
                     m_Slices_size[i] = m_Slices_size[i + 1] * m_Sizes[i + 1];
             }
             if constexpr (TYPE == ROW_MAJOR)
             {
                 m_Slices_size[0] = 1;
-                for (size_t i = 1; i < m_Rank; ++i)
+                for (size_t i = 1; i < N_DIMS; ++i)
                     m_Slices_size[i] = m_Slices_size[i - 1] * m_Sizes[i - 1];
             }
             // Allocate memory
@@ -142,13 +140,13 @@ namespace numPDE
             requires std::is_integral_v<Ts>
         T& operator()(std::span<Ts> indices)
         {
-            // if (indices.size() != m_Rank) throw std::out_of_range("Dimensions not matching");
+            // if (indices.size() != N_DIMS) throw std::out_of_range("Dimensions not matching");
             [[unlikely]]
-            if (indices.size() > m_Rank)
-                indices = indices.first(m_Rank);
+            if (indices.size() > N_DIMS)
+                indices = indices.first(N_DIMS);
 
             for (size_t i = 0; i < indices.size(); ++i) [[unlikely]]
-                if (indices[i] >= m_Sizes[i]) throw std::out_of_range("Index out of bounds");
+                if (indices[i] >= m_Sizes[i]) throw std::out_of_range("Tensor index out of bounds");
 
             return m_Datas[get_linear_index(indices)];
         }
@@ -185,21 +183,58 @@ namespace numPDE
         // -----------------------------//
         // *****     ITERATORS    ***** //
         // -----------------------------//
-        auto all_linear_elements() const { return std::views::iota(size_t{0}, m_N_element); };
+        auto all_linear_elements() const { return std::views::iota(size_t{0}, m_Datas.size()); };
         auto make_iterator(size_t start_offset, size_t end_offset) const
         {
             auto& sizes   = m_Sizes;
-            auto  dim     = m_Rank;
             auto  i_range = std::views::iota(start_offset, sizes[0] - end_offset);
+            auto  j_range = std::views::iota(size_t{0}, size_t{1});
+            auto  k_range = std::views::iota(size_t{0}, size_t{1});
 
-            auto j_range = (dim >= 2) ? std::views::iota(start_offset, sizes[1] - end_offset)
-                                      : std::views::iota(size_t{0}, size_t{1});
+            // j_range depends on N_DIMS
+            if constexpr (N_DIMS >= 2)
+            {
+                j_range = std::views::iota(start_offset, sizes[1] - end_offset);
+            }
 
-            auto k_range = (dim >= 3) ? std::views::iota(start_offset, sizes[2] - end_offset)
-                                      : std::views::iota(size_t{0}, size_t{1});
-
+            if constexpr (N_DIMS >= 3)
+            {
+                k_range = std::views::iota(start_offset, sizes[2] - end_offset);
+            }
             // Order in cartesian_product: leftmost slowest, rightmost fastest
             return std::ranges::views::cartesian_product(i_range, j_range, k_range);
+        }
+
+        template <typename Lambda>
+        void for_all_elements(Lambda&& func) const
+        {
+            // 1D index array for structured binding
+            std::array<size_t, N_DIMS> idx{};
+
+            for (idx[0] = 0; idx[0] < m_Sizes[0]; ++idx[0])
+            {
+                if constexpr (N_DIMS >= 2)
+                {
+                    for (idx[1] = 0; idx[1] < m_Sizes[1]; ++idx[1])
+                    {
+                        if constexpr (N_DIMS >= 3)
+                        {
+                            for (idx[2] = 0; idx[2] < m_Sizes[2]; ++idx[2])
+                            {
+                                func(idx);
+                            }
+                        }
+                        else
+                        {
+                            func(idx); // 2D case
+                        }
+                    }
+                }
+                else
+                {
+                    func(idx); // 1D case
+                }
+            }
         }
 
         auto int_elems() const { return make_iterator(1, 1); }
@@ -239,18 +274,14 @@ namespace numPDE
         // -----------------------------//
         // *****      GETTER       **** //
         // -----------------------------//
-        size_t      get_rank() const noexcept { return m_Rank; }
+        size_t      get_rank() const noexcept { return N_DIMS; }
         size_t      size() const noexcept { return m_Datas.size(); }
         const auto& raw_datas() const noexcept { return m_Datas; }
         const auto  get_slices() const noexcept { return m_Slices_size; }
         const auto  get_sizes() const noexcept { return m_Sizes; }
 
       protected:
-        // Rank of the tensor
-        size_t m_Rank{N_DIMS};
         // Number of elements
-        size_t m_N_element{1};
-        // Array containing m_N_element for each dimension
         Small_vec m_Sizes;
         // Helper for the indexing (Gave 10x speed)
         Small_vec m_Slices_size;

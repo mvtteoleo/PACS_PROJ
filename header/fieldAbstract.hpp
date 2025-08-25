@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <utility>
 namespace numPDE
 {
 
@@ -49,35 +50,6 @@ namespace numPDE
         }
 
         // *****     *WRITE*      ***** //
-        class ElementProxy
-        {
-            T*     base;
-            size_t dim;
-
-          public:
-            ElementProxy(T* ptr, size_t size) : base(ptr), dim(size) {}
-
-            // Assign from initializer list
-            ElementProxy& operator=(std::initializer_list<T> values)
-            {
-                std::copy_n(values.begin(), dim, base);
-                return *this;
-            }
-
-            // Assign from span
-            ElementProxy& operator=(std::span<const T> values)
-            {
-                std::copy_n(values.begin(), dim, base);
-                return *this;
-            }
-
-            // IMPLICIT CONVERSION BACK TO SPAN (FOR READING)
-            // Non const span => Modify this means modify Field!!
-            operator std::span<T>() const { return {base, dim}; }
-            // Const span => Read only!!
-            operator std::span<const T>() { return {base, dim}; }
-        };
-
         // Return either T& or std::span
         template <typename... Ts>
             requires UnsignedInt<Ts...>
@@ -125,6 +97,11 @@ namespace numPDE
         decltype(auto) internal_elements() const { return m_Field_values.int_elems(); }
         decltype(auto) all_elements() const { return m_Field_values.all_elems(); }
         decltype(auto) boundary_elements() const { return m_Field_values.bou_elems(); }
+        template <typename Lambda>
+        decltype(auto) lambda_for(Lambda&& func) const
+        {
+            return m_Field_values.for_all_elements(std::forward<Lambda>(func));
+        }
 
         // -----------------------------//
         // *****    PRINT & DUMP   **** //
