@@ -94,7 +94,7 @@ int main(int argc, char* argv[])
     c.reset();
     for (size_t r = 0; r < N_TESTS; ++r)
     {
-        mask.lambda_for(
+        mask.for_all(
             [&](auto idx)
             {
                 auto [i, j, k] = idx;

@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
     std::cout << std::endl;
     std::cout << "/****** TEST : ET.cpp ******/" << std::endl;
 
-    std::size_t         N = (argc > 1) ? std::stoul(argv[1]) : 3;
+    std::size_t         N = (argc > 1) ? std::stoul(argv[1]) : 300;
     std::vector<Real>   x0{0, 0, 0};
     std::vector<size_t> elems_for_dir{N, N, N};
     Real                h = 2 * std::numbers::pi / (N - 1);

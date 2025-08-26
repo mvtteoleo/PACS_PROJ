@@ -42,7 +42,7 @@ namespace numPDE
         auto operator()(const Expr<E>& expr)
         {
             const E& ex = static_cast<const E&>(expr);
-#ifdef PEDANTIC
+#if PEDANTIC
             assert("Size mismatch" && ex.size() == N);
 #endif
             for (size_t i = 0; i < ex.size(); ++i)
@@ -53,7 +53,7 @@ namespace numPDE
         {
             const E& ex = static_cast<const E&>(expr);
 
-#ifdef PEDANTIC
+#if PEDANTIC
             assert("Size mismatch" && ex.size() == N);
 #endif
             for (size_t i = 0; i < ex.size(); ++i)
@@ -101,7 +101,7 @@ namespace numPDE
       public:
         ElementProxy(T* ptr, size_t size) : base(ptr), dim(size)
         {
-#ifdef PEDANTIC
+#if PEDANTIC
             assert(size == N && "Proxy size mismatch with Vec size");
 #endif
         }
@@ -117,7 +117,7 @@ namespace numPDE
         ElementProxy& operator=(const Expr<E>& expr)
         {
             const E& ex = static_cast<const E&>(expr);
-#ifdef PEDANTIC
+#if PEDANTIC
             assert(ex.size() == dim && "Size mismatch in assignment");
 #endif
             for (size_t i = 0; i < dim; ++i)
@@ -128,7 +128,7 @@ namespace numPDE
         // assignment from init list
         ElementProxy& operator=(std::initializer_list<T> values)
         {
-#ifdef PEDANTIC
+#if PEDANTIC
             assert(values.size() == dim && "Size mismatch in init list");
 #endif
             std::copy_n(values.begin(), dim, base);
@@ -138,7 +138,7 @@ namespace numPDE
         // assignment from span
         ElementProxy& operator=(std::span<const T> values)
         {
-#ifdef PEDANTIC
+#if PEDANTIC
             assert(values.size() == dim && "Size mismatch in span assignment");
 #endif
             std::copy_n(values.begin(), dim, base);

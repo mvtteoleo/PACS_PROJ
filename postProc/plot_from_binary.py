@@ -41,7 +41,7 @@ def write_data():
             y = np.linspace(x_0[1], x_end[1], num=int(n_nodes[1]), endpoint=True)
             z = np.linspace(x_0[2], x_end[2], num=int(n_nodes[2]), endpoint=True)
 
-            x, y, z =    np.meshgrid(x, y, z, indexing="ij")
+            x, y, z = np.meshgrid(x, y, z, indexing="ij")
         with open(scal_file, "rb") as f:
             count = int(np.fromfile(f, dtype=np.uint64, count=1)[0])
             val = np.fromfile(f, dtype=np.float64, count=count)  # 3 pos + 1 value
@@ -56,7 +56,10 @@ if os.path.exists("./build") == False:
 try:
     if os.path.exists(exe) == False:
         print(f"Compiling and producing new executable")
-        subprocess.run(["g++", "-std=c++23", f"-DTEST={test}", "tests/binary_dump.cpp", "-o", exe], check=True)
+        subprocess.run(
+            ["g++", "-std=c++23", f"-DTEST={test}", "tests/binary_dump.cpp", "-o", exe],
+            check=True,
+        )
     else:
         print(f"Executable already existing")
     print(f"Running {exe}")

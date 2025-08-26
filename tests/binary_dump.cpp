@@ -88,8 +88,8 @@ int main(int argc, char* argv[])
     std::cout << "/****** TEST : binary_dump.cpp ******/" << std::endl;
     std::size_t N = 10;
     if (argc > 1) N = std::stoul(argv[1]);
-    std::string                file =   "build/my_binary_dump.bin";
-    std::vector<float>         x0   = {0, 0, 0};
+    std::string                file          = "build/my_binary_dump.bin";
+    std::vector<float>         x0            = {0, 0, 0};
     std::vector<size_t>        elems_for_dir = {N, N, N};
     float                      h             = 1. / (N - 1);
     numPDE::Mesh<float>        mesh(x0, elems_for_dir, h);
@@ -202,7 +202,6 @@ int main(int argc, char* argv[])
 
     for (auto [i, j, k] : mask.all_elements())
         mask(i, j, k) = chi(mask.pos(i, j, k));
-
 
     mask.dump_values_as_binary();
     mask.print_mesh_vals();

@@ -160,10 +160,9 @@ namespace numPDE
          * uint_64 WARNING! Need to add also in a smart way the number of dimensions and sizes,
          * maybe another "mesh" file for each rank could be a good idea
          */
-        void dump_values_as_binary(std::string file_path =  (IsScalar==true) ? 
-                                   "build/ScalTens_dump.bin"
-                                                            : "build/VectTens_dump.bin"
-                                   )
+        void dump_values_as_binary(std::string file_path = (IsScalar == true)
+                                                               ? "build/ScalTens_dump.bin"
+                                                               : "build/VectTens_dump.bin")
         {
             std::ofstream ofs(file_path, std::ios::binary);
             if (!ofs)
