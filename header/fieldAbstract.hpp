@@ -21,7 +21,6 @@ namespace numPDE
         Tensor<T, (IsScalar) ? N_DIMS : N_DIMS + 1> m_Field_values;
         size_t                                      m_N_el_for_node{(IsScalar) ? 1 : 0};
         std::shared_ptr<Mesh<T>>                    p_mesh;
-        bool                                        m_Is_scalar{(IsScalar) ? true : false};
 
       public:
         using value_type = T;
@@ -143,7 +142,7 @@ namespace numPDE
         // *****    PRINT & DUMP   **** //
         // -----------------------------//
         /// Generic helper: write a range of numeric values as doubles
-        template <typename Range, typename U>
+        template <typename U, typename Range>
         void write_as(std::ofstream& ofs, const Range& range)
         {
             static_assert(std::is_arithmetic_v<typename Range::value_type>,
@@ -161,7 +160,10 @@ namespace numPDE
          * uint_64 WARNING! Need to add also in a smart way the number of dimensions and sizes,
          * maybe another "mesh" file for each rank could be a good idea
          */
-        void dump_values_as_binary(std::string& file_path = "build/tensor_dump.bin")
+        void dump_values_as_binary(std::string file_path =  (IsScalar==true) ? 
+                                   "build/ScalTens_dump.bin"
+                                                            : "build/VectTens_dump.bin"
+                                   )
         {
             std::ofstream ofs(file_path, std::ios::binary);
             if (!ofs)
@@ -169,8 +171,7 @@ namespace numPDE
                 throw std::runtime_error("Cannot open file for writing");
             }
 
-            uint_fast64_t count = m_Field_values.get_nElements();
-
+            uint_fast64_t count = m_Field_values.size();
             ofs.write(reinterpret_cast<const char*>(&count), sizeof(count));
 
             write_as<double>(ofs, m_Field_values.raw_datas());
@@ -183,7 +184,7 @@ namespace numPDE
          * This method will dump the data of the mesh in order to then allow the python code to
          * read it and reconstruct the mesh in the most efficient way.
          */
-        void print_mesh_vals(std::string& file_path = "build/mesh_datas.bin")
+        void print_mesh_vals(std::string file_path = "build/mesh_datas.bin")
         {
             std::ofstream ofs(file_path, std::ios::binary);
             if (!ofs)
@@ -191,10 +192,12 @@ namespace numPDE
                 throw std::runtime_error("Cannot open file for writing");
             }
 
+            uint_fast64_t count = 3 * p_mesh->get_N_dims();
+            ofs.write(reinterpret_cast<const char*>(&count), sizeof(count));
             // Write x0, n_nodes, delta_x (All as vectors)
             write_as<double>(ofs, p_mesh->get_x0());
             write_as<double>(ofs, p_mesh->get_x_end());
-            write_as<double>(ofs, p_mesh->get_delta_x());
+            write_as<double>(ofs, p_mesh->get_N_nodes());
 
             ofs.close();
             std::cout << "Wrote mesh entries to " << file_path << "\n";

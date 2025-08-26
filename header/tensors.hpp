@@ -141,12 +141,14 @@ namespace numPDE
         T& operator()(std::span<Ts> indices)
         {
             // if (indices.size() != N_DIMS) throw std::out_of_range("Dimensions not matching");
+#ifdef PEDANTIC
             [[unlikely]]
             if (indices.size() > N_DIMS)
                 indices = indices.first(N_DIMS);
 
             for (size_t i = 0; i < indices.size(); ++i) [[unlikely]]
                 if (indices[i] >= m_Sizes[i]) throw std::out_of_range("Tensor index out of bounds");
+#endif
 
             return m_Datas[get_linear_index(indices)];
         }

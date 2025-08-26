@@ -1,4 +1,5 @@
 #pragma once
+#include "compiler_directives.hpp"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -7,9 +8,6 @@
 #include <ostream>
 #include <span>
 #include <type_traits>
-
-constexpr size_t DEF_DIM = 2;
-
 namespace numPDE
 {
     // ---------- ET core ----------
@@ -44,7 +42,9 @@ namespace numPDE
         auto operator()(const Expr<E>& expr)
         {
             const E& ex = static_cast<const E&>(expr);
+#ifdef PEDANTIC
             assert("Size mismatch" && ex.size() == N);
+#endif
             for (size_t i = 0; i < ex.size(); ++i)
                 m_Datas[i] = ex[i];
         }
@@ -52,7 +52,10 @@ namespace numPDE
         auto operator=(const Expr<E>& expr)
         {
             const E& ex = static_cast<const E&>(expr);
+
+#ifdef PEDANTIC
             assert("Size mismatch" && ex.size() == N);
+#endif
             for (size_t i = 0; i < ex.size(); ++i)
                 m_Datas[i] = ex[i];
             return (*this);
@@ -98,7 +101,9 @@ namespace numPDE
       public:
         ElementProxy(T* ptr, size_t size) : base(ptr), dim(size)
         {
+#ifdef PEDANTIC
             assert(size == N && "Proxy size mismatch with Vec size");
+#endif
         }
 
         // element access
@@ -112,7 +117,9 @@ namespace numPDE
         ElementProxy& operator=(const Expr<E>& expr)
         {
             const E& ex = static_cast<const E&>(expr);
+#ifdef PEDANTIC
             assert(ex.size() == dim && "Size mismatch in assignment");
+#endif
             for (size_t i = 0; i < dim; ++i)
                 base[i] = ex[i];
             return *this;
@@ -121,7 +128,9 @@ namespace numPDE
         // assignment from init list
         ElementProxy& operator=(std::initializer_list<T> values)
         {
+#ifdef PEDANTIC
             assert(values.size() == dim && "Size mismatch in init list");
+#endif
             std::copy_n(values.begin(), dim, base);
             return *this;
         }
@@ -129,7 +138,9 @@ namespace numPDE
         // assignment from span
         ElementProxy& operator=(std::span<const T> values)
         {
+#ifdef PEDANTIC
             assert(values.size() == dim && "Size mismatch in span assignment");
+#endif
             std::copy_n(values.begin(), dim, base);
             return *this;
         }

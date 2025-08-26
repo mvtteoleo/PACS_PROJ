@@ -16,6 +16,7 @@
                 matplotlib
                 numpy
                 vtk
+                black
             ]);
 
         in {

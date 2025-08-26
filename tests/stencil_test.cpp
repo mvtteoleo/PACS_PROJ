@@ -64,19 +64,31 @@ int main(int argc, char* argv[])
 #elif TEST == 1
     /*
      *  g++ tests/stencil_test.cpp -O3 -std=c++23
-     *   ./a.out 200
+     *   ./a.out 500
      *
-     *   ****** TEST : ET.cpp ******
-     *   Plain vec
-     *   Access time needed : 4.52246e-09s
-     *   Manual triple for
-     *   Access time needed : 5.8568e-09s
-     *   .internal_elements()
-     *   Access time needed : 5.90331e-09s
-     *   Plain-like approach
-     *   Access time needed : 4.52653e-09s
-     *   .lambda_for()
-     *   Access time needed : 6.10176e-11s
+     * ****** TEST : ET.cpp ******
+     * Let the drag race start!
+     * Plain vec
+     * Access time needed : 4.91793e-09s
+     *
+     * Manual triple for
+     * m^[
+     * Access time needed : 6.04622e-09s
+     *
+     * .internal_elements()
+     * Access time needed : 6.08984e-09s
+     *
+     * Plain-like approach
+     * Access time needed : 4.76139e-09s
+     *
+     * .lambda_for()
+     * Access time needed : 4.20545e-09s
+     *
+     * .internal_elems()
+     * Access time needed : 8.4347e-10s
+     *
+     * .for_bond()
+     * Access time needed : 3.42059e-08s
      */
     numPDE::ScalarField<Real> S(mesh);
     numPDE::VectorField<Real> V(mesh);
@@ -96,28 +108,13 @@ int main(int argc, char* argv[])
                 span_w[h] = h % 3;
             }
         });
-    // 5 .lambda_for()
-    std::cout << ".lambda_for()" << std::endl;
-    c.reset();
-    for (size_t tt = 0; tt < N_TESTS; ++tt)
-        W.for_intern(
-            [&](auto idx)
-            {
-                auto [i, j, k] = idx;
-                W(i, j, k) = (V(i + 1, j, k) + V(i - 1, j, k) + V(i, j + 1, k) + V(i, j - 1, k) +
-                              V(i, j, k + 1) + V(i, j, k - 1) - 6. * V(i, j, k)) /
-                             (h * h);
-            });
-    /*
-    c.print_time(test_dim);
-    std::cout << std::endl;
-
 
     std::vector<Real> vec(V.size(), 0);
     for (size_t i = 0; i < vec.size(); ++i)
         vec[i] = i % 3;
 
     // START DRAG RACE
+    std::cout << "Let the drag race start!" << std::endl;
 
     // 1 Plain vec
     std::cout << "Plain vec" << std::endl;
@@ -194,16 +191,16 @@ int main(int argc, char* argv[])
 
     // 5 .lambda_for()
     std::cout << ".lambda_for()" << std::endl;
+    auto laplace_test = [&](auto idx)
+    {
+        auto [i, j, k] = idx;
+        W(i, j, k)     = (V(i + 1, j, k) + V(i - 1, j, k) + V(i, j + 1, k) + V(i, j - 1, k) +
+                      V(i, j, k + 1) + V(i, j, k - 1) - 6. * V(i, j, k)) /
+                     (h * h);
+    };
     c.reset();
     for (size_t tt = 0; tt < N_TESTS; ++tt)
-        W.for_intern(
-            [&](auto idx)
-            {
-                auto [i, j, k] = idx;
-                W(i, j, k) = (V(i + 1, j, k) + V(i - 1, j, k) + V(i, j + 1, k) + V(i, j - 1, k) +
-                              V(i, j, k + 1) + V(i, j, k - 1) - 6. * V(i, j, k)) /
-                             (h * h);
-            });
+        W.for_intern(laplace_test);
     c.print_time(test_dim);
     std::cout << std::endl;
 
@@ -222,22 +219,22 @@ int main(int argc, char* argv[])
     c.print_time(t);
     std::cout << std::endl;
 
-
     // 7 .for_bond()
     std::cout << ".for_bond()" << std::endl;
     c.reset();
     Real t_ = 0;
     for (size_t tt = 0; tt < N_TESTS; ++tt)
     {
-        W.for_bound([&](auto idx){
-            auto [i,j, k] = idx;
-            t_ += 3;
-            V(i, j, k) = {t_, t_, t_};
-        });
+        W.for_bound(
+            [&](auto idx)
+            {
+                auto [i, j, k] = idx;
+                t_ += 3;
+                V(i, j, k) = {t_, t_, t_};
+            });
     }
     c.print_time(t_);
     std::cout << std::endl;
-    */
 
 #endif
     return 0;

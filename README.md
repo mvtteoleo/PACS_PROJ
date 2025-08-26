@@ -15,7 +15,5 @@ Milestones:
 
 
 Some more notes:
-    - Curiously recurring templates instead of inheritance from virtual
     - Policy based designed instead of a solver class that inherits
-    - Expression templates
     - Static reflections and compile time dispatch
