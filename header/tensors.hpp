@@ -1,4 +1,5 @@
 #pragma once
+#include "compiler_directives.hpp"
 #include "customvec.hpp"
 #include "tensorExpressionTemplates.hpp"
 #include <array>
@@ -33,11 +34,11 @@ namespace numPDE
      * Dynamic tensor class that handles n-dimensional tensors
      * the key idea is to do a std::md_span, but with easier to use indexing
      */
-    template <typename T, size_t N_DIMS = 3, TypeIndex TYPE = COMPACT>
-    class Tensor : public Expr<Tensor<T, N_DIMS, TYPE>>
+    template <typename T, size_t RANK = DEF_DIM, size_t N_DIMS = DEF_DIM, TypeIndex TYPE = COMPACT>
+    class Tensor : public Expr<Tensor<T, RANK, N_DIMS, TYPE>>
     {
       public:
-        using Small_vec  = std::array<size_t, N_DIMS>;
+        using Small_vec  = std::array<size_t, RANK>;
         using value_type = T;
         ~Tensor()        = default;
 
@@ -50,21 +51,21 @@ namespace numPDE
         Tensor(const Range& sizes)
         {
             assert("In tensor initialization the initializer vector mismatchees the N_DIMS" &&
-                   sizes.size() <= N_DIMS);
+                   sizes.size() == RANK);
             std::copy(sizes.begin(), sizes.begin() + sizes.size(), m_Sizes.begin());
 
             // Precompute the size of the slices
             // (Nz*Ny for i_x, Ny for i_y and 1 for i_z)
             if constexpr (TYPE == COMPACT)
             {
-                m_Slices_size[N_DIMS - 1] = 1;
-                for (int i = N_DIMS - 2; i >= 0; --i)
+                m_Slices_size[RANK - 1] = 1;
+                for (int i = RANK - 2; i >= 0; --i)
                     m_Slices_size[i] = m_Slices_size[i + 1] * m_Sizes[i + 1];
             }
             if constexpr (TYPE == ROW_MAJOR)
             {
                 m_Slices_size[0] = 1;
-                for (size_t i = 1; i < N_DIMS; ++i)
+                for (size_t i = 1; i < RANK; ++i)
                     m_Slices_size[i] = m_Slices_size[i - 1] * m_Sizes[i - 1];
             }
             // Allocate memory
@@ -207,7 +208,7 @@ namespace numPDE
             return std::ranges::views::cartesian_product(i_range, j_range, k_range);
         }
 
-        template <typename Lambda, size_t ndims = DEF_DIM>
+        template <typename Lambda, size_t ndims = N_DIMS>
         void for_all_elements(Lambda&& func) const
         {
             // 1D index array for structured binding
@@ -225,7 +226,7 @@ namespace numPDE
                     func(idx); // 1D case
         }
 
-        template <typename Lambda, size_t ndims = DEF_DIM>
+        template <typename Lambda, size_t ndims = N_DIMS>
         void for_internal_elements(Lambda&& func) const
         {
             // 1D index array for structured binding
@@ -243,7 +244,7 @@ namespace numPDE
                     func(idx); // 1D case
         }
 
-        template <typename Lambda, size_t ndims = DEF_DIM>
+        template <typename Lambda, size_t ndims = N_DIMS>
         void for_boundary_elements(Lambda&& func) const
         {
             // 1D index array for structured binding

@@ -1,4 +1,5 @@
 #pragma once
+#include "compiler_directives.hpp"
 #include "fieldAbstract.hpp"
 #include "mesh.hpp"
 #include "tensors.hpp"
@@ -8,12 +9,12 @@
 namespace numPDE
 {
     // Template class aims to handle a staggered vector field with the upcoming difficulties.
-    template <typename T>
+    template <typename T, size_t N_DIMS = DEF_DIM>
         requires std::is_floating_point_v<T>
-    class VectorField : public AbstractField<T, false>
+    class VectorField : public AbstractField<T, false, N_DIMS>
     {
       public:
-        using Base = AbstractField<T, false>;
+        using Base = AbstractField<T, false, N_DIMS>;
         using Base::m_Field_values;
         using Base::p_mesh;
 

@@ -14,11 +14,8 @@ namespace numPDE
         requires std::is_floating_point_v<T>
     class AbstractField
     {
-        template <typename U, size_t N, TypeIndex TYPE>
-        friend class Tensor;
-
       protected:
-        Tensor<T, (IsScalar) ? N_DIMS : N_DIMS + 1> m_Field_values;
+        Tensor<T,(IsScalar) ? N_DIMS : N_DIMS + 1, N_DIMS> m_Field_values;
         size_t                                      m_N_el_for_node{(IsScalar) ? 1 : 0};
         std::shared_ptr<Mesh<T>>                    p_mesh;
 
@@ -61,7 +58,7 @@ namespace numPDE
             }
             else
             {
-                return ElementProxy(base, m_N_el_for_node);
+                return ElementProxy<T, N_DIMS>(base, m_N_el_for_node);
             }
         }
 

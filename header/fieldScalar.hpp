@@ -1,17 +1,19 @@
 #pragma once
+#include "compiler_directives.hpp"
 #include "fieldAbstract.hpp"
 #include "tensorExpressionTemplates.hpp"
+#include <cstddef>
 #include <cstdio>
 
 namespace numPDE
 {
 
-    template <typename T>
+    template <typename T, size_t N_DIMS = DEF_DIM>
         requires std::is_floating_point_v<T>
-    class ScalarField : public AbstractField<T, true>
+    class ScalarField : public AbstractField<T, true, N_DIMS>
     {
       public:
-        using Base = AbstractField<T, true>;
+        using Base = AbstractField<T, true, N_DIMS>;
         using Base::m_Field_values;
         using Base::p_mesh;
 
