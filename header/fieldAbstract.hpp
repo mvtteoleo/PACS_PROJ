@@ -15,9 +15,9 @@ namespace numPDE
     class AbstractField
     {
       protected:
-        Tensor<T,(IsScalar) ? N_DIMS : N_DIMS + 1, N_DIMS> m_Field_values;
-        size_t                                      m_N_el_for_node{(IsScalar) ? 1 : 0};
-        std::shared_ptr<Mesh<T>>                    p_mesh;
+        Tensor<T, (IsScalar) ? N_DIMS : N_DIMS + 1, N_DIMS> m_Field_values;
+        size_t                                              m_N_el_for_node{(IsScalar) ? 1 : 0};
+        std::shared_ptr<Mesh<T>>                            p_mesh;
 
       public:
         using value_type = T;

@@ -83,9 +83,9 @@ int main(int argc, char* argv[])
     std::cout << "Norm : " << p.L2norm();
 #endif
     numPDE::VectorField<Real, 2> V(mesh), helper(mesh);
-    numPDE::Vec<Real, 2> s_fij = {0, 0};
-    auto ex_sol = [](std::vector<Real> pos)  { return sin(pos[0]) * sin(pos[1]); };
-    auto ex_lap = [](std::vector<Real> pos)  { return -2 * sin(pos[0]) * sin(pos[1]); };
+    numPDE::Vec<Real, 2>         s_fij = {0, 0};
+    auto ex_sol = [](std::vector<Real> pos) { return sin(pos[0]) * sin(pos[1]); };
+    auto ex_lap = [](std::vector<Real> pos) { return -2 * sin(pos[0]) * sin(pos[1]); };
 
     // Initialize the field
     auto initialize_field = [&](auto idx)
@@ -98,20 +98,24 @@ int main(int argc, char* argv[])
     auto do_lapl = [&](auto idx)
     {
         auto [i, j] = idx;
-        V(i, j) = (helper(i + 1, j) + helper(i - 1, j) + helper(i, j + 1) + helper(i, j - 1) - 4. * helper(i, j)) / (h * h);
+        V(i, j)     = (helper(i + 1, j) + helper(i - 1, j) + helper(i, j + 1) + helper(i, j - 1) -
+                   4. * helper(i, j)) /
+                  (h * h);
     };
     // Compute step
     auto Jacobi_it = [&](auto idx)
     {
         auto [i, j] = idx;
-        auto f = ex_lap(mesh.position(i, j));
-        s_fij =  {f, f};
-        V(i, j) = (helper(i + 1, j) + helper(i - 1, j) + helper(i, j + 1) + helper(i, j - 1) +  (h * h) * s_fij ) / 4.;
+        auto f      = ex_lap(mesh.position(i, j));
+        s_fij       = {f, f};
+        V(i, j)     = (helper(i + 1, j) + helper(i - 1, j) + helper(i, j + 1) + helper(i, j - 1) +
+                   (h * h) * s_fij) /
+                  4.;
     };
-    auto check_stopping_crit= [&](auto idx)
+    auto check_stopping_crit = [&](auto idx)
     {
-        auto [i, j] = idx;
-        helper(i, j) = helper(i , j) - V(i, j);
+        auto [i, j]  = idx;
+        helper(i, j) = helper(i, j) - V(i, j);
     };
     // Check results
     auto check_ris = [&](auto idx)
@@ -124,16 +128,19 @@ int main(int argc, char* argv[])
     };
 
     V.for_all(initialize_field);
-    Real toll{1e-5}, err{2};
-    size_t rips {0};
-    while(toll < err)
+
+    Real   toll{1e-5}, err{2};
+    size_t rips{0};
+
+    // SOLVE LAPLACE PROBLEM
+    while (toll < err)
     {
-    std::swap(helper, V);
-    V.for_intern(Jacobi_it);
-    V.for_intern(check_stopping_crit);
-    err = helper.L2norm();
-    std::cout << "Norm : " << err << std::endl;
-    std::cout << "Rips : " << rips<< std::endl;
+        std::swap(helper, V);
+        V.for_intern(Jacobi_it);
+        V.for_intern(check_stopping_crit);
+        err = helper.L2norm();
+        std::cout << "Norm : " << err << std::endl;
+        std::cout << "Rips : " << rips << std::endl;
         ++rips;
     }
     /*
