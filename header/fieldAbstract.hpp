@@ -1,6 +1,7 @@
 #pragma once
 // ABSTRACT CLASS FROM WHICH ALL OTHERS INHERIT
 #include "mesh.hpp"
+#include "tensorExpressionTemplates.hpp"
 #include "tensors.hpp"
 #include <cstddef>
 #include <fstream>
@@ -73,7 +74,7 @@ namespace numPDE
             }
             else
             {
-                return std::span<const T>{base, m_N_el_for_node};
+                return ElementProxy<T, N_DIMS, true>{base, m_N_el_for_node};
             }
         }
 
@@ -213,7 +214,8 @@ namespace numPDE
         }
         auto pos(const std::vector<size_t>& idxs) const { return p_mesh->position(idxs); }
 
-        T      get_Delta_x(const size_t idx) const { return p_mesh->get_h(idx); };
+        T      get_dx() const { return p_mesh->get_h(); };
+        T      get_dx(const size_t idx) const { return p_mesh->get_h(idx); };
         size_t size() const { return m_Field_values.size(); };
         size_t get_N_elems() const { return m_Field_values.size(); };
     };

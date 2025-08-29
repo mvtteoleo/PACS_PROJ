@@ -27,6 +27,15 @@ namespace numPDE
         ScalarField& operator=(const ScalarField&) = default;
         ~ScalarField()                             = default;
 
+        template <typename Expr>
+        auto operator=(const Expr& expr)
+        {
+            for (auto [i, j, k] : this->internal_elements())
+            {
+                (*this)(i, j, k) = expr(i, j, k); // evaluate only here
+            }
+            return *this;
+        }
         // Implementation of ΔP
         template <typename Ts>
             requires std::is_integral_v<Ts>

@@ -34,7 +34,8 @@ namespace numPDE
      * Dynamic tensor class that handles n-dimensional tensors
      * the key idea is to do a std::md_span, but with easier to use indexing
      */
-    template <typename T, size_t RANK = DEF_DIM, size_t N_DIMS = DEF_DIM, TypeIndex TYPE = COMPACT>
+    template <typename T, size_t RANK = DEF_DIM, size_t N_DIMS = DEF_DIM,
+              TypeIndex TYPE = COMPACT>
     class Tensor : public Expr<Tensor<T, RANK, N_DIMS, TYPE>>
     {
       public:
@@ -189,10 +190,12 @@ namespace numPDE
         auto all_linear_elements() const { return std::views::iota(size_t{0}, m_Datas.size()); };
         auto make_iterator(size_t start_offset, size_t end_offset) const
         {
-            auto& sizes   = m_Sizes;
-            auto  i_range = std::views::iota(start_offset, sizes[0] - end_offset);
-            auto  j_range = std::views::iota(size_t{0}, size_t{1});
-            auto  k_range = std::views::iota(size_t{0}, size_t{1});
+            constexpr size_t slow_idx = (TYPE == ROW_MAJOR) ? 2 : 0;
+            constexpr size_t fast_idx = (TYPE == ROW_MAJOR) ? 0 : 2;
+            auto&            sizes    = m_Sizes;
+            auto slow_range = std::views::iota(start_offset, sizes[slow_idx] - end_offset);
+            auto j_range    = std::views::iota(size_t{0}, size_t{1});
+            auto fast_range = std::views::iota(size_t{0}, size_t{1});
 
             // j_range depends on N_DIMS
             if constexpr (N_DIMS >= 2)
@@ -202,10 +205,10 @@ namespace numPDE
 
             if constexpr (N_DIMS >= 3)
             {
-                k_range = std::views::iota(start_offset, sizes[2] - end_offset);
+                fast_range = std::views::iota(start_offset, sizes[fast_idx] - end_offset);
             }
             // Order in cartesian_product: leftmost slowest, rightmost fastest
-            return std::ranges::views::cartesian_product(i_range, j_range, k_range);
+            return std::ranges::views::cartesian_product(slow_range, j_range, fast_range);
         }
 
         template <typename Lambda, size_t ndims = N_DIMS>
@@ -213,12 +216,15 @@ namespace numPDE
         {
             // 1D index array for structured binding
             std::array<size_t, ndims> idx{};
+            constexpr size_t          slow_idx = (TYPE == ROW_MAJOR) ? 2 : 0;
+            constexpr size_t          fast_idx = (TYPE == ROW_MAJOR) ? 0 : 2;
 
-            for (idx[0] = 0; idx[0] < m_Sizes[0]; ++idx[0])
+            for (idx[slow_idx] = 0; idx[slow_idx] < m_Sizes[slow_idx]; ++idx[slow_idx])
                 if constexpr (ndims >= 2)
                     for (idx[1] = 0; idx[1] < m_Sizes[1]; ++idx[1])
                         if constexpr (ndims >= 3)
-                            for (idx[2] = 0; idx[2] < m_Sizes[2]; ++idx[2])
+                            for (idx[fast_idx] = 0; idx[fast_idx] < m_Sizes[fast_idx];
+                                 ++idx[fast_idx])
                                 func(idx);
                         else
                             func(idx); // 2D case
@@ -231,12 +237,15 @@ namespace numPDE
         {
             // 1D index array for structured binding
             std::array<size_t, ndims> idx{};
+            constexpr size_t          slow_idx = (TYPE == ROW_MAJOR) ? 2 : 0;
+            constexpr size_t          fast_idx = (TYPE == ROW_MAJOR) ? 0 : 2;
 
-            for (idx[0] = 1; idx[0] < m_Sizes[0] - 1; ++idx[0])
+            for (idx[slow_idx] = 1; idx[slow_idx] < m_Sizes[slow_idx] - 1; ++idx[slow_idx])
                 if constexpr (ndims >= 2)
                     for (idx[1] = 1; idx[1] < m_Sizes[1] - 1; ++idx[1])
                         if constexpr (ndims >= 3)
-                            for (idx[2] = 1; idx[2] < m_Sizes[2] - 1; ++idx[2])
+                            for (idx[fast_idx] = 1; idx[fast_idx] < m_Sizes[fast_idx] - 1;
+                                 ++idx[fast_idx])
                                 func(idx);
                         else
                             func(idx); // 2D case

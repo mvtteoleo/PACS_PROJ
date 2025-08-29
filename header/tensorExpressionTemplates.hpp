@@ -92,28 +92,33 @@ namespace numPDE
         std::array<T, N> m_Datas{};
     };
 
-    template <typename T, size_t N = DEF_DIM>
-    class ElementProxy : public Expr<ElementProxy<T, N>>
+    template <typename T, size_t N = DEF_DIM, bool IsConst = false>
+    class ElementProxy : public Expr<ElementProxy<T, N, IsConst>>
     {
-        T*     base;
-        size_t dim;
+        using PointerType = std::conditional_t<IsConst, const T*, T*>;
+        PointerType base;
+        size_t      dim;
 
       public:
-        ElementProxy(T* ptr, size_t size) : base(ptr), dim(size)
+        ElementProxy(PointerType ptr, size_t size) : base(ptr), dim(size)
         {
 #if PEDANTIC
             assert(size == N && "Proxy size mismatch with Vec size");
 #endif
         }
 
-        // element access
-        T&       operator[](size_t i) { return base[i]; }
+        // Element access
+        T& operator[](size_t i) const
+            requires(!IsConst)
+        {
+            return base[i];
+        }
         const T& operator[](size_t i) const { return base[i]; }
+        size_t   size() const { return dim; }
 
-        size_t size() const { return dim; }
-
-        // assignment from expression
+        // Assignment from expression (mutable only)
         template <typename E>
+            requires(!IsConst)
         ElementProxy& operator=(const Expr<E>& expr)
         {
             const E& ex = static_cast<const E&>(expr);
@@ -125,8 +130,9 @@ namespace numPDE
             return *this;
         }
 
-        // assignment from init list
+        // Assignment from initializer list (mutable only)
         ElementProxy& operator=(std::initializer_list<T> values)
+            requires(!IsConst)
         {
 #if PEDANTIC
             assert(values.size() == dim && "Size mismatch in init list");
@@ -135,8 +141,9 @@ namespace numPDE
             return *this;
         }
 
-        // assignment from span
+        // Assignment from span (mutable only)
         ElementProxy& operator=(std::span<const T> values)
+            requires(!IsConst)
         {
 #if PEDANTIC
             assert(values.size() == dim && "Size mismatch in span assignment");
@@ -145,11 +152,14 @@ namespace numPDE
             return *this;
         }
 
-        // implicit conversions for legacy compatibility
-        operator std::span<T>() { return {base, dim}; }
+        // Implicit conversions for legacy compatibility
+        operator std::span<T>()
+            requires(!IsConst)
+        {
+            return {base, dim};
+        }
         operator std::span<const T>() const { return {base, dim}; }
     };
-
     // ---------- Tensor–Tensor node ----------
     template <typename L, typename R, typename Op>
     struct BinExpr : Expr<BinExpr<L, R, Op>>

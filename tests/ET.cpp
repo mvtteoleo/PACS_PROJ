@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <iostream>
 
-#define TEST 0
+#define TEST 2
 
 using Real   = double;
 using Vector = std::vector<Real>;
@@ -77,5 +77,39 @@ int main(int argc, char* argv[])
     auto ris_2 = 0. * ris + myVec_2 - myVec;
     for (size_t i = 0; i < ris.size(); ++i)
         std::cout << ris_2[i] << " ";
+#elif TEST == 2
+
+    // numPDE::ScalarField<Real> V(mesh), W(mesh);;
+    numPDE::VectorField<Real> V(mesh), W(mesh);
+    numPDE::ScalarField<Real> S(mesh);
+    for (auto i : S.all_linear_elements())
+        S[i] = 1;
+    for (auto i : W.all_linear_elements())
+        W[i] = 1;
+
+    for (auto i : V.all_linear_elements())
+        W[i] = 1;
+
+    /*
+     */
+    std::cout << " W before ↑, W after ↓" << std::endl;
+    std::cout << std::endl;
+    // W = grad(S);
+    W = lap(W);
+    for (auto i : W.all_linear_elements())
+        std::cout << W[i] << " ";
+
+    std::cout << std::endl;
+    // auto lapV = lap(V);
+    for (auto i : S.all_linear_elements())
+        std::cout << S[i] << " ";
+    S = lap(S) + div(W);
+
+    std::cout << std::endl;
+    std::cout << " S before ↑, S after ↓" << std::endl;
+    std::cout << std::endl;
+    for (auto i : S.all_linear_elements())
+        std::cout << S[i] << " ";
+
 #endif
 }

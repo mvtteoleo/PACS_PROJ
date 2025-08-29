@@ -2,6 +2,7 @@
 #include "compiler_directives.hpp"
 #include "fieldAbstract.hpp"
 #include "mesh.hpp"
+#include "tensorExpressionTemplates.hpp"
 #include "tensors.hpp"
 #include <algorithm>
 #include <cstddef>
@@ -30,6 +31,16 @@ namespace numPDE
                        return ini;
                    }())
         {
+        }
+        template <typename Expr>
+        auto operator=(const Expr& expr)
+        {
+            for (auto [i, j, k] : this->internal_elements())
+            {
+                Vec<T, N_DIMS> val = expr(i, j, k);
+                (*this)(i, j, k)   = val; // evaluate only here
+            }
+            return *this;
         }
         // Rule of 5
         VectorField(VectorField&&)                 = default;
