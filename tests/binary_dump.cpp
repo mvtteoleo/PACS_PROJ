@@ -150,7 +150,7 @@ int main(int argc, char* argv[])
 }
 
 #elif TEST == 2
-#include "../header/fieldScalar.hpp"
+#include "../header/tensors.hpp"
 #include <fstream>
 #include <vector>
 
@@ -178,13 +178,13 @@ int main(int argc, char* argv[])
     std::cout << "/****** TEST : binary_dump.cpp ******/" << std::endl;
     std::size_t N = 10;
     if (argc > 1) N = std::stoul(argv[1]);
-    std::string                file          = "my_binary_dump.bin";
-    std::vector<float>         x0            = {0, 0, 0};
-    std::vector<size_t>        elems_for_dir = {N, N, N};
-    float                      h             = 1. / (N - 1);
-    numPDE::Mesh<float>        mesh(x0, elems_for_dir, h);
-    numPDE::ScalarField<float> mask(mesh);
-    Circ_info                  circ;
+    std::string           file          = "my_binary_dump.bin";
+    std::vector<float>    x0            = {0, 0, 0};
+    std::vector<size_t>   elems_for_dir = {N, N, N};
+    float                 h             = 1. / (N - 1);
+    numPDE::Mesh<float>   mesh(x0, elems_for_dir, h);
+    numPDE::Tensor<float> mask(elems_for_dir);
+    Circ_info             circ;
 
     circ.radius = (argc > 2) ? std::stof(argv[2]) : 0.5f;
     float cc    = (argc > 3) ? std::stof(argv[3]) : 0.0f;
@@ -200,11 +200,12 @@ int main(int argc, char* argv[])
         return static_cast<float>(dist_sq >= radius_sq);
     };
 
-    for (auto [i, j, k] : mask.all_elements())
-        mask(i, j, k) = chi(mask.pos(i, j, k));
+    for (auto [i, j, k] : mask.all_elems())
+        mask(i, j, k) = chi(mesh.position(i, j, k));
 
     mask.dump_values_as_binary();
-    mask.print_mesh_vals();
+    mesh.print_mesh_vals();
+
     return 0;
 }
 

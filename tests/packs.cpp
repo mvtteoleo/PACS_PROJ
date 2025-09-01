@@ -1,5 +1,5 @@
-#include "../header/fieldScalar.hpp"
 #include "../header/mesh.hpp"
+#include "../header/tensors.hpp"
 #include "../header/timer.hpp"
 #include <array>
 #include <cassert>
@@ -28,15 +28,15 @@ int main(int argc, char* argv[])
         Ny_dyn = std::stoul(argv[2]);
         Nz_dyn = std::stoul(argv[3]);
     }
-    std::vector<float>         x0{0, 0, 0};
-    std::vector<size_t>        elems_for_dir{Nx_dyn, Ny_dyn, Nz_dyn};
-    float                      h = 1;
-    numPDE::Mesh<float>        mesh(x0, elems_for_dir, h);
-    numPDE::ScalarField<float> mask(mesh);
-    myUtilities::ChronoTimer   c("Acces time");
-    constexpr size_t           N_TESTS = 1000;
+    std::vector<float>          x0{0, 0, 0};
+    std::vector<size_t>         elems_for_dir{Nx_dyn, Ny_dyn, Nz_dyn};
+    float                       h = 1;
+    numPDE::Mesh<float>         mesh(x0, elems_for_dir, h);
+    numPDE::Tensor<float, 3, 3> mask(elems_for_dir);
+    myUtilities::ChronoTimer    c("Acces time");
+    constexpr size_t            N_TESTS = 1000;
 
-    int                   count = 1;
+    float                 count = 1;
     std::array<size_t, 3> idx;
 
     // Access time using fully vector-like access
@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
     c.reset();
     for (size_t r = 0; r < N_TESTS; ++r)
     {
-        for (auto [i, j, k] : mask.all_elements())
+        for (auto [i, j, k] : mask.all_elems())
             mask(i, j, k) = count, count++;
     }
     c.print_time(Nx_dyn * Ny_dyn * Nz_dyn * N_TESTS);
@@ -94,7 +94,7 @@ int main(int argc, char* argv[])
     c.reset();
     for (size_t r = 0; r < N_TESTS; ++r)
     {
-        mask.for_all(
+        mask.for_all_elements(
             [&](auto idx)
             {
                 auto [i, j, k] = idx;

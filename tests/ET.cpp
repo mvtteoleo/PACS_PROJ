@@ -1,11 +1,10 @@
-#include "../header/fieldOperators.hpp"
-#include "../header/fieldScalar.hpp"
-#include "../header/fieldVector.hpp"
+#include "../header/tensors.hpp"
+
 #include <algorithm>
 #include <cstddef>
 #include <iostream>
 
-#define TEST 2
+#define TEST 1
 
 using Real   = double;
 using Vector = std::vector<Real>;
@@ -55,10 +54,17 @@ int main(int argc, char* argv[])
 
     /*
      */
-    numPDE::Vec<Real>         test({1, 1, 1});
-    numPDE::VectorField<Real> V(mesh);
-    auto                      span = V(0, 0, 0);
-    test                           = span;
+    numPDE::Vec<Real>          test({1, 1, 1});
+    numPDE::Tensor<Real, 3, 3> S;
+    numPDE::Tensor<Real, 4, 3> V(
+        [&]
+        {
+            auto ini = elems_for_dir;
+            ini.push_back(elems_for_dir.size());
+            return ini;
+        }());
+    auto span = V(0, 0, 0);
+    test      = span;
     /*
     numPDE::Vec<Real> test({1, 1, 1});
     auto span_clean = static_cast<std::span<const Real>>(span);
@@ -69,47 +75,15 @@ int main(int argc, char* argv[])
 
     numPDE::Vec<Real> myVec({1, 2, 3});
     numPDE::Vec<Real> myVec_2({1, 2, 3});
-    auto              ris = myVec + myVec_2;
+    numPDE::Vec<Real> ris_2, ris;
+    ris = myVec + myVec_2;
 
     std::cout << "Test my vec" << std::endl;
-    for (int i = 0; i < ris.size(); ++i)
+    ris = myVec * 3.0 + myVec_2;
+    for (size_t i = 0; i < ris.size(); ++i)
         std::cout << ris[i] << " ";
-    auto ris_2 = 0. * ris + myVec_2 - myVec;
+    ris_2 = 0. * ris + myVec_2 - myVec;
     for (size_t i = 0; i < ris.size(); ++i)
         std::cout << ris_2[i] << " ";
-#elif TEST == 2
-
-    // numPDE::ScalarField<Real> V(mesh), W(mesh);;
-    numPDE::VectorField<Real> V(mesh), W(mesh);
-    numPDE::ScalarField<Real> S(mesh);
-    for (auto i : S.all_linear_elements())
-        S[i] = 1;
-    for (auto i : W.all_linear_elements())
-        W[i] = 1;
-
-    for (auto i : V.all_linear_elements())
-        W[i] = 1;
-
-    /*
-     */
-    std::cout << " W before ↑, W after ↓" << std::endl;
-    std::cout << std::endl;
-    // W = grad(S);
-    W = lap(W);
-    for (auto i : W.all_linear_elements())
-        std::cout << W[i] << " ";
-
-    std::cout << std::endl;
-    // auto lapV = lap(V);
-    for (auto i : S.all_linear_elements())
-        std::cout << S[i] << " ";
-    S = lap(S) + div(W);
-
-    std::cout << std::endl;
-    std::cout << " S before ↑, S after ↓" << std::endl;
-    std::cout << std::endl;
-    for (auto i : S.all_linear_elements())
-        std::cout << S[i] << " ";
-
 #endif
 }

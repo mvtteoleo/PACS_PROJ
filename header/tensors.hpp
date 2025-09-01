@@ -1,27 +1,25 @@
 #pragma once
 #include "compiler_directives.hpp"
-#include "customvec.hpp"
+#include "mesh.hpp"
 #include "tensorExpressionTemplates.hpp"
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
+#include <iostream>
 #include <numeric>
 #include <ranges>
 #include <span>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace numPDE
 {
-    // REQUIRES C++ 23!!
-    // Custom concept to check that Ts are non-negative
-    template <typename... Ts>
-    // concept UnsignedInt = (std::conjunction_v<std::is_unsigned<Ts>...>);
-    concept UnsignedInt = (std::conjunction_v<std::is_integral<Ts>...>);
-
     enum TypeIndex
     {
         // Indexing like T(i, j, k) => datas[ i + y*Nx + k*Nx*Ny ]
@@ -34,8 +32,7 @@ namespace numPDE
      * Dynamic tensor class that handles n-dimensional tensors
      * the key idea is to do a std::md_span, but with easier to use indexing
      */
-    template <typename T, size_t RANK = DEF_DIM, size_t N_DIMS = DEF_DIM,
-              TypeIndex TYPE = COMPACT>
+    template <typename T, size_t RANK = DEF_DIM, size_t N_DIMS = RANK, TypeIndex TYPE = ROW_MAJOR>
     class Tensor : public Expr<Tensor<T, RANK, N_DIMS, TYPE>>
     {
       public:
@@ -104,58 +101,46 @@ namespace numPDE
                 size_t h   = get_linear_index(idx);
                 m_Datas[h] = e[h]; // assign expression value
             }
-
             return (*this);
         }
+
         // -----------------------------//
         // ***** GET LINEAR INDEX ***** //
         // -----------------------------//
-        template <typename Ts>
-            requires std::is_integral_v<Ts>
-        size_t get_linear_index(const std::span<Ts> indices) const noexcept
+        template <std::size_t... Is, typename... Ts>
+        inline size_t get_linear_index_impl(std::index_sequence<Is...>, Ts... idxs) const noexcept
         {
-            // Need to have CLEAN indices (AKA filtered by size by the () operator)
-            return std::inner_product(indices.begin(), indices.end(), m_Slices_size.begin(),
-                                      size_t{0});
+            // compile-time unrolled: (idx0*slice0) + (idx1*slice1) + ...
+            return ((static_cast<size_t>(idxs) * m_Slices_size[Is]) + ...);
         }
 
-        template <typename Ts>
-            requires std::is_integral_v<Ts>
-        size_t get_liner_index(const std::vector<Ts>& indices) const noexcept
+        template <std::size_t... Is>
+        inline size_t get_linear_index_array_impl(const std::array<size_t, sizeof...(Is)>& indices,
+                                                  std::index_sequence<Is...>) const noexcept
         {
-            return std::inner_product(indices.begin(), indices.end(), m_Slices_size.begin(),
-                                      size_t{0});
+            return ((indices[Is] * m_Slices_size[Is]) + ...);
         }
 
         template <std::size_t N>
-        size_t get_linear_index(const std::array<size_t, N>& indices) const noexcept
+        inline size_t get_linear_index(const std::array<size_t, N>& indices) const noexcept
         {
-            return std::inner_product(indices.begin(), indices.end(), m_Slices_size.begin(),
-                                      size_t{0});
+            // static_assert(N == RANK, "Number of indices must match tensor RANK");
+            return get_linear_index_array_impl(indices, std::make_index_sequence<N>{});
+        }
+
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        inline size_t get_linear_index(Ts... idxs) const noexcept
+        {
+            // static_assert(sizeof...(Ts) == RANK, "Number of indices must match tensor RANK");
+            return get_linear_index_impl(std::index_sequence_for<Ts...>{}, idxs...);
         }
 
         // -----------------------------//
         // ***** ACCESS OPERATORS ***** //
         // -----------------------------//
-        // Access operator using span
-        template <typename Ts>
-            requires std::is_integral_v<Ts>
-        T& operator()(std::span<Ts> indices)
-        {
-            // if (indices.size() != N_DIMS) throw std::out_of_range("Dimensions not matching");
-#ifdef PEDANTIC
-            [[unlikely]]
-            if (indices.size() > N_DIMS)
-                indices = indices.first(N_DIMS);
 
-            for (size_t i = 0; i < indices.size(); ++i) [[unlikely]]
-                if (indices[i] >= m_Sizes[i]) throw std::out_of_range("Tensor index out of bounds");
-#endif
-
-            return m_Datas[get_linear_index(indices)];
-        }
-
-        // Vector-like access operators
+        // VECTOR-LIKE ACCESS OPERATORS
         template <typename Ts>
             requires std::is_integral_v<Ts>
         T& operator[](Ts i)
@@ -169,18 +154,140 @@ namespace numPDE
             return m_Datas[i];
         }
 
+        // ACCESS OPERATOR USING SPAN
+        template <typename Ts>
+            requires std::is_integral_v<Ts>
+        T& operator()(std::span<Ts> indices)
+        {
+            // if (indices.size() != N_DIMS) throw std::out_of_range("Dimensions not matching");
+#if PEDANTIC
+            [[unlikely]]
+            if (indices.size() > N_DIMS)
+                indices = indices.first(N_DIMS);
+
+            for (size_t i = 0; i < indices.size(); ++i) [[unlikely]]
+                if (indices[i] >= m_Sizes[i]) throw std::out_of_range("Tensor index out of bounds");
+#endif
+
+            return m_Datas[get_linear_index(indices)];
+        }
+
+        // *****  Internal helper (to avoid duplication)  *****
+
+        // non-const access with variadic pack
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        decltype(auto) access(Ts... idxs)
+        {
+            static_assert(sizeof...(Ts) == N_DIMS,
+                          "Number of indices must match tensor dimensionality");
+
+            // compute linear index directly with fold expression
+            size_t lin  = get_linear_index(idxs...);
+            T*     base = &m_Datas[lin];
+
+            if constexpr (N_DIMS == RANK)
+            {
+                return *base; // return T&
+            }
+            else
+            {
+                return ElementProxy<T, N_DIMS>(base, N_DIMS);
+            }
+        }
+
+        // const access with variadic pack
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        decltype(auto) access(Ts... idxs) const
+        {
+            static_assert(sizeof...(Ts) == N_DIMS,
+                          "Number of indices must match tensor dimensionality");
+
+            size_t   lin  = get_linear_index(idxs...);
+            const T* base = &m_Datas[lin];
+
+            if constexpr (N_DIMS == RANK)
+            {
+                return *base; // return const T&
+            }
+            else
+            {
+                return ElementProxy<T, N_DIMS, true>{base, N_DIMS};
+            }
+        }
+
+        // *****     *WRITE*      ***** //
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        decltype(auto) operator()(Ts... idxs)
+        {
+            return access(idxs...);
+        }
+
+        decltype(auto) operator()(std::initializer_list<size_t> idxs)
+        {
+            // still need array for initializer_list overload
+            std::array<size_t, N_DIMS> arr{};
+            std::copy(idxs.begin(), idxs.end(), arr.begin());
+            return access(arr.begin(), arr.end()); // expand manually below if desired
+        }
+
+        // *****      *READ*      ***** //
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        auto operator()(Ts... idxs) const
+            -> std::conditional_t<(N_DIMS == RANK), const T&, std::span<const T>>
+        {
+            return access(idxs...);
+        }
+
+        auto operator()(std::initializer_list<size_t> idxs) const
+            -> std::conditional_t<(N_DIMS == RANK), const T&, std::span<const T>>
+        {
+            std::array<size_t, N_DIMS> arr{};
+            std::copy(idxs.begin(), idxs.end(), arr.begin());
+            // could also provide an overload of access(std::array<...>) for this case
+            return access(arr.begin(), arr.end());
+        }
+
+        // ***** DIRECT VARIADIC ACCESS (fastest) ***** //
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        T& at(Ts... idxs) noexcept
+        {
+#if PEDANTIC
+            static_assert(sizeof...(Ts) == RANK, "Index arity mismatch");
+#endif
+            return m_Datas[get_linear_index(idxs...)];
+        }
+
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        const T& at(Ts... idxs) const noexcept
+        {
+#if PEDANTIC
+            static_assert(sizeof...(Ts) == RANK, "Index arity mismatch");
+#endif
+            return m_Datas[get_linear_index(idxs...)];
+        }
+
         // -----------------------------//
         // *****     RAW ACCESS   ***** //
         // -----------------------------//
-        T* ptr_at(const std::span<const size_t> indices) noexcept
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        T* ptr_at(const Ts... idxs) noexcept
         {
-            size_t lin = get_linear_index(indices);
+            size_t lin = get_linear_index(idxs...);
             return &m_Datas[lin];
         }
 
-        const T* ptr_at(const std::span<const size_t> indices) const noexcept
+        template <typename... Ts>
+            requires UnsignedInt<Ts...>
+        const T* ptr_at(const Ts... idxs) const noexcept
         {
-            size_t lin = get_linear_index(indices);
+            size_t lin = get_linear_index_impl(idxs...);
             return &m_Datas[lin];
         }
 
@@ -302,6 +409,30 @@ namespace numPDE
             return all_elems() | std::views::filter(is_on_boundary);
         }
 
+        /*
+         *  Dump to file all the data in the Tensor
+         *  WARNING! The values are casted to doubles and numbers of elements to integers to
+         * uint_64 WARNING! Need to add also in a smart way the number of dimensions and sizes,
+         */
+        void dump_values_as_binary(std::string file_path = (N_DIMS == RANK)
+                                                               ? "build/ScalTens_dump.bin"
+                                                               : "build/VectTens_dump.bin")
+        {
+            std::ofstream ofs(file_path, std::ios::binary);
+            if (!ofs)
+            {
+                throw std::runtime_error("Cannot open file for writing");
+            }
+
+            uint_fast64_t count = m_Datas.size();
+            ofs.write(reinterpret_cast<const char*>(&count), sizeof(count));
+
+            write_as<double>(ofs, m_Datas);
+
+            ofs.close();
+            std::cout << "Wrote field values to " << file_path << "\n";
+        }
+
         // -----------------------------//
         // *****      GETTER       **** //
         // -----------------------------//
@@ -319,5 +450,45 @@ namespace numPDE
         // Helper for the indexing (Gave 10x speed)
         Small_vec m_Slices_size;
     };
+
+    // ---- Scalar field factory ----
+    template <typename T, std::size_t DIM, TypeIndex TYPE = ROW_MAJOR, typename Range>
+    auto make_scalar_field(const Range& elems_for_dir) -> Tensor<T, DIM, DIM, TYPE>
+    {
+        return Tensor<T, DIM, DIM, TYPE>(elems_for_dir);
+    }
+
+    // ---- Vector field factory ----
+    template <typename T, std::size_t DIM, TypeIndex TYPE = ROW_MAJOR, typename Range>
+    auto make_vector_field(const Range& elems_for_dir) -> Tensor<T, DIM + 1, DIM, TYPE>
+    {
+        // Build new shape: (elems_for_dir..., elems_for_dir.size())
+        std::array<std::size_t, DIM + 1> new_dims{};
+        std::copy(elems_for_dir.begin(), elems_for_dir.end(), new_dims.begin());
+        new_dims.back() = elems_for_dir.size();
+
+        return Tensor<T, DIM + 1, DIM, TYPE>(new_dims);
+    }
+
+    template <typename MeshType, TypeIndex TYPE = ROW_MAJOR>
+    auto make_scalar_field(const MeshType& mesh)
+    {
+        using T                   = typename MeshType::value_type;
+        constexpr std::size_t DIM = MeshType::get_N_dims(); // constexpr
+        return Tensor<T, DIM, DIM, TYPE>(mesh.get_N_nodes());
+    }
+
+    template <typename MeshType, TypeIndex TYPE = ROW_MAJOR>
+    auto make_vector_field(const MeshType& mesh)
+    {
+        using T                   = typename MeshType::value_type;
+        constexpr std::size_t DIM = MeshType::get_N_dims();
+
+        std::array<std::size_t, DIM + 1> new_dims{};
+        std::copy(mesh.get_N_nodes().begin(), mesh.get_N_nodes().end(), new_dims.begin());
+        new_dims.back() = mesh.get_N_nodes().size();
+
+        return Tensor<T, DIM + 1, DIM, TYPE>(new_dims);
+    }
 
 }; // namespace numPDE

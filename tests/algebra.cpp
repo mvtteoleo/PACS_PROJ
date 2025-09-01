@@ -1,5 +1,5 @@
 
-#include "../header/fieldScalar.hpp"
+#include "../header/tensors.hpp"
 #include <cstddef>
 #include <cstdio>
 #include <iostream>
@@ -12,13 +12,13 @@ int main(int argc, char* argv[])
     std::cout << std::endl;
     std::cout << std::endl;
     std::cout << "/****** TEST : algebra.cpp ******/" << std::endl;
-    std::size_t                 N             = (argc > 1) ? std::stoul(argv[1]) : 10;
-    std::vector<double>         x0            = {0, 0};
-    std::vector<size_t>         elems_for_dir = {N, N};
-    double                      h             = 1. / (N - 1);
-    numPDE::Mesh<double>        mesh(x0, elems_for_dir, h);
-    numPDE::ScalarField<double> p(mesh);
-    numPDE::ScalarField<double> p_updated = p;
+    std::size_t               N             = (argc > 1) ? std::stoul(argv[1]) : 10;
+    std::vector<double>       x0            = {0, 0};
+    std::vector<size_t>       elems_for_dir = {N, N};
+    double                    h             = 1. / (N - 1);
+    numPDE::Mesh<double>      mesh(x0, elems_for_dir, h);
+    numPDE::Tensor<double, 2> p(elems_for_dir);
+    auto                      p_updated = p;
 
     for (size_t i = 0; i < N; ++i)
         for (size_t j = 0; j < N; ++j)
@@ -29,7 +29,8 @@ int main(int argc, char* argv[])
 
     for (size_t i = 1; i < N - 1; ++i)
         for (size_t j = 1; j < N - 1; ++j)
-            p_updated(i, j) = p.laplacian(i, j);
+            p_updated(i, j) =
+                (-4 * p(i, j) + p(i, j + i) + p(i, j - 1) + p(i - 1, j) + p(i + 1, j)) / (h * h);
 
     for (size_t i = 0; i < N; ++i)
     {

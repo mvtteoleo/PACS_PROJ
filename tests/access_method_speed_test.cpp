@@ -1,9 +1,7 @@
 #include <algorithm>
-#define TEST 1
+#define TEST 0
 
-#include "../header/fieldOperators.hpp"
-#include "../header/fieldScalar.hpp"
-#include "../header/fieldVector.hpp"
+#include "../header/tensors.hpp"
 #include "../header/timer.hpp"
 #include <array>
 #include <cstddef>
@@ -29,39 +27,6 @@ int main(int argc, char* argv[])
     const size_t        test_dim = N * N * N * N_TESTS;
 
 #if TEST == 0
-    std::cout << mesh.get_N_dims() << std::endl;
-
-    numPDE::Tensor<Real>      T(elems_for_dir);
-    numPDE::ScalarField<Real> S(mesh);
-    numPDE::VectorField<Real> V(mesh);
-    numPDE::VectorField<Real> W(mesh);
-
-    std::vector<size_t> idx;
-    std::array<Real, 3> vals{{1, 2, 3}};
-    Real                c = 1;
-    for (auto [i, j, k] : V.all_elements())
-    {
-        S(i, j, k) = c;
-        V.assign_values(std::span(vals), idx);
-        W(i, j, k) = {1.0, 2.0, 3.0};
-        ++c;
-    }
-
-    auto value = S(0, 0, 0); // scalar
-
-    // Non modifiable!
-    std::span<const Real> vec_const = W(0, 0, 0); // vector, returns ConstElementProxy
-
-    // Modifiable and binded to the Tensor!!
-    std::span<Real> vec_mod = W(0, 0, 0); // vector, returns ConstElementProxy
-
-    // To fill a vector just =>
-    std::vector<Real> Vec(vec_mod.begin(), vec_mod.end());
-
-    std::cout << S.raw_data() << std::endl;
-    std::cout << V.raw_data() << std::endl;
-    std::cout << W.raw_data() << std::endl;
-#elif TEST == 1
     /*
      *  g++ tests/stencil_test.cpp -O3 -std=c++23
      *   ./a.out 500
@@ -90,13 +55,19 @@ int main(int argc, char* argv[])
      * .for_bond()
      * Access time needed : 3.42059e-08s
      */
-    numPDE::ScalarField<Real> S(mesh);
-    numPDE::VectorField<Real> V(mesh);
-    numPDE::VectorField<Real> W(mesh);
-    myUtilities::ChronoTimer  c("Access time");
+    numPDE::Tensor<Real, 4, 3> V(
+        [&]
+        {
+            auto ini = elems_for_dir;
+            ini.push_back(elems_for_dir.size());
+            return ini;
+        }());
+    numPDE::Tensor<Real, 3, 3> S(elems_for_dir);
+    auto                       W = V;
+    myUtilities::ChronoTimer   c("Access time");
 
     // ASSIGN VALUES
-    S.for_all(
+    S.for_all_elements(
         [&](auto idx)
         {
             auto [i, j, k]         = idx;
@@ -158,7 +129,7 @@ int main(int argc, char* argv[])
     std::cout << ".internal_elements()" << std::endl;
     c.reset();
     for (size_t tt = 0; tt < N_TESTS; ++tt)
-        for (auto [i, j, k] : V.internal_elements())
+        for (auto [i, j, k] : V.int_elems())
             V(i, j, k) = (V(i + 1, j, k) + V(i - 1, j, k) + V(i, j + 1, k) + V(i, j - 1, k) +
                           V(i, j, k + 1) + V(i, j, k - 1) - 6. * V(i, j, k)) /
                          (h * h);
@@ -200,7 +171,7 @@ int main(int argc, char* argv[])
     };
     c.reset();
     for (size_t tt = 0; tt < N_TESTS; ++tt)
-        W.for_intern(laplace_test);
+        W.for_internal_elements(laplace_test);
     c.print_time(test_dim);
     std::cout << std::endl;
 
@@ -210,7 +181,7 @@ int main(int argc, char* argv[])
     Real t = 0;
     for (size_t tt = 0; tt < N_TESTS; ++tt)
     {
-        for (auto [i, j, k] : V.internal_elements())
+        for (auto [i, j, k] : V.int_elems())
         {
             t += 3;
             V(i, j, k) = {t, t, t};
@@ -225,7 +196,7 @@ int main(int argc, char* argv[])
     Real t_ = 0;
     for (size_t tt = 0; tt < N_TESTS; ++tt)
     {
-        W.for_bound(
+        W.for_boundary_elements(
             [&](auto idx)
             {
                 auto [i, j, k] = idx;

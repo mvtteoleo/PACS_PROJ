@@ -1,37 +1,55 @@
 #pragma once
-#include "tensors.hpp"
+#include "compiler_directives.hpp"
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
+#include <iostream>
 #include <numeric>
+#include <span>
+#include <stdexcept>
+#include <type_traits>
 #include <vector>
 
 namespace numPDE
 {
+    // -----------------------------//
+    // *****    PRINT & DUMP   **** //
+    // -----------------------------//
+    /// Generic helper: write a range of numeric values as doubles
+    template <typename U, typename Range>
+    void write_as(std::ofstream& ofs, const Range& range)
+    {
+        static_assert(std::is_arithmetic_v<typename Range::value_type>,
+                      "Range must contain arithmetic types");
 
-    template <typename T>
+        for (auto&& v : range)
+        {
+            U val_as_U = static_cast<U>(v);
+            ofs.write(reinterpret_cast<const char*>(&val_as_U), sizeof(U));
+        }
+    };
+
+    template <typename T, std::size_t N_DIMS = DEF_DIM>
         requires std::is_floating_point_v<T>
     class Mesh
     {
       public:
-        // Type aliases cause I'm lazy
-        // WARNING!! This will need to be handled as a std::array !!
-        using Vector = std::vector<T>;
-        using VecInt = std::vector<size_t>;
+        using value_type = T;
+        using VecInt     = std::array<std::size_t, N_DIMS>;
+        using Vector     = std::array<T, N_DIMS>;
 
-        // Constructor 1: Define by start, end, and number of nodes
+        // Constructor 1: start, end, and number of nodes
         Mesh(const Vector& x0, const Vector& x_end, const VecInt& n_nodes)
-            : N_dims{x0.size()}, N_nodes{n_nodes}, X0{x0}, X_end{x_end}
+            : X0{x0}, X_end{x_end}, N_nodes{n_nodes}
         {
-            assert(x0.size() == x_end.size() && "x0 and x_end must have the same dimension.");
-            assert(x0.size() == n_nodes.size() && "x0 and n_nodes must have the same dimension.");
-
-            Delta_x_i.resize(N_dims);
-            for (size_t i = 0; i < N_dims; ++i)
+            for (std::size_t i = 0; i < N_DIMS; ++i)
             {
-                assert(n_nodes[i] > 3 && "Number of nodes in each dimension must be > 3.");
+                assert(n_nodes[i] > 3 && "Each dimension must have > 3 nodes.");
                 Delta_x_i[i] = (X_end[i] - X0[i]) / static_cast<T>(n_nodes[i] - 1);
             }
             if (std::all_of(Delta_x_i.begin(), Delta_x_i.end(),
@@ -41,90 +59,157 @@ namespace numPDE
                 H = 0;
         }
 
-        // Constructor 2: Define by start, number of nodes, and uniform step size H
-        Mesh(const Vector& x0, const VecInt& n_nodes, T h)
-            : N_dims{x0.size()}, N_nodes{n_nodes}, X0{x0}, H{h}
+        // Constructor 2: start, nodes, and uniform step
+        Mesh(const Vector& x0, const VecInt& n_nodes, T h) : X0{x0}, N_nodes{n_nodes}, H{h}
         {
-            assert(x0.size() == n_nodes.size() && "x0 and n_nodes must have the same dimension.");
-
-            Delta_x_i.resize(N_dims, H);
-            X_end.resize(N_dims);
-            for (size_t i = 0; i < N_dims; ++i)
+            for (std::size_t i = 0; i < N_DIMS; ++i)
             {
-                X_end[i] = X0[i] + H * static_cast<T>(n_nodes[i] - 1);
+                Delta_x_i[i] = H;
+                X_end[i]     = X0[i] + H * static_cast<T>(n_nodes[i] - 1);
             }
         }
 
-        // Constructor 3: Define by start, number of nodes, and per-dimension step sizes
+        // Constructor 3: start, nodes, per-dim step
         Mesh(const Vector& x0, const VecInt& n_nodes, const Vector& dx)
-            : N_dims{x0.size()}, N_nodes{n_nodes}, X0{x0}, Delta_x_i{dx}
+            : X0{x0}, N_nodes{n_nodes}, Delta_x_i{dx}
         {
-            assert(x0.size() == n_nodes.size() && "x0 and n_nodes must have the same dimension.");
-            assert(x0.size() == dx.size() && "x0 and dx must have the same dimension.");
-
-            X_end.resize(N_dims);
-            for (size_t i = 0; i < N_dims; ++i)
+            for (std::size_t i = 0; i < N_DIMS; ++i)
             {
                 X_end[i] = X0[i] + Delta_x_i[i] * static_cast<T>(n_nodes[i] - 1);
             }
         }
 
-        // Returns the coordinate of a node given its indices
+    
+        // --- Old runtime-based constructors for backward compatibility ---
+        Mesh(const std::vector<T>& x0, const std::vector<T>& x_end, const std::vector<size_t>& n_nodes)
+        {
+            assert(x0.size() == x_end.size() && x0.size() == n_nodes.size());
+            assert(x0.size() == N_DIMS);
+
+            for (std::size_t i = 0; i < N_DIMS; ++i)
+            {
+                X0[i]     = x0[i];
+                X_end[i]  = x_end[i];
+                N_nodes[i] = n_nodes[i];
+                Delta_x_i[i] = (X_end[i] - X0[i]) / static_cast<T>(N_nodes[i] - 1);
+            }
+            H = Delta_x_i[0]; // simplified
+        }
+
+        Mesh(const std::vector<T>& x0, const std::vector<size_t>& n_nodes, T h)
+        {
+            assert(x0.size() == n_nodes.size() && x0.size() == N_DIMS);
+            for (std::size_t i = 0; i < N_DIMS; ++i)
+            {
+                X0[i]     = x0[i];
+                N_nodes[i] = n_nodes[i];
+                Delta_x_i[i] = h;
+                X_end[i]     = X0[i] + h * static_cast<T>(N_nodes[i] - 1);
+            }
+            H = h;
+        }
+
+        Mesh(const std::vector<T>& x0, const std::vector<size_t>& n_nodes, const std::vector<T>& dx)
+        {
+            assert(x0.size() == n_nodes.size() && x0.size() == dx.size() && x0.size() == N_DIMS);
+            for (std::size_t i = 0; i < N_DIMS; ++i)
+            {
+                X0[i]       = x0[i];
+                N_nodes[i]  = n_nodes[i];
+                Delta_x_i[i] = dx[i];
+                X_end[i]     = X0[i] + Delta_x_i[i] * static_cast<T>(N_nodes[i] - 1);
+            }
+            H = 0; // non-uniform
+        }
+
+        // Returns coordinate of a node
         template <typename Ts>
             requires std::is_integral_v<Ts>
-        std::vector<T> position(std::span<Ts> idxs) const
-        {
-            if (idxs.size() != N_dims) idxs = idxs.first(N_dims);
 
-            std::vector<T> pos(N_dims);
-            for (size_t i = 0; i < N_dims; ++i)
+    
+        // --- Old runtime-based constructors for backward compatibility ---
+        Mesh(const std::vector<T>& x0, const std::vector<T>& x_end, const std::vector<size_t>& n_nodes)
+        {
+            assert(x0.size() == x_end.size() && x0.size() == n_nodes.size());
+            assert(x0.size() == N_DIMS);
+
+            for (std::size_t i = 0; i < N_DIMS; ++i)
             {
-                assert(idxs[i] < N_nodes[i] && "Index out of bounds.");
+                X0[i]     = x0[i];
+                X_end[i]  = x_end[i];
+                N_nodes[i] = n_nodes[i];
+                Delta_x_i[i] = (X_end[i] - X0[i]) / static_cast<T>(N_nodes[i] - 1);
+            }
+            H = Delta_x_i[0]; // simplified
+        }
+
+        Mesh(const std::vector<T>& x0, const std::vector<size_t>& n_nodes, T h)
+        {
+            assert(x0.size() == n_nodes.size() && x0.size() == N_DIMS);
+            for (std::size_t i = 0; i < N_DIMS; ++i)
+            {
+                X0[i]     = x0[i];
+                N_nodes[i] = n_nodes[i];
+                Delta_x_i[i] = h;
+                X_end[i]     = X0[i] + h * static_cast<T>(N_nodes[i] - 1);
+            }
+            H = h;
+        }
+
+        Mesh(const std::vector<T>& x0, const std::vector<size_t>& n_nodes, const std::vector<T>& dx)
+        {
+            assert(x0.size() == n_nodes.size() && x0.size() == dx.size() && x0.size() == N_DIMS);
+            for (std::size_t i = 0; i < N_DIMS; ++i)
+            {
+                X0[i]       = x0[i];
+                N_nodes[i]  = n_nodes[i];
+                Delta_x_i[i] = dx[i];
+                X_end[i]     = X0[i] + Delta_x_i[i] * static_cast<T>(N_nodes[i] - 1);
+            }
+            H = 0; // non-uniform
+        }
+        Vector position(std::span<Ts> idxs) const
+        {
+            assert(idxs.size() == N_DIMS);
+            Vector pos{};
+            for (std::size_t i = 0; i < N_DIMS; ++i)
+            {
+                assert(idxs[i] < N_nodes[i]);
                 pos[i] = X0[i] + Delta_x_i[i] * static_cast<T>(idxs[i]);
             }
             return pos;
         }
 
-        // Overload using variadic templates for convenience
         template <typename... Ts>
             requires UnsignedInt<Ts...>
-        std::vector<T> position(Ts... idxs) const
+        Vector position(Ts... idxs) const
         {
-            // pack the variadic args into a fixed-size array and pass as span
-            std::array<size_t, sizeof...(idxs)> arr{static_cast<size_t>(idxs)...};
-            return position(std::span<size_t>(arr));
+            static_assert(sizeof...(idxs) == N_DIMS);
+            std::array<std::size_t, N_DIMS> arr{static_cast<std::size_t>(idxs)...};
+            return position(std::span<std::size_t>(arr));
         }
 
-        // Overload for std::vectors
-        std::vector<T> position(const VecInt& idxs) const { return position(std::span(idxs)); }
+        // --- Accessors ---
+        constexpr std::size_t get_N_dims() const { return N_DIMS; }
+        const VecInt&         get_N_nodes() const { return N_nodes; }
+        const Vector&         get_x0() const { return X0; }
+        const Vector&         get_x_end() const { return X_end; }
+        const Vector&         get_delta_x() const { return Delta_x_i; }
+        T                     get_h(const std::size_t i) const { return Delta_x_i[i]; }
+        T                     get_h() const { return H; }
 
-        // --- Accessor methods ---
-        size_t        get_N_dims() const { return N_dims; }
-        const VecInt& get_N_nodes() const { return N_nodes; }
-        const Vector& get_x0() const { return X0; }
-        const Vector& get_x_end() const { return X_end; }
-        const Vector& get_delta_x() const { return Delta_x_i; }
-        // Return the Volume/Surface over a single element
-        const T get_dOmega() const
+        std::size_t total_nodes() const
         {
-            return std::accumulate(Delta_x_i.begin(), Delta_x_i.end(), T{0});
-        }
-        const T get_h(const size_t i) const { return Delta_x_i[i]; }
-        const T get_h() const { return H; }
-
-        size_t total_nodes() const
-        {
-            return std::accumulate(N_nodes.begin(), N_nodes.end(), size_t{0},
-                                   std::multiplies<size_t>());
+            return std::accumulate(N_nodes.begin(), N_nodes.end(), std::size_t{1},
+                                   std::multiplies<std::size_t>());
         }
 
       private:
-        size_t N_dims;
-        VecInt N_nodes;
-        Vector X0;
-        Vector X_end;
-        Vector Delta_x_i;
-        T      H; // Initialize H to a default value
+        VecInt N_nodes{};
+        Vector X0{};
+        Vector X_end{};
+        Vector Delta_x_i{};
+        T      H{};
     };
 
 } // namespace numPDE
