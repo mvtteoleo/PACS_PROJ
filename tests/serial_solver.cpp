@@ -21,20 +21,14 @@ numPDE::Vec<Real> forcing_term(Tens& h_U, Real Re, size_t i, size_t j, size_t k)
     const auto&  T = h_U(i, j, k + 1); // top
     const auto&  B = h_U(i, j, k - 1); // bottom
 
-    const auto& NE = h_U(i + 1, j + 1, k);
     const auto& NW = h_U(i - 1, j + 1, k);
     const auto& SE = h_U(i + 1, j - 1, k);
-    const auto& SW = h_U(i - 1, j - 1, k);
 
-    const auto& ET = h_U(i + 1, j, k + 1);
     const auto& WT = h_U(i - 1, j, k + 1);
     const auto& EB = h_U(i + 1, j, k - 1);
-    const auto& WB = h_U(i - 1, j, k - 1);
 
-    const auto& NT = h_U(i, j + 1, k + 1);
     const auto& NB = h_U(i, j + 1, k - 1);
     const auto& ST = h_U(i, j - 1, k + 1);
-    const auto& SB = h_U(i, j - 1, k - 1);
 
     // --- Laplacian (if still needed) ---
     lap = (E + W + N + S + T + B - 6.0 * C) / (h * h * Re);
@@ -73,7 +67,7 @@ int main(int argc, char* argv[])
     std::cout << std::endl;
     std::cout << "/****** TEST : laplacian.cpp ******/" << std::endl;
     myUtilities::ChronoTimer c("Access time");
-    constexpr size_t         N_TEST        = 100;
+    constexpr size_t         N_TEST        = 10;
     std::size_t              N             = (argc > 1) ? std::stoul(argv[1]) : 200;
     size_t                   test_dim      = N * N * N * N_TEST;
     std::vector<Real>        x0            = {0, 0, 0};
@@ -83,9 +77,12 @@ int main(int argc, char* argv[])
     constexpr Real           dT            = 1e-3;
     constexpr Real           T             = 1;
     constexpr Real           Re            = 100;
-    numPDE::Mesh<Real>       mesh(x0, elems_for_dir, h);
+    numPDE::Mesh<Real, 3>       mesh(x0, elems_for_dir, h);
 
     // Fiedls and helpers
+    // numPDE::Tensor<Real, 3, 3> P(elems_for_dir);
+    auto P = numPDE::make_scalar_field<Real, 3>(elems_for_dir);
+    /*
     numPDE::Tensor<Real, 4, 3> U(
         [&]
         {
@@ -93,7 +90,8 @@ int main(int argc, char* argv[])
             ini.push_back(elems_for_dir.size());
             return ini;
         }());
-    numPDE::Tensor<Real, 3, 3> P(elems_for_dir);
+    */
+    auto U = numPDE::make_vector_field<Real, 3>(elems_for_dir);
     auto                       h_P = P;
     auto                       h_U = U;
 

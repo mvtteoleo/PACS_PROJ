@@ -1,10 +1,11 @@
 #include "../header/tensors.hpp"
+#include "../header/customvec.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <iostream>
 
-#define TEST 1
+#define TEST 0
 
 using Real   = double;
 using Vector = std::vector<Real>;
@@ -23,7 +24,7 @@ int main(int argc, char* argv[])
     Real                h = 2 * std::numbers::pi / (N - 1);
     numPDE::Mesh<Real>  mesh(x0, elems_for_dir, h);
 #if TEST == 0
-    numPDE::Tensor<Real, 2> A(elems_for_dir);
+    numPDE::Tensor<Real, N_dim> A(elems_for_dir);
     auto                    B(A);
     auto                    C(A);
 
