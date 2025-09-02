@@ -60,8 +60,8 @@ namespace numPDE
             assert(x0.size() == n_nodes.size() && x0.size() == N_DIMS);
             for (std::size_t i = 0; i < N_DIMS; ++i)
             {
-                X0[i]     = x0[i];
-                N_nodes[i] = n_nodes[i];
+                X0[i]        = x0[i];
+                N_nodes[i]   = n_nodes[i];
                 Delta_x_i[i] = h;
                 X_end[i]     = X0[i] + h * static_cast<T>(N_nodes[i] - 1);
             }
@@ -74,8 +74,8 @@ namespace numPDE
             assert(x0.size() == n_nodes.size() && x0.size() == N_DIMS);
             for (std::size_t i = 0; i < N_DIMS; ++i)
             {
-                X0[i]     = x0[i];
-                N_nodes[i] = n_nodes[i];
+                X0[i]        = x0[i];
+                N_nodes[i]   = n_nodes[i];
                 Delta_x_i[i] = h;
                 X_end[i]     = X0[i] + h * static_cast<T>(N_nodes[i] - 1);
             }
