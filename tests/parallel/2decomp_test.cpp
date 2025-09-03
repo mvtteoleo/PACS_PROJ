@@ -329,7 +329,7 @@ int main(int argc, char* argv[])
     c2d->allocX(u4);
 
     t1 = MPI_Wtime();
-    c2d->writeOne(0, u1, "test.out");
+    c2d->writeOne(0, u1, "build/test.out");
     MPI_Barrier(MPI_COMM_WORLD);
     c2d->readOne(0, u4, "build/test.out");
     t2 = MPI_Wtime();

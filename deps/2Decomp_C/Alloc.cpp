@@ -22,6 +22,15 @@ int C2Decomp::allocY(double*& var)
     return xsize * ysize * zsize;
 }
 
+std::vector<double> C2Decomp::allocY_()
+{
+    std::size_t n = static_cast<std::size_t>(decompMain.ysz[0]) *
+                    static_cast<std::size_t>(decompMain.ysz[1]) *
+                    static_cast<std::size_t>(decompMain.ysz[2]);
+
+    return std::vector<double>(n); // value-initialized to 0.0
+}
+
 int C2Decomp::allocZ(double*& var)
 {
 

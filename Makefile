@@ -2,7 +2,7 @@
 # Compiler and Flags
 CXX       := g++
 MPICXX    := mpicxx
-CXXFLAGS  := -std=c++23 -O3 -Wall -Wextra -pedantic -fopenmp
+CXXFLAGS  := -std=c++23 -O0 -g  -Wall -Wextra -pedantic -fopenmp
 CPPFLAGS  := -Iheader -Isrc -I.
 
 # Directories

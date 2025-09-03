@@ -9,6 +9,7 @@
 #include <iostream>
 #include <memory.h>
 #include <string>
+#include <vector>
 
 using namespace ::std;
 
@@ -75,9 +76,9 @@ class C2Decomp
   public:
     // Starting/ending index and size of data held by the current processor
     // duplicate 'decompMain', needed by apps to define data structure
-    int xStart[3], xEnd[3], xSize[3]; // x-pencil
-    int yStart[3], yEnd[3], ySize[3]; // y-pencil
-    int zStart[3], zEnd[3], zSize[3]; // z-pencil
+    std::array<std::size_t, 3> xStart, xEnd, xSize; // x-pencil
+    std::array<std::size_t, 3> yStart, yEnd, ySize; // y-pencil
+    std::array<std::size_t, 3> zStart, zEnd, zSize; // z-pencil
 
   private:
     // These are the buffers used by MPI_ALLTOALL(V) calls
@@ -173,10 +174,11 @@ class C2Decomp
     void decompInfoFinalize();
 
     // only doing real
-    int  allocX(double*& var);
-    int  allocY(double*& var);
-    int  allocZ(double*& var);
-    void deallocXYZ(double*& var);
+    int                 allocX(double*& var);
+    int                 allocY(double*& var);
+    std::vector<double> allocY_();
+    int                 allocZ(double*& var);
+    void                deallocXYZ(double*& var);
 
     void updateHalo(double* in, double*& out, int level, int ipencil);
 
