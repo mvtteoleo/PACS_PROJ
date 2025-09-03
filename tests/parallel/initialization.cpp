@@ -122,11 +122,13 @@ int main(int argc, char* argv[])
     auto eig = [&h](size_t index) -> double { return (2.0 * std::cos(index * h) - 2.0) / (h * h); };
     for (auto [k, j, i] : data3.all_elems())
     {
-        size_t i_glob = (i + c2d->xStart[0]);
-        size_t j_glob = (j + c2d->xStart[1]);
-        size_t k_glob = (k + c2d->xStart[2]);
-        data3(i, j, k) = data1(i, j, k) / (eig(i_glob) + eig(j_glob) + eig(k_glob))  ;
+        size_t i_glob = (i + c2d->zStart[0]);
+        size_t j_glob = (j + c2d->zStart[1]);
+        size_t k_glob = (k + c2d->zStart[2]);
+        data3(i, j, k) = data3(i, j, k) / (eig(i_glob) + eig(j_glob) + eig(k_glob))  ;
     }
+    if(!mpiRank)
+        data3(0, 0, 0) = 0;
     // I FFT_Z
     for (size_t k = 0; k < c2d->zSize[2]; ++k)
         for (size_t j = 0; j < c2d->zSize[1]; ++j)
@@ -165,14 +167,18 @@ int main(int argc, char* argv[])
             // execute plan
             fftw_execute(ifft);
             // copy back
-            for (size_t i = 0; i < c2d->xSize[0]; ++i)
-                data1(i, j, k) = x[i] / (2 * (N - 1));
+            std::copy_n(x, c2d->xSize[0], data1.ptr_at(0, j, k));
         }
+    data1 = data1 / static_cast<double>(2 * (N - 1));
 
+    double err  = -1;
     for (auto [k, j, i] : data1.all_elems())
     {
-        if (std::fabs(data1(i, j, k) - check(i, j, k)) > 1e-4)
-            std::cout << "Errore !! In " << i << " " << j << " " << k << "\n";
+        if (std::fabs(data1(i, j, k) - check(i, j, k)) > err)
+        {
+            err = std::fabs(data1(i, j, k) - check(i, j, k));
+            std::cout << "Errore in " << i << " " << j << " " << k << " : " << err <<"\n";
+    }
     }
     // Now lets kill MPI
     MPI_Finalize();
