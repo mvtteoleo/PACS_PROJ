@@ -3,8 +3,7 @@
 CXX       := g++
 MPICXX    := mpicxx
 CXXFLAGS  := -std=c++23 -O0 -g  -Wall -Wextra -pedantic -fopenmp
-CPPFLAGS := -Iheader -Isrc -I. -I${FFTW_INCLUDE}
-LDFLAGS  := -L${FFTW_LIB}
+CPPFLAGS := -Iheader -Isrc -I. 
 LDLIBS   := -lfftw3 -lm #-lfftw3_mpi 
 
 # Directories

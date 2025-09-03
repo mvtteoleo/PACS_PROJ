@@ -1,4 +1,3 @@
-
 #include <algorithm>
 #include <array>
 #include <assert.h>
@@ -97,7 +96,7 @@ int main(int argc, char* argv[])
     for (auto [k, j, i] : data1.all_elems())
     {
 
-        if(std::fabs(data1(i, j, k) - check(i, j, k)) > 1e-6 )
+        if(std::fabs(data1(i, j, k) - check(i, j, k)) > 1e-10 )
            std::cout << "Errore !! In " << i << " " << j<< " " <<k << "\n";
     }
     // Now lets kill MPI
