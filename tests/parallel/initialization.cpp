@@ -1,3 +1,5 @@
+#define PRINT_VALS 0
+#define PRINT_MODES 0
 #include <algorithm>
 #include <array>
 #include <assert.h>
@@ -23,7 +25,7 @@ int main(int argc, char* argv[])
     ierr = MPI_Comm_size(MPI_COMM_WORLD, &totRank);
     ierr = MPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
 
-    std::size_t N  = (argc > 1) ? std::stoul(argv[1]) : 20;
+    std::size_t N  = (argc > 1) ? std::stoul(argv[1]) : 5;
     double      h  = 2 * std::numbers::pi / (N - 1);
     int         nx = N, ny = N, nz = N;
     int         pRow = 0, pCol = 0;
@@ -37,8 +39,8 @@ int main(int argc, char* argv[])
     fftw_plan fft  = fftw_plan_r2r_1d(N, x, x, FFTW_REDFT00, FFTW_ESTIMATE);
     fftw_plan ifft = fftw_plan_r2r_1d(N, x, x, FFTW_REDFT00, FFTW_ESTIMATE);
 
-    
     auto data1 = numPDE::make_scalar_field<double, 3>(c2d->xSize);
+    auto check = numPDE::make_scalar_field<double, 3>(c2d->xSize);
     auto data2 = numPDE::make_scalar_field<double, 3>(c2d->ySize);
     auto data3 = numPDE::make_scalar_field<double, 3>(c2d->zSize);
 
@@ -46,40 +48,114 @@ int main(int argc, char* argv[])
     for (auto [k, j, i] : data1.all_elems())
     {
 
-        data1(i, j, k) = std::sin((i + c2d->xStart[0]) * h) * 
-                         std::sin((j + c2d->xStart[1]) * h) *
-                         std::sin((k + c2d->xStart[2]) * h);
+        data1(i, j, k) = -3*std::cos((i + c2d->xStart[0]) * h) * std::cos((j + c2d->xStart[1]) * h) *
+                         std::cos((k + c2d->xStart[2]) * h);
+#if PRINT_VALS == 1
+        data1(i, j, k) =
+            ((i + c2d->xStart[0])) * 1 + ((j + c2d->xStart[1])) * 10 + ((k + c2d->xStart[2])) * 100;
+#endif
     }
-    auto check = data1;
+    check = data1/(-3.0);
+#if PRINT_VALS
+    if (mpiRank == 0)
+    {
+        std::cout << "From rank : " << mpiRank << "\n";
+
+        for (auto [k, j, i] : data2.all_elems())
+        {
+            std::cout << data2.get_linear_index(i, j, k) << " " << data2(i, j, k) << "\n";
+        }
+    }
+#endif
     // Receive the tensor (pencil). OK
     // FFT_x
     for (size_t k = 0; k < c2d->xSize[2]; ++k)
         for (size_t j = 0; j < c2d->xSize[1]; ++j)
         {
             // Copy in FFTW buffer
-            for (size_t i = 0; i < c2d->xSize[0]; ++i)
-                x[i] = data1(i, j, k);
+            std::copy_n(data1.ptr_at(0, j, k), c2d->xSize[0], x);
             // execute plan
             fftw_execute(fft);
             // copy back
-            for (size_t i = 0; i < c2d->xSize[0]; ++i)
-                data1(i, j, k) = x[i];
+            std::copy_n(x, c2d->xSize[0], data1.ptr_at(0, j, k));
         }
 
     // Transpose X->Y
     c2d->transposeX2Y(data1.ptr_at(0), data2.ptr_at(0));
     // FFT_y
+    for (size_t k = 0; k < c2d->ySize[2]; ++k)
+        for (size_t j = 0; j < c2d->ySize[1]; ++j)
+        {
+            // Copy in FFTW buffer
+            std::copy_n(data2.ptr_at(0, j, k), c2d->ySize[0], x);
+            // execute plan
+            fftw_execute(fft);
+            // copy back
+            std::copy_n(x, c2d->ySize[0], data2.ptr_at(0, j, k));
+        }
     // Transpose Y->Z
     c2d->transposeY2Z(data2.ptr_at(0), data3.ptr_at(0));
-    c2d->transposeZ2Y(data3.ptr_at(0), data2.ptr_at(0));
-    c2d->transposeY2X(data2.ptr_at(0), data1.ptr_at(0));
     // FFT_z
+    for (size_t k = 0; k < c2d->zSize[2]; ++k)
+        for (size_t j = 0; j < c2d->zSize[1]; ++j)
+        {
+            // Copy in FFTW buffer
+            std::copy_n(data3.ptr_at(0, j, k), c2d->zSize[0], x);
+            // execute plan
+            fftw_execute(fft);
+            // copy back
+            std::copy_n(x, c2d->zSize[0], data3.ptr_at(0, j, k));
+        }
+#if PRINT_MODES
+    for (int r = 0; r < totRank; ++r)
+        if (mpiRank == r)
+        {
+            for (auto [k, j, i] : data1.all_elems())
+            {
+                if (std::abs(data1(i, j, k)) >= N - 2)
+                    std::cout << "In " << i << " " << j << " " << k << ": " << data1(i, j, k)
+                              << " \n";
+            }
+        }
+#endif
     // BACK SUB
+    auto eig = [&h](size_t index) -> double { return (2.0 * std::cos(index * h) - 2.0) / (h * h); };
+    for (auto [k, j, i] : data3.all_elems())
+    {
+        size_t i_glob = (i + c2d->xStart[0]);
+        size_t j_glob = (j + c2d->xStart[1]);
+        size_t k_glob = (k + c2d->xStart[2]);
+        data3(i, j, k) = data1(i, j, k) / (eig(i_glob) + eig(j_glob) + eig(k_glob))  ;
+    }
     // I FFT_Z
+    for (size_t k = 0; k < c2d->zSize[2]; ++k)
+        for (size_t j = 0; j < c2d->zSize[1]; ++j)
+        {
+            // Copy in FFTW buffer
+            std::copy_n(data3.ptr_at(0, j, k), c2d->zSize[0], x);
+            // execute plan
+            fftw_execute(ifft);
+            // copy back
+            std::copy_n(x, c2d->zSize[0], data3.ptr_at(0, j, k));
+        }
+    data3 = data3 / static_cast<double>(2 * (N - 1));
     // Transpose Z->Y
+    c2d->transposeZ2Y(data3.ptr_at(0), data2.ptr_at(0));
     // I FFT_Y
+    for (size_t k = 0; k < c2d->ySize[2]; ++k)
+        for (size_t j = 0; j < c2d->ySize[1]; ++j)
+        {
+            // Copy in FFTW buffer
+            std::copy_n(data2.ptr_at(0, j, k), c2d->ySize[0], x);
+            // execute plan
+            fftw_execute(ifft);
+            // copy back
+            std::copy_n(x, c2d->ySize[0], data2.ptr_at(0, j, k));
+        }
+    data2 = data2 / static_cast<double>(2 * (N - 1));
     // Transpose Y->X
-    // I FFT_X Writing to the P tensor
+    c2d->transposeY2X(data2.ptr_at(0), data1.ptr_at(0));
+    // I FFT_X
     for (size_t k = 0; k < c2d->xSize[2]; ++k)
         for (size_t j = 0; j < c2d->xSize[1]; ++j)
         {
@@ -95,12 +171,16 @@ int main(int argc, char* argv[])
 
     for (auto [k, j, i] : data1.all_elems())
     {
-
-        if(std::fabs(data1(i, j, k) - check(i, j, k)) > 1e-10 )
-           std::cout << "Errore !! In " << i << " " << j<< " " <<k << "\n";
+        if (std::fabs(data1(i, j, k) - check(i, j, k)) > 1e-4)
+            std::cout << "Errore !! In " << i << " " << j << " " << k << "\n";
     }
     // Now lets kill MPI
     MPI_Finalize();
+
+    fftw_destroy_plan(fft);
+    fftw_destroy_plan(ifft);
+
+    fftw_free(x);
 
     return 0;
 }
