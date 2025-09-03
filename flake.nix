@@ -41,14 +41,10 @@
                     pyEnv
                 ];
             };
-            shellHook = ''
-                    if [ -n "$LD_LIBRARY_PATH" ]; then
-                    echo "⚠️  Warning: LD_LIBRARY_PATH is set ($LD_LIBRARY_PATH)"
-                    echo "🔒 This shell expects a pure environment."
-                    exit 1
-                    fi
-                    echo "✅ Pacs environment activated"
-            '';
+             shellHook = ''
+        export PKG_CONFIG_PATH="${nixpkgs.fftw}/lib/pkgconfig:${nixpkgs.fftw}/lib64/pkgconfig:$PKG_CONFIG_PATH"
+        echo "FFTW and OpenMPI are available"
+      '';
         };
 }
 

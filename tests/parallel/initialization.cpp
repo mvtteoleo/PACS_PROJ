@@ -1,3 +1,4 @@
+
 #include <algorithm>
 #include <array>
 #include <assert.h>
@@ -5,70 +6,74 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <fftw3.h>
 #include <fstream>
 #include <iostream>
 #include <mpi.h>
+#include <numbers>
 #include <vector>
-
-using namespace std;
 
 #include "../../deps/2Decomp_C/C2Decomp.hpp"
 #include "../../header/MY_LIB.hpp"
 
 int main(int argc, char* argv[])
 {
-    int ierr, totRank, mpiRank;
-
     // Initialize MPI
+    int ierr, totRank, mpiRank;
     ierr = MPI_Init(&argc, &argv);
-
-    // Get the number of processes
     ierr = MPI_Comm_size(MPI_COMM_WORLD, &totRank);
-
-    // Get the local rank
     ierr = MPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
 
-    if (!mpiRank)
-    {
-        cout << endl;
-        cout << "-------------------" << endl;
-        cout << " C2Decomp Testing " << endl;
-        cout << "-------------------" << endl;
-        cout << endl;
-    }
-    int  nx = 200, ny = 200, nz = 200;
-    double dx = 1 ;
-    int  pRow = 0, pCol = 0;
-    bool periodicBC[3] = {true, true, true};
+    std::size_t N  = (argc > 1) ? std::stoul(argv[1]) : 20;
+    double      h  = 2 * std::numbers::pi / (N - 1);
+    int         nx = N, ny = N, nz = N;
+    int         pRow = 0, pCol = 0;
+    bool        periodicBC[3] = {true, true, true};
 
     if (!mpiRank) cout << "initializing " << endl;
     C2Decomp* c2d;
     c2d = new C2Decomp(nx, ny, nz, pRow, pCol, periodicBC);
-    if (!mpiRank) cout << "done initializing " << endl;
 
-    bool errorFlag, errorFlagGlobal;
+    double*   x    = (double*) fftw_malloc(sizeof(double) * N);
+    fftw_plan fft  = fftw_plan_r2r_1d(N, x, x, FFTW_REDFT00, FFTW_ESTIMATE);
+    fftw_plan ifft = fftw_plan_r2r_1d(N, x, x, FFTW_REDFT00, FFTW_ESTIMATE);
 
-    int m = 1;
-    numPDE::Mesh<double, 3> mesh(c2d->xStart, c2d->xSize, dx);
+    
     auto data1 = numPDE::make_scalar_field<double, 3>(c2d->xSize);
     auto data2 = numPDE::make_scalar_field<double, 3>(c2d->ySize);
     auto data3 = numPDE::make_scalar_field<double, 3>(c2d->zSize);
-    for (auto [i, j, k] : data1.all_elems())
-    {
-        data1(k, j, i) = (double) m;
-        m++;
-    }
 
+    // INITIALIZE THE FIELD
+    for (auto [k, j, i] : data1.all_elems())
+    {
+
+        data1(i, j, k) = std::sin((i + c2d->xStart[0]) * h) * 
+                         std::sin((j + c2d->xStart[1]) * h) *
+                         std::sin((k + c2d->xStart[2]) * h);
+    }
+    auto check = data1;
+    // Receive the tensor (pencil). OK
+    // FFT_x
+    for (size_t k = 0; k < c2d->xSize[2]; ++k)
+        for (size_t j = 0; j < c2d->xSize[1]; ++j)
+        {
+            // Copy in FFTW buffer
+            for (size_t i = 0; i < c2d->xSize[0]; ++i)
+                x[i] = data1(i, j, k);
+            // execute plan
+            fftw_execute(fft);
+            // copy back
+            for (size_t i = 0; i < c2d->xSize[0]; ++i)
+                data1(i, j, k) = x[i];
+        }
+
+    // Transpose X->Y
     c2d->transposeX2Y(data1.ptr_at(0), data2.ptr_at(0));
+    // FFT_y
+    // Transpose Y->Z
     c2d->transposeY2Z(data2.ptr_at(0), data3.ptr_at(0));
     c2d->transposeZ2Y(data3.ptr_at(0), data2.ptr_at(0));
     c2d->transposeY2X(data2.ptr_at(0), data1.ptr_at(0));
-
-    // Receive the tensor (pencil).
-    // FFT_x
-    // Transpose X->Y
-    // FFT_y
-    // Transpose Y->Z
     // FFT_z
     // BACK SUB
     // I FFT_Z
@@ -76,7 +81,25 @@ int main(int argc, char* argv[])
     // I FFT_Y
     // Transpose Y->X
     // I FFT_X Writing to the P tensor
+    for (size_t k = 0; k < c2d->xSize[2]; ++k)
+        for (size_t j = 0; j < c2d->xSize[1]; ++j)
+        {
+            // Copy in FFTW buffer
+            for (size_t i = 0; i < c2d->xSize[0]; ++i)
+                x[i] = data1(i, j, k);
+            // execute plan
+            fftw_execute(ifft);
+            // copy back
+            for (size_t i = 0; i < c2d->xSize[0]; ++i)
+                data1(i, j, k) = x[i] / (2 * (N - 1));
+        }
 
+    for (auto [k, j, i] : data1.all_elems())
+    {
+
+        if(std::fabs(data1(i, j, k) - check(i, j, k)) > 1e-6 )
+           std::cout << "Errore !! In " << i << " " << j<< " " <<k << "\n";
+    }
     // Now lets kill MPI
     MPI_Finalize();
 

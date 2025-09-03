@@ -3,7 +3,9 @@
 CXX       := g++
 MPICXX    := mpicxx
 CXXFLAGS  := -std=c++23 -O0 -g  -Wall -Wextra -pedantic -fopenmp
-CPPFLAGS  := -Iheader -Isrc -I.
+CPPFLAGS := -Iheader -Isrc -I. -I${FFTW_INCLUDE}
+LDFLAGS  := -L${FFTW_LIB}
+LDLIBS   := -lfftw3 -lm #-lfftw3_mpi 
 
 # Directories
 SRC_DIR      := src
@@ -69,22 +71,22 @@ run_parallel: PARALLEL_TESTS
 # Build rules
 
 $(EXEC): $(OBJS)
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -o $@
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 # Compile sources
 $(BUILD_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@ $(LDFLAGS) $(LDLIBS)
 
 # Link serial test executables
 $(BUILD_DIR)/serial/%: $(BUILD_DIR)/tests/serial/%.o $(OBJS)
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -o $@
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 # Link parallel test executables (with C2Decomp sources)
 $(BUILD_DIR)/parallel/%: $(BUILD_DIR)/tests/parallel/%.o $(OBJS) $(C2DECOMP_SRCS)
 	@mkdir -p $(dir $@)
-	$(MPICXX) $(CXXFLAGS) $(CPPFLAGS) -I$(C2DECOMP_DIR) $^ -o $@
+	$(MPICXX) $(CXXFLAGS) $(CPPFLAGS) -I$(C2DECOMP_DIR) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 # ==============================
 # Cleaning
