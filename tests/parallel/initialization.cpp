@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
     double      h  = std::numbers::pi / (N - 1);
     int         nx = N, ny = N, nz = N;
     int         pRow = 0, pCol = 0;
-    bool        periodicBC[3] = {false, false, false};
+    bool        periodicBC[3] = {true, true, true};
 
     if (!mpiRank) cout << "initializing " << endl;
     C2Decomp* c2d;
@@ -39,35 +39,38 @@ int main(int argc, char* argv[])
     fftw_plan ifft = fftw_plan_r2r_1d(N, x, x, FFTW_REDFT00, FFTW_ESTIMATE);
 
     auto data1 = numPDE::make_scalar_field<double, 3>(c2d->xSize);
-    auto check = data1;
+    auto check = numPDE::make_scalar_field<double, 3>(c2d->xSize);
     auto data2 = numPDE::make_scalar_field<double, 3>(c2d->ySize);
     auto data3 = numPDE::make_scalar_field<double, 3>(c2d->zSize);
 
     // INITIALIZE THE FIELD
-    for (auto [k, j, i] : data1.all_elems())
+    for (auto [i, j, k] : data1.all_elems())
     {
 
         check(i, j, k) = std::cos((i + c2d->xStart[0]) * h) * std::cos((j + c2d->xStart[1]) * h) *
                          std::cos((k + c2d->xStart[2]) * h);
+        data1(i, j, k) = std::cos((i + c2d->xStart[0]) * h) * std::cos((j + c2d->xStart[1]) * h) *
+                         std::cos((k + c2d->xStart[2]) * h);
     }
-    data1 = check * (-3.0);
 
+    std::cout << data1.size() << std::endl;
     // FFT_x
-    for (size_t k = 0; k < c2d->xSize[2]; ++k)
-        for (size_t j = 0; j < c2d->xSize[1]; ++j)
-        {
-            // Copy in FFTW buffer
-            std::copy_n(data1.ptr_at(0, j, k), N, x);
-            // execute plan
-            fftw_execute(fft);
-            // copy back
-            std::copy_n(x, N, data1.ptr_at(0, j, k));
-        }
+    size_t i = 0;
+    while (i < data1.size())
+    {
+        // Copy in FFTW buffer
+        std::copy_n(data1.ptr_at(i), N, x);
+        // execute plan
+        fftw_execute(fft);
+        // copy back
+        std::copy_n(x, N, data1.ptr_at(i));
+        i += N;
+    }
 
     // Transpose X->Y
     c2d->transposeX2Y(data1.ptr_at(0), data2.ptr_at(0));
     // FFT_y
-    size_t i = 0;
+    i = 0;
     while (i < data2.size())
     {
         // Copy in FFTW buffer
@@ -92,6 +95,7 @@ int main(int argc, char* argv[])
         std::copy_n(x, N, data3.ptr_at(i));
         i += N;
     }
+
     for (int r = 0; r < totRank; ++r)
         if (mpiRank == r)
         {
@@ -108,6 +112,10 @@ int main(int argc, char* argv[])
     auto eig = [&h](size_t index) -> double { return (2.0 * std::cos(index * h) - 2.0) / (h * h); };
     // auto eig = [&h](size_t index) -> double { return (2.0 * std::cos(index * h / 2.0) - 2.0) / (h
     // * h); };
+    for (auto i : c2d->zStart)
+        std::cout << i << " ";
+
+    std::cout << std::endl;
     for (auto [k, j, i] : data3.all_elems())
     {
         size_t i_glob  = i + c2d->zStart[0];
@@ -148,20 +156,22 @@ int main(int argc, char* argv[])
     // Transpose Y->X
     c2d->transposeY2X(data2.ptr_at(0), data1.ptr_at(0));
     // I FFT_X
-    for (size_t k = 0; k < c2d->xSize[2]; ++k)
-        for (size_t j = 0; j < c2d->xSize[1]; ++j)
-        {
-            // Copy in FFTW buffer
-            std::copy_n(data1.ptr_at(0, j, k), c2d->xSize[0], x);
-            // execute plan
-            fftw_execute(ifft);
-            // copy back
-            std::copy_n(x, c2d->xSize[0], data1.ptr_at(0, j, k));
-        }
+    i = 0;
+    while (i < data1.size())
+    {
+        // Copy in FFTW buffer
+        std::copy_n(data1.ptr_at(i), N, x);
+        // execute plan
+        fftw_execute(fft);
+        // copy back
+        std::copy_n(x, N, data1.ptr_at(i));
+        i += N;
+    }
     data1 = data1 / static_cast<double>(2 * (N - 1));
 
     double err      = -1;
     double constant = data1[0] - check[0];
+    std::cout << constant << std::endl;
     for (auto [k, j, i] : data1.all_elems())
         if (std::abs(data1(i, j, k) - check(i, j, k) - constant) > err)
             err = std::abs(data1(i, j, k) - check(i, j, k) - constant);

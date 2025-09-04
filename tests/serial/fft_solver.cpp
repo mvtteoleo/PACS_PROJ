@@ -23,17 +23,16 @@ int main(int argc, char* argv[])
     fftw_plan fft  = fftw_plan_r2r_1d(N, x, x, FFTW_REDFT00, FFTW_ESTIMATE);
     fftw_plan ifft = fftw_plan_r2r_1d(N, x, x, FFTW_REDFT00, FFTW_ESTIMATE);
 
-    std::vector<double> ele ={N, N, N}; 
-    auto data1 = numPDE::make_scalar_field<double, 3>(ele);
-    auto check = data1;
+    std::vector<double> ele   = {N, N, N};
+    auto                data1 = numPDE::make_scalar_field<double, 3>(ele);
+    auto                check = data1;
 
     // INITIALIZE THE FIELD
     for (auto [k, j, i] : data1.all_elems())
     {
-
         check(i, j, k) = std::cos(i * h) * std::cos(j * h) * std::cos(k * h);
     }
-    data1 = check * (-3.0);
+    data1 = check;
 
     // FFT_x
     for (size_t k = 0; k < N; ++k)
@@ -62,42 +61,47 @@ int main(int argc, char* argv[])
         }
     // FFT_z
     for (size_t j = 0; j < N; ++j)
-            for (size_t i = 0; i < N; ++i)
-            {
-                // Copy in FFTW buffer
-                for (size_t k = 0; k < N; ++k)
-                    x[k] = data1(i, j, k);
-                // execute plan
-                fftw_execute(fft);
-                // copy back
-                for (size_t k = 0; k < N; ++k)
-                    data1(i, j, k) = x[k];
-            }
+        for (size_t i = 0; i < N; ++i)
+        {
+            // Copy in FFTW buffer
+            for (size_t k = 0; k < N; ++k)
+                x[k] = data1(i, j, k);
+            // execute plan
+            fftw_execute(fft);
+            // copy back
+            for (size_t k = 0; k < N; ++k)
+                data1(i, j, k) = x[k];
+        }
     // BACK SUB
     auto eig = [&h](size_t index) -> double { return (2.0 * std::cos(index * h) - 2.0) / (h * h); };
     // auto eig = [&h](size_t index) -> double { return (2.0 * std::cos(index * h / 2.0) - 2.0) / (h
     // * h); };
     for (auto [k, j, i] : data1.all_elems())
     {
-        size_t i_glob  = i ;
-        size_t j_glob  = j ;
-        size_t k_glob  = k ;
+        if (std::abs(data1(i, j, k)) >= N - 2)
+            std::cout << "In " << i << " " << j << " " << k << ": " << data1(i, j, k) << " \n";
+    }
+    for (auto [k, j, i] : data1.all_elems())
+    {
+        size_t i_glob  = i;
+        size_t j_glob  = j;
+        size_t k_glob  = k;
         data1(i, j, k) = data1(i, j, k) / (eig(i_glob) + eig(j_glob) + eig(k_glob));
     }
-    data1(0,0,0) = 0;
+    data1(0, 0, 0) = 0;
     // I FFT_Z
     for (size_t j = 0; j < N; ++j)
-            for (size_t i = 0; i < N; ++i)
-            {
-                // Copy in FFTW buffer
-                for (size_t k = 0; k < N; ++k)
-                    x[k] = data1(i, j, k);
-                // execute plan
-                fftw_execute(ifft);
-                // copy back
-                for (size_t k = 0; k < N; ++k)
-                    data1(i, j, k) = x[k];
-            }
+        for (size_t i = 0; i < N; ++i)
+        {
+            // Copy in FFTW buffer
+            for (size_t k = 0; k < N; ++k)
+                x[k] = data1(i, j, k);
+            // execute plan
+            fftw_execute(ifft);
+            // copy back
+            for (size_t k = 0; k < N; ++k)
+                data1(i, j, k) = x[k];
+        }
     data1 = data1 / static_cast<double>(2 * (N - 1));
     // I FFT_Y
     for (size_t k = 0; k < N; ++k)
