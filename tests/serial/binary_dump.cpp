@@ -1,7 +1,7 @@
 #include "../header/customvec.hpp"
 #include <cstdint>
 #ifndef TEST
-#define TEST 2
+#define TEST 3
 #endif // !TEST
 
 // Basically a sanity check
