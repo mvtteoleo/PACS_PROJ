@@ -15,7 +15,7 @@ class C2Decomp
 {
 
   public:
-    // Just assume that we're using double precision all of the time
+    // Just assume that we're using double precision all the time
     typedef double myType;
     MPI_Datatype   realType;
     int            myTypeBytes;

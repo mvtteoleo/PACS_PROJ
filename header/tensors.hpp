@@ -287,7 +287,7 @@ namespace numPDE
             requires UnsignedInt<Ts...>
         const T* ptr_at(const Ts... idxs) const noexcept
         {
-            size_t lin = get_linear_index_impl(idxs...);
+            size_t lin = get_linear_index(idxs...);
             return &m_Datas[lin];
         }
 

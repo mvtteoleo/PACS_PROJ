@@ -1,10 +1,13 @@
 # ==============================
 # Compiler and Flags
 CXX       := g++
-MPICXX    := mpicxx
-CXXFLAGS  := -std=c++23 -O0 -g  -Wall -Wextra -pedantic -fopenmp
-CPPFLAGS := -Iheader -Isrc -I. 
+MPICXX    := mpic++
+CPPFLAGS  := -Iheader -Isrc -I. 
 LDLIBS   := -lfftw3 -lm #-lfftw3_mpi 
+
+# Optimization flags
+OPT_O3   := -O3 -Wall -Wextra -pedantic -fopenmp -std=c++23
+OPT_O0   := -O3 -Wall -Wextra -pedantic -fopenmp  -std=c++23
 
 # Directories
 SRC_DIR      := src
@@ -19,21 +22,20 @@ EXEC      := main
 
 # ==============================
 # Sources & Objects
-SRCS      := $(wildcard $(SRC_DIR)/*.cpp) 
+SRCS      := $(wildcard $(SRC_DIR)/*.cpp)
 OBJS      := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(SRCS))
 
-# Serial tests
+C2DECOMP_SRCS := $(wildcard $(C2DECOMP_DIR)/*.cpp)
+C2DECOMP_OBJS := $(patsubst $(C2DECOMP_DIR)/%.cpp,$(BUILD_DIR)/2Decomp_C/%.o,$(C2DECOMP_SRCS))
+
+# Serial & parallel tests
 SERIAL_SRCS  := $(wildcard $(SERIAL_DIR)/*.cpp)
 SERIAL_TESTS := $(patsubst $(SERIAL_DIR)/%.cpp,$(BUILD_DIR)/serial/%,$(SERIAL_SRCS))
-SERIAL_OBJS  := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(SERIAL_SRCS))
 
-# Parallel tests
 PARALLEL_SRCS  := $(wildcard $(PARALLEL_DIR)/*.cpp)
 PARALLEL_TESTS := $(patsubst $(PARALLEL_DIR)/%.cpp,$(BUILD_DIR)/parallel/%,$(PARALLEL_SRCS))
-PARALLEL_OBJS  := $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(PARALLEL_SRCS))
-C2DECOMP_SRCS  := $(wildcard $(C2DECOMP_DIR)/*.cpp)
 
-# Default MPI processes (can be overridden: make run_parallel NP=8)
+# Default MPI processes
 NP ?= 4
 
 # ==============================
@@ -45,47 +47,33 @@ NP ?= 4
 all: $(EXEC)
 
 tests: serial parallel
-
-serial: SERIAL_TESTS
-parallel: PARALLEL_TESTS
-
-SERIAL_TESTS: $(SERIAL_TESTS)
-PARALLEL_TESTS: $(PARALLEL_TESTS)
-
-run_tests: run_serial run_parallel
-
-run_serial: SERIAL_TESTS
-	@for t in $(SERIAL_TESTS); do \
-		echo "Running $$t..."; \
-		./$$t || exit 1; \
-	done
-
-run_parallel: PARALLEL_TESTS
-	@for t in $(PARALLEL_TESTS); do \
-		echo "Running $$t with mpirun -np $(NP)..."; \
-		mpirun -np $(NP) ./$$t || exit 1; \
-	done
+serial: $(SERIAL_TESTS)
+parallel: $(PARALLEL_TESTS)
 
 # ==============================
-# Build rules
-
+# Compile main program (everything O3)
 $(EXEC): $(OBJS)
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+	$(CXX) $(OPT_O3) $(CPPFLAGS) $^ -o $@ $(LDLIBS)
 
-# Compile sources
+# Compile src files (O3)
 $(BUILD_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@ $(LDFLAGS) $(LDLIBS)
+	$(CXX) $(OPT_O3) $(CPPFLAGS) -c $< -o $@
 
-# Link serial test executables
+# Compile 2Decomp_C library (O0 with MPI compiler)
+$(BUILD_DIR)/2Decomp_C/%.o: $(C2DECOMP_DIR)/%.cpp
+	@mkdir -p $(dir $@)
+	$(MPICXX) $(OPT_O0) $(CPPFLAGS) -I$(C2DECOMP_DIR) -c $< -o $@
+
+# Link parallel test executables (use mpicxx and include O0 objects)
+$(BUILD_DIR)/parallel/%: $(BUILD_DIR)/tests/parallel/%.o $(OBJS) $(C2DECOMP_OBJS)
+	@mkdir -p $(dir $@)
+	$(MPICXX) $(OPT_O3) $(CPPFLAGS) -I$(C2DECOMP_DIR) $^ -o $@ $(LDLIBS)
+
+# Link serial test executables (O3)
 $(BUILD_DIR)/serial/%: $(BUILD_DIR)/tests/serial/%.o $(OBJS)
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
-
-# Link parallel test executables (with C2Decomp sources)
-$(BUILD_DIR)/parallel/%: $(BUILD_DIR)/tests/parallel/%.o $(OBJS) $(C2DECOMP_SRCS)
-	@mkdir -p $(dir $@)
-	$(MPICXX) $(CXXFLAGS) $(CPPFLAGS) -I$(C2DECOMP_DIR) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+	$(CXX) $(OPT_O3) $(CPPFLAGS) $^ -o $@ $(LDLIBS)
 
 # ==============================
 # Cleaning
