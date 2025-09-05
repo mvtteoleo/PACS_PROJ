@@ -1,4 +1,7 @@
 #include "C2Decomp.hpp"
+#include <cassert>
+#include <cstring>
+#include <string>
 
 // template <class T> const T& max (const T& a, const T& b) {
 //  return (a<b)?b:a;     // or: return comp(a,b)?b:a; for version (2)
@@ -63,7 +66,8 @@ void C2Decomp::decomp2DInit(int pRow, int pCol)
     ierr      = MPI_Cart_sub(DECOMP_2D_COMM_CART_X, remain, &DECOMP_2D_COMM_ROW);
 
     //////////////////////////
-    // This could be a pitfall right here because of the column major to row major conversion...
+    // This could be a pitfall right here because of the column major to row major
+    // conversion...
     //////////////////////////
 
     // gather information for halo-cell support
@@ -135,8 +139,8 @@ void C2Decomp::decompInfoInit()
     if (nx < dims[0] || ny < dims[0] || ny < dims[1] || nz < dims[1])
     {
         errorcode  = 6;
-        string msg = "Invalid 2D processor grid. \n Make sure that min(nx, ny) > p_row and min(ny, "
-                     "nz) >= p_col.";
+        string msg = "Invalid 2D processor grid. \n Make sure that min(nx, ny) > "
+                     "p_row and min(ny, nz) >= p_col.";
         decomp2DAbort(errorcode, msg);
     }
 
@@ -150,9 +154,13 @@ void C2Decomp::decompInfoInit()
     }
 
     decompMain.x1dist = new int[dims[0]];
+    std::memset(decompMain.x1dist, 0, sizeof(int) * dims[0]);
     decompMain.y1dist = new int[dims[0]];
+    std::memset(decompMain.y1dist, 0, sizeof(int) * dims[0]);
     decompMain.y2dist = new int[dims[1]];
+    std::memset(decompMain.y2dist, 0, sizeof(int) * dims[1]);
     decompMain.z2dist = new int[dims[1]];
+    std::memset(decompMain.z2dist, 0, sizeof(int) * dims[1]);
 
     getDist();
 
@@ -170,14 +178,22 @@ void C2Decomp::decompInfoInit()
     partition(nx, ny, nz, pdim, decompMain.zst, decompMain.zen, decompMain.zsz);
 
     decompMain.x1cnts = new int[dims[0]];
+    std::memset(decompMain.x1cnts, 0, sizeof(int) * dims[0]);
     decompMain.y1cnts = new int[dims[0]];
+    std::memset(decompMain.y1cnts, 0, sizeof(int) * dims[0]);
     decompMain.y2cnts = new int[dims[1]];
+    std::memset(decompMain.y2cnts, 0, sizeof(int) * dims[1]);
     decompMain.z2cnts = new int[dims[1]];
+    std::memset(decompMain.z2cnts, 0, sizeof(int) * dims[1]);
 
     decompMain.x1disp = new int[dims[0]];
+    std::memset(decompMain.x1disp, 0, sizeof(int) * dims[0]);
     decompMain.y1disp = new int[dims[0]];
+    std::memset(decompMain.y1disp, 0, sizeof(int) * dims[0]);
     decompMain.y2disp = new int[dims[1]];
+    std::memset(decompMain.y2disp, 0, sizeof(int) * dims[1]);
     decompMain.z2disp = new int[dims[1]];
+    std::memset(decompMain.z2disp, 0, sizeof(int) * dims[1]);
 
     prepareBuffer(&decompMain);
 
@@ -235,37 +251,110 @@ void C2Decomp::getDist()
     delete[] en2;
 }
 
+/// Distribute the domain accross the processors. The @ref Distribution::MIF
+/// strategy will assign larger domain to processors with lower IDs and smaller
+/// domains to processors with larger IDs.
 void C2Decomp::distribute(int data1, int proc, int* st, int* en, int* sz)
 {
-
-    int size1, nl, nu;
-
-    size1 = data1 / proc;
-    nu    = data1 - size1 * proc;
-    nl    = proc - nu;
-
-    st[0] = 1;
-    sz[0] = size1;
-    en[0] = size1;
-
-    for (int i = 1; i < nl; i++)
+    // Original version
+    const auto def = [&]()
     {
-        st[i] = st[i - 1] + size1;
-        sz[i] = size1;
-        en[i] = en[i - 1] + size1;
-    }
+        int size1, nl, nu;
 
-    size1 = size1 + 1;
+        size1 = data1 / proc;
+        nu    = data1 - size1 * proc;
+        nl    = proc - nu;
 
-    for (int i = nl; i < proc; i++)
+        st[0] = 1;
+        sz[0] = size1;
+        en[0] = size1;
+
+        for (int i = 1; i < nl; i++)
+        {
+            st[i] = st[i - 1] + size1;
+            sz[i] = size1;
+            en[i] = en[i - 1] + size1;
+        }
+
+        size1 = size1 + 1;
+
+        for (int i = nl; i < proc; i++)
+        {
+            st[i] = en[i - 1] + 1;
+            sz[i] = size1;
+            en[i] = en[i - 1] + size1;
+        }
+
+        en[proc - 1] = data1;
+        sz[proc - 1] = data1 - st[proc - 1] + 1;
+    };
+
+    // Custom version
+    const auto mif = [&]()
     {
-        st[i] = en[i - 1] + 1;
-        sz[i] = size1;
-        en[i] = en[i - 1] + size1;
-    }
+        unsigned big_size = 0, small_size = 0, n_big_size = 0, n_small_size = 0, div = 0, mod = 0;
+        if (data1 % proc == 0)
+        {
+            big_size   = data1 / proc;
+            n_big_size = proc;
+        }
+        else
+        {
+            div          = data1 / proc;
+            mod          = data1 % proc;
+            n_small_size = proc - mod;
+            n_big_size   = mod;
+            small_size   = div;
+            big_size     = div + 1;
+        }
 
-    en[proc - 1] = data1;
-    sz[proc - 1] = data1 - st[proc - 1] + 1;
+        // TODO: make these only under debug mode
+        if (n_big_size + n_small_size != proc)
+        {
+            int         errorcode = 1;
+            std::string errorstring =
+                "n_big_size + n_small_size != proc. Received tot_size=" + std::to_string(data1) +
+                " n_big_size=" + std::to_string(n_big_size) +
+                " n_small_size=" + std::to_string(n_small_size) + " proc=" + std::to_string(proc) +
+                " div=" + std::to_string(div) + " mod=" + std::to_string(mod) + "\n";
+            decomp2DAbort(errorcode, errorstring);
+        }
+        if (n_big_size * big_size + n_small_size * small_size != data1)
+        {
+            int         errorcode = 1;
+            std::string errorstring =
+                "n_big_size * big_size + n_small_size * small_size != data1" +
+                std::to_string(data1) + " n_big_size=" + std::to_string(n_big_size) +
+                " n_small_size=" + std::to_string(n_small_size) + " proc=" + std::to_string(proc) +
+                " div=" + std::to_string(div) + " mod=" + std::to_string(mod) + "\n";
+            decomp2DAbort(errorcode, errorstring);
+        }
+
+        st[0] = 1;
+        sz[0] = big_size;
+        en[0] = big_size;
+        for (unsigned i = 1; i < n_big_size; ++i)
+        {
+            st[i] = en[i - 1] + 1;
+            sz[i] = big_size;
+            en[i] = st[i] + big_size - 1;
+        }
+        for (unsigned i = n_big_size; i < proc; i++)
+        {
+            st[i] = en[i - 1] + 1;
+            sz[i] = small_size;
+            en[i] = st[i] + small_size - 1;
+        }
+    };
+
+    if (distributionType == Distribution::DEFAULT)
+    {
+        def();
+    }
+    else
+    {
+        mif();
+    }
 };
 
 void C2Decomp::partition(int nx, int ny, int nz, int* pdim, int* lstart, int* lend, int* lsize)

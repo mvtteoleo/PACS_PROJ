@@ -145,7 +145,9 @@ void C2Decomp::best2DGrid(int iproc, int& best_pRow, int& best_pCol)
     {
         if (!nRank)
         {
-            cout << "    ===============================================================" << endl;
+            cout << "    "
+                    "==============================================================="
+                 << endl;
             cout << "    The best processor grid is probably " << best_pRow << " by " << best_pCol
                  << endl;
         }
@@ -153,8 +155,8 @@ void C2Decomp::best2DGrid(int iproc, int& best_pRow, int& best_pCol)
     else
     {
         int    errorcode   = 9;
-        string errorstring = "The processor=grid auto-tuning code fail. The number of processes "
-                             "requested is probably too large ";
+        string errorstring = "The processor=grid auto-tuning code fail. The number "
+                             "of processes requested is probably too large ";
         decomp2DAbort(errorcode, errorstring);
     }
 }

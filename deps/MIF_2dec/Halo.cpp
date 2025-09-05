@@ -97,8 +97,8 @@ void C2Decomp::updateHalo(double* in, double*& out, int level, int ipencil)
         }
     }
 
-    // If needed, define MPI derived data type to pack halo data, then call MPI send/receive to
-    // exchange data
+    // If needed, define MPI derived data type to pack halo data, then call MPI
+    // send/receive to exchange data
     if (ipencil == 0)
     {
 

@@ -3,11 +3,13 @@
 
 #include "math.h"
 #include "mpi.h"
+#include <array>
 #include <cstddef>
 #include <cstdlib>
 #include <iostream>
 #include <memory.h>
 #include <string>
+#include <vector>
 
 using namespace ::std;
 
@@ -15,6 +17,12 @@ class C2Decomp
 {
 
   public:
+    enum Distribution
+    {
+        DEFAULT = 0,
+        MIF     = 1
+    };
+
     // Just assume that we're using double precision all of the time
     typedef double myType;
     MPI_Datatype   realType;
@@ -40,6 +48,8 @@ class C2Decomp
     int neighbor[3][6];
     // Flags for periodic condition in 3D
     bool periodicX, periodicY, periodicZ;
+    // Distribution type
+    enum Distribution distributionType;
 
   public:
     // Struct used to store decomposition info for a given global data size
@@ -66,15 +76,18 @@ class C2Decomp
   public:
     // Starting/ending index and size of data held by the current processor
     // duplicate 'decompMain', needed by apps to define data structure
-    int xStart[3], xEnd[3], xSize[3]; // x-pencil
-    int yStart[3], yEnd[3], ySize[3]; // y-pencil
-    int zStart[3], zEnd[3], zSize[3]; // z-pencil
+    std::array<std::size_t, 3> xStart, xEnd, xSize; // x-pencil
+    std::array<std::size_t, 3> yStart, yEnd, ySize; // y-pencil
+    std::array<std::size_t, 3> zStart, zEnd, zSize; // z-pencil
 
   private:
     // These are the buffers used by MPI_ALLTOALL(V) calls
     double *work1_r, *work2_r; // Only implementing real for now...
 
   public:
+    void decomp2DInit(int pRow, int pCol);
+
+    template <Distribution disType = Distribution::DEFAULT>
     C2Decomp(int nx, int ny, int nz, int pRow, int pCol, bool periodicBC[3])
     {
 
@@ -92,10 +105,10 @@ class C2Decomp
 
         realType = MPI_DOUBLE_PRECISION;
 
+        distributionType = disType;
+
         decomp2DInit(pRow, pCol);
     }
-
-    void decomp2DInit(int pRow, int pCol);
 
     void best2DGrid(int nProc, int& pRow, int& pCol);
     void FindFactor(int num, int* factors, int& nfact);
@@ -108,7 +121,8 @@ class C2Decomp
     void transposeZ2Y(double* src, double* dst);
     void transposeY2X(double* src, double* dst);
 
-    // Get Transposes but with array indexing with the major index of the pencil...
+    // Get Transposes but with array indexing with the major index of the
+    // pencil...
     void transposeX2Y_MajorIndex(double* src, double* dst);
     void transposeY2Z_MajorIndex(double* src, double* dst);
     void transposeZ2Y_MajorIndex(double* src, double* dst);
@@ -160,10 +174,11 @@ class C2Decomp
     void decompInfoFinalize();
 
     // only doing real
-    void allocX(double*& var);
-    void allocY(double*& var);
-    void allocZ(double*& var);
-    void deallocXYZ(double*& var);
+    int                 allocX(double*& var);
+    int                 allocY(double*& var);
+    std::vector<double> allocY_();
+    int                 allocZ(double*& var);
+    void                deallocXYZ(double*& var);
 
     void updateHalo(double* in, double*& out, int level, int ipencil);
 

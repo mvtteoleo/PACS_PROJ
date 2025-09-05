@@ -20,6 +20,7 @@
 
 int main(int argc, char* argv[])
 {
+#if 1
     // Initialize MPI
     int ierr, totRank, mpiRank;
     ierr = MPI_Init(&argc, &argv);
@@ -36,10 +37,17 @@ int main(int argc, char* argv[])
     C2Decomp* c2d;
     c2d = new C2Decomp(nx, ny, nz, pRow, pCol, periodicBC);
 
-    auto data1 = numPDE::make_scalar_field<double, 3>(c2d->xSize);
-    auto check = numPDE::make_scalar_field<double, 3>(c2d->xSize);
-    auto data2 = numPDE::make_scalar_field<double, 3>(c2d->ySize);
-    auto data3 = numPDE::make_scalar_field<double, 3>(c2d->zSize);
+    numPDE::Vec<double> xSize, ySize, zSize;
+    for (int i = 0; i < 3; ++i)
+    {
+        xSize[i] = c2d->xSize[i];
+        ySize[i] = c2d->ySize[i];
+        zSize[i] = c2d->zSize[i];
+    }
+    auto data1 = numPDE::make_scalar_field<double, 3>(xSize);
+    auto check = numPDE::make_scalar_field<double, 3>(xSize);
+    auto data2 = numPDE::make_scalar_field<double, 3>(ySize);
+    auto data3 = numPDE::make_scalar_field<double, 3>(zSize);
 
     // INITIALIZE THE FIELD
     for (auto [i, j, k] : data1.all_elems())
@@ -77,5 +85,6 @@ int main(int argc, char* argv[])
 
     // Now lets kill MPI
     MPI_Finalize();
+#endif
     return 0;
 }
