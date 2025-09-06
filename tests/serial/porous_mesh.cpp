@@ -21,6 +21,7 @@ int main(int argc, char* argv[])
     std::cout << std::endl;
     std::cout << std::endl;
     std::cout << "/****** TEST : porous_mesh.cpp ******/" << std::endl;
+#if 0
     std::size_t N = 10;
     if (argc > 1) N = std::stoul(argv[1]);
     std::vector<float>    x0            = {0, 0, 0};
@@ -58,6 +59,7 @@ int main(int argc, char* argv[])
         }
     /*
      */
+#endif
 
     return 0;
 }

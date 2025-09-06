@@ -85,9 +85,9 @@ int main(int argc, char* argv[])
     }
 
     // local contiguous lengths for transforms in each layout
-    const auto& Lx = xSizeArr[0]; 
-    const auto& Ly = ySizeArr[1]; 
-    const auto& Lz = zSizeArr[2]; 
+    const auto& Lx = xSizeArr[0]; // contiguous in X-layout (ip)
+    const auto& Ly = ySizeArr[1]; // contiguous in Y-layout (jp) - see your indexing convention
+    const auto& Lz = zSizeArr[2]; // contiguous in Z-layout (kp)
 
     // allocate FFTW buffers for max of the three lengths
     int     Lmax = std::max({Lx, Ly, Lz});
@@ -203,12 +203,12 @@ int main(int argc, char* argv[])
             int base = jp * zSizeArr[2] * zSizeArr[0] + ip * zSizeArr[2];
 
             // copy to buffer
-            std::copy_n(u3 + base, zSizeArr[2], xbuf);
+            std::copy_n(u3 + base, Lz, xbuf);
 
             fftw_execute(ifft_z);
 
             // copy back + apply scaling
-            std::transform(exe_type, xbuf, xbuf + zSizeArr[2], u3 + base,
+            std::transform(exe_type, xbuf, xbuf + Lz, u3 + base,
                            [scale](double v) { return v * scale; });
         }
 
@@ -221,11 +221,11 @@ int main(int argc, char* argv[])
         {
             int base = ip * ySizeArr[2] * ySizeArr[1] + kp * ySizeArr[1];
 
-            std::copy_n(u2 + base, ySizeArr[1], xbuf);
+            std::copy_n(u2 + base, Ly, xbuf);
 
             fftw_execute(ifft_y);
 
-            std::transform(exe_type, xbuf, xbuf + ySizeArr[1], u2 + base,
+            std::transform(exe_type, xbuf, xbuf + Ly, u2 + base,
                            [scale](double v) { return v * scale; });
         }
 
@@ -242,7 +242,7 @@ int main(int argc, char* argv[])
 
             fftw_execute(ifft_x);
 
-            std::transform(exe_type, xbuf, xbuf + xSizeArr[0], u1 + base,
+            std::transform(exe_type, xbuf, xbuf + Lx, u1 + base,
                            [scale](double v) { return v * scale; });
         }
 
