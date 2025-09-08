@@ -32,7 +32,7 @@ int main(int argc, char* argv[])
         cout << " Parallel Poisson (C2Decomp+FFTW)\n";
         cout << "------------------------------\n\n";
     }
-    const auto& exe_type= std::execution::par; 
+    const auto& exe_type = std::execution::par;
     // grid size per dimension (global)
     std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;

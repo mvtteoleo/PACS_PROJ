@@ -29,9 +29,8 @@ int main(int argc, char* argv[])
 
     // INITIALIZE THE FIELD
     for (auto [k, j, i] : data1.all_elems())
-    {
         check(i, j, k) = std::cos(i * h) * std::cos(j * h) * std::cos(k * h);
-    }
+
     data1 = check;
 
     // FFT_x
@@ -102,7 +101,6 @@ int main(int argc, char* argv[])
             for (size_t k = 0; k < N; ++k)
                 data1(i, j, k) = x[k];
         }
-    data1 = data1 / static_cast<double>(2 * (N - 1));
     // I FFT_Y
     for (size_t k = 0; k < N; ++k)
         for (size_t i = 0; i < N; ++i)
@@ -116,7 +114,6 @@ int main(int argc, char* argv[])
             for (size_t j = 0; j < N; ++j)
                 data1(i, j, k) = x[j];
         }
-    data1 = data1 / static_cast<double>(2 * (N - 1));
     // I FFT_X
     for (size_t k = 0; k < N; ++k)
         for (size_t j = 0; j < N; ++j)
@@ -129,6 +126,9 @@ int main(int argc, char* argv[])
             std::copy_n(x, N, data1.ptr_at(0, j, k));
         }
 
+    // SCALE ALL THE VALUES
+    data1 = data1 / static_cast<double>(2 * (N - 1));
+    data1 = data1 / static_cast<double>(2 * (N - 1));
     data1 = data1 / static_cast<double>(2 * (N - 1));
 
     double err      = -1;
