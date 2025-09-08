@@ -458,11 +458,40 @@ namespace numPDE
         return Tensor<T, DIM, DIM, TYPE>(elems_for_dir);
     }
 
+    // ---- Scalar field factory (initializer_list overload) ----
+    template <typename T, std::size_t DIM, TypeIndex TYPE = ROW_MAJOR>
+    auto make_scalar_field(std::initializer_list<std::size_t> elems_for_dir)
+        -> Tensor<T, DIM, DIM, TYPE>
+    {
+        if (elems_for_dir.size() != DIM)
+            throw std::runtime_error("Initializer list size must match DIM");
+
+        std::array<std::size_t, DIM> dims{};
+        std::copy(elems_for_dir.begin(), elems_for_dir.end(), dims.begin());
+
+        return Tensor<T, DIM, DIM, TYPE>(dims);
+    }
+
     // ---- Vector field factory ----
     template <typename T, std::size_t DIM, TypeIndex TYPE = ROW_MAJOR, typename Range>
     auto make_vector_field(const Range& elems_for_dir) -> Tensor<T, DIM + 1, DIM, TYPE>
     {
         // Build new shape: (elems_for_dir..., elems_for_dir.size())
+        std::array<std::size_t, DIM + 1> new_dims{};
+        std::copy(elems_for_dir.begin(), elems_for_dir.end(), new_dims.begin());
+        new_dims.back() = elems_for_dir.size();
+
+        return Tensor<T, DIM + 1, DIM, TYPE>(new_dims);
+    }
+
+    // ---- Vector field factory (initializer_list overload) ----
+    template <typename T, std::size_t DIM, TypeIndex TYPE = ROW_MAJOR>
+    auto make_vector_field(std::initializer_list<std::size_t> elems_for_dir)
+        -> Tensor<T, DIM + 1, DIM, TYPE>
+    {
+        if (elems_for_dir.size() != DIM)
+            throw std::runtime_error("Initializer list size must match DIM");
+
         std::array<std::size_t, DIM + 1> new_dims{};
         std::copy(elems_for_dir.begin(), elems_for_dir.end(), new_dims.begin());
         new_dims.back() = elems_for_dir.size();

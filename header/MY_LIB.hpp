@@ -6,3 +6,4 @@
 #include "tensors.hpp"
 #include "time_stepper.hpp"
 #include "timer.hpp"
+#include "decompose.hpp"

@@ -1,0 +1,74 @@
+#include "../../header/MY_LIB.hpp"
+#include <algorithm>
+#include <array>
+#include <assert.h>
+#include <cmath>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <mpi.h>
+#include <tuple>
+#include <vector>
+
+using Real = long;
+
+int main(int argc, char* argv[])
+{
+    NewDecomp decomp(argc, argv);
+
+    const auto& neighbors = decomp.get_neighbors();
+    // Domain dimensions
+    int  nx = 3, ny = 3;
+    auto mesh = numPDE::make_scalar_field<Real, 2>({nx+1, ny+1});
+
+    for( auto i : mesh.all_linear_elements())
+            mesh[i] = decomp.rank();
+
+    // Prepare edges
+    std::vector<Real> top(nx), bottom(nx), left(ny), right(ny);
+    for (int i = 0; i < nx; i++)
+    {
+        top[i]    = mesh(i, 0);
+        bottom[i] = mesh(i, ny);
+    }
+    for (int j = 0; j < ny; j++)
+    {
+        left[j]  = mesh(0, j);
+        right[j] = mesh(nx, j);
+    }
+
+    decomp.exchange_edges(top, bottom, left, right);
+
+    // Optionally overwrite mesh edges with received data
+    if (neighbors[0] != MPI_PROC_NULL)
+        for (int i = 0; i < nx; i++)
+            mesh(i, ny) = bottom[i];
+    if (neighbors[1] != MPI_PROC_NULL)
+        for (int i = 0; i < nx; i++)
+            mesh(i, 0) = top[i];
+    if (neighbors[2] != MPI_PROC_NULL)
+        for (int j = 0; j < ny; j++)
+            mesh(nx, j) = right[j];
+    if (neighbors[3] != MPI_PROC_NULL)
+        for (int j = 0; j < ny; j++)
+            mesh(0, j) = left[j];
+
+    // Print results rank by rank
+    for (int r = 0; r < decomp.size(); ++r)
+    {
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (decomp.rank() == r)
+        {
+            std::cout << "Rank " << r << ":\n";
+            for (int j = 0; j <= ny; ++j)
+            {
+                for (int i = 0; i <= nx; ++i)
+                    std::cout << mesh(i, j) << " ";
+                std::cout << "\n";
+            }
+            std::cout << std::endl;
+        }
+    }
+
+    return 0;
+}
