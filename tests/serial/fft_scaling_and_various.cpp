@@ -6,23 +6,21 @@
 #include <vector>
 
 /*
-* In this case we solve a generic problem as -lap(u) = f, BUT
-* the target is to math generic BCs, for the moment just Dirichlet BCs
-*/ 
+ * In this case we solve a generic problem as -lap(u) = f, BUT
+ * the target is to math generic BCs, for the moment just Dirichlet BCs
+ */
 int main(int argc, char* argv[])
 {
     // ---- Parameters ----
-    std::size_t N_p    = (argc > 1) ? std::stoul(argv[1]) : 64; // number of intervals
-    double      L      = 3.0;                                   // u_ex length
+    std::size_t N_p = (argc > 1) ? std::stoul(argv[1]) : 64; // number of intervals
+    double      L   = 3.0;                                   // u_ex length
 
-
-
-    std::size_t M = N_p - 2;
-    std::size_t N_ints = N_p - 1;                               // number of point in the whole u_ex
-    double      h      = L / N_ints;                            // grid spacing
+    std::size_t M      = N_p - 2;
+    std::size_t N_ints = N_p - 1;    // number of point in the whole u_ex
+    double      h      = L / N_ints; // grid spacing
 
     // ---- Allocate arrays ----
-    double* f = (double*) fftw_malloc(sizeof(double) * M);
+    double*             f = (double*) fftw_malloc(sizeof(double) * M);
     std::vector<double> u_ex(N_p, 0.0);
     std::vector<double> u_h(N_p, 0.0);
     // ---- Create DST-I plan ----
@@ -32,15 +30,15 @@ int main(int argc, char* argv[])
     // Full u_ex intialization
     for (std::size_t j = 0; j < N_p; ++j)
     {
-        auto x = j * h;
-        u_ex[j] = 3 * x+ std::sin(M_PI * x / L);
+        auto x  = j * h;
+        u_ex[j] = 3 * x + std::sin(M_PI * x / L);
     }
 
     // ---- Fill RHS f(x) ----
     for (std::size_t j = 0; j < M; ++j)
     {
-        auto x = (j+1) * h;
-        f[j] = (M_PI / L) * (M_PI / L) * (std::sin(M_PI * x / L)) ;
+        auto x = (j + 1) * h;
+        f[j]   = (M_PI / L) * (M_PI / L) * (std::sin(M_PI * x / L));
     }
 
     // ---- Forward transform ----
@@ -61,18 +59,14 @@ int main(int argc, char* argv[])
     for (std::size_t j = 0; j < M; ++j)
         f[j] = f[j] / (2.0 * N_ints);
 
-
     // Rescale in order to respect the BCs
-    u_h[0] = 3*0;
-    u_h[N_p-1] = 3*L;
+    u_h[0]       = 3 * 0;
+    u_h[N_p - 1] = 3 * L;
     for (std::size_t j = 0; j < M; ++j)
     {
-        auto x = (j+1) * h;
-        u_h[j+1] = 3 * x + f[j];
+        auto x     = (j + 1) * h;
+        u_h[j + 1] = 3 * x + f[j];
     }
-
-
-
 
     double err = -1;
     size_t pos = -1;
@@ -83,7 +77,6 @@ int main(int argc, char* argv[])
             err = std::abs(u_h[j] - u_ex[j]);
             pos = j;
         }
-    // std::cout << "Errore! u_h " << f[j] << " exact : " << u_ex[j+1] << "\n ";
 
     std::cout << "Max err : " << err << " \n";
     std::cout << "Pos err : " << pos << " \n";
