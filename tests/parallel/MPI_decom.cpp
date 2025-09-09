@@ -1,28 +1,33 @@
+#define TEST 0
 #include "../../header/MY_LIB.hpp"
 #include <algorithm>
 #include <array>
 #include <assert.h>
 #include <cmath>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <mpi.h>
+#include <sys/types.h>
 #include <tuple>
 #include <vector>
 
-using Real = long;
+using Real = u_int8_t;
 
 int main(int argc, char* argv[])
 {
-    NewDecomp decomp(argc, argv);
+    auto& decomp = NewDecomp::get_instance(argc, argv);
 
     const auto& neighbors = decomp.get_neighbors();
+    //
+#if TEST == 0
     // Domain dimensions
     int  nx = 3, ny = 3;
-    auto mesh = numPDE::make_scalar_field<Real, 2>({nx+1, ny+1});
+    auto mesh = numPDE::make_scalar_field<Real, 2>({nx + 1, ny + 1});
 
-    for( auto i : mesh.all_linear_elements())
-            mesh[i] = decomp.rank();
+    for (auto i : mesh.all_linear_elements())
+        mesh[i] = decomp.rank();
 
     // Prepare edges
     std::vector<Real> top(nx), bottom(nx), left(ny), right(ny);
@@ -63,12 +68,21 @@ int main(int argc, char* argv[])
             for (int j = 0; j <= ny; ++j)
             {
                 for (int i = 0; i <= nx; ++i)
-                    std::cout << mesh(i, j) << " ";
+                    std::cout << static_cast<int>(mesh(i, j)) << " ";
                 std::cout << "\n";
             }
             std::cout << std::endl;
         }
     }
+#elif TEST == 1
+
+    if (!decomp.rank())
+    {
+        size_t Nx_dyn = std::stoul(argv[2]);
+        size_t Ny_dyn = std::stoul(argv[3]);
+    }
+
+#endif
 
     return 0;
 }
