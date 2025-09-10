@@ -1,4 +1,4 @@
-#define TEST 0
+#define TEST 1
 #include "../../header/MY_LIB.hpp"
 #include <algorithm>
 #include <array>
@@ -75,11 +75,24 @@ int main(int argc, char* argv[])
         }
     }
 #elif TEST == 1
+    size_t nx = 100, ny = 100, nz = 100;
+    bool   is_periodic[3] = {false, false, false};
 
-    if (!decomp.rank())
+    decomp.initialize_decomp(nx, ny, nz, is_periodic);
+
+    if (0 == decomp.rank())
     {
-        size_t Nx_dyn = std::stoul(argv[2]);
-        size_t Ny_dyn = std::stoul(argv[3]);
+        for (auto i : decomp.xEnd())
+            std::cout << i << " ";
+
+        std::cout << std::endl;
+
+        for (auto i : decomp.yEnd())
+            std::cout << i << " ";
+        std::cout << std::endl;
+        for (auto i : decomp.zEnd())
+            std::cout << i << " ";
+        std::cout << std::endl;
     }
 
 #endif

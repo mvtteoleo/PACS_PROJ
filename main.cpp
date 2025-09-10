@@ -1,6 +1,7 @@
 
 #include <cstdio>
-int main (int argc, char *argv[]) {
+int main(int argc, char* argv[])
+{
     // Ideally here there should be something like:
 
     /*

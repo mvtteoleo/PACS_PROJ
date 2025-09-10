@@ -1,3 +1,8 @@
+#pragma once
+
+#include "my_2Decomp/C2Decomp.hpp"
+
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -5,12 +10,16 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <mpi.h>
+#include <span>
 #include <stdexcept>
 #include <sys/types.h>
 #include <tuple>
 #include <type_traits>
 #include <vector>
+
+#include "./my_2Decomp/C2Decomp.hpp"
 
 // --- Type trait to deduce MPI_Datatype from C++ type ---
 template <typename T>
@@ -63,6 +72,8 @@ class NewDecomp
     std::array<int, 4> neighbors{};
     MPI_Comm           cart_comm{MPI_COMM_NULL};
 
+    std::unique_ptr<C2Decomp> c2d;
+
     NewDecomp(int argc, char** argv)
     {
         MPI_Init(&argc, &argv);
@@ -90,67 +101,6 @@ class NewDecomp
         return instance;
     }
 
-    // N_i number of elements along that direction
-    // n_i number of processes along that direction
-    // check_1 verify if we are on the first process of that direction
-    // check_2 verify if we are on the last process of that direction
-    //
-    // N_i_loc is the number of local elements of this subdomain WITHOUT HALO!!
-
-    size_t split_gen(size_t  N_i, int n_i, bool check_start, bool check_end)
-    {
-        size_t N_i_loc = N_i / n_i;
-        // Check that we are in the center of the processes domain
-        if (!check_start or !check_end) return N_i_loc;
-
-        int res_i = N_i % n_i;
-        // Check that we are not in the case of evenly split domain
-        if (res_i >= 1)
-        {
-            // Check that we are on the x_i = 0 side and add 1 element
-            if(check_start)
-                ++N_i_loc;
-
-            // Check that we are on the x_i = x_end side and add the remaining elements
-            if(check_end and res_i>1)
-                N_i_loc += res_i-1;
-        }
-        return N_i_loc;
-    }
-    //                                                      z^  ^x
-    // Input is the number of elements along each direction <-y/ 
-    std::pair<size_t, size_t> split_domain(size_t Ny, size_t Nz)
-    {
-        auto& [n_cols, n_rows] = dims;
-        bool is_rightmost = false;
-        bool is_leftmost = false;
-        bool is_lowest = false;
-        bool is_uppest = false;
-        
-        // 0 1 2 3 => [ [ 0 1 ] \n [2 3 ] ]
-        // Understand if we are rightmost AKA 1 or 3
-        if(mpi_rank % n_cols == n_cols - 1)
-            is_rightmost = true;
-          
-        // Understand if we are leftmost AKA 0 or 2
-        if(mpi_rank % n_cols == 0)
-            is_leftmost  = true;
-
-        // Understand if we are lowest AKA 2 or 3
-        if(mpi_rank > tot_rank - n_rows -1)
-            is_lowest = true;         
-
-        // Understand if we are upper AKA 0 or 1
-        if(mpi_rank < n_rows)
-            is_uppest = true;         
-
-        size_t Ny_loc = split_gen(Ny, n_cols,  is_rightmost, is_leftmost);
-        size_t Nz_loc = split_gen(Nz, n_rows,  is_lowest , is_uppest);
-
-        return {Ny_loc, Nz_loc};
-    }
-    
-
     template <typename T>
     void exchange_edges(std::vector<T>& top, std::vector<T>& bottom, std::vector<T>& left,
                         std::vector<T>& right) const
@@ -174,9 +124,38 @@ class NewDecomp
     int                       size() const { return tot_rank; }
     const std::array<int, 4>& get_neighbors() const { return neighbors; }
 
+    template <typename Ts>
+        requires std::is_integral_v<Ts>
+    void initialize_decomp(Ts nx, Ts ny, Ts nz, bool periodicBC[3])
+    {
+        nx  = static_cast<int>(nx);
+        ny  = static_cast<int>(ny);
+        nz  = static_cast<int>(nz);
+        c2d = std::make_unique<C2Decomp>(nx, ny, nz, dims[0], dims[1], periodicBC);
+    }
+
+    /*
+     * Get start from the decomposition done by 2Decomp 
+     */
+    auto xStart() const { return std::span<int>(&c2d->xStart[0], 3); }
+    auto yStart() const { return std::span<int>(&c2d->yStart[0], 3); }
+    auto zStart() const { return std::span<int>(&c2d->zStart[0], 3); }
+
+    /*
+     * Get start from the decomposition done by 2Decomp 
+     */
+    auto xSize() const { return std::span<int>(&c2d->xSize[0], 3); }
+    auto ySize() const { return std::span<int>(&c2d->ySize[0], 3); }
+    auto zSize() const { return std::span<int>(&c2d->zSize[0], 3); }
+
+    /*
+     * Get start from the decomposition done by 2Decomp 
+     */
+    auto xEnd() const { return std::span<int>(&c2d->xEnd[0], 3); }
+    auto yEnd() const { return std::span<int>(&c2d->yEnd[0], 3); }
+    auto zEnd() const { return std::span<int>(&c2d->zEnd[0], 3); }
+
   private:
-    // 0 1 2 3 => [ [ 0 1 ] \n [2 3 ] ]
-    // 0 1 2 => [ 0 1 2 ] 
     void split_rank_cartesian()
     {
         if (mpi_rank == 0)
