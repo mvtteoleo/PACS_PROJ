@@ -9,11 +9,14 @@
 #include <cstring>
 #include <iostream>
 #include <mpi.h>
+#include <random>
 #include <sys/types.h>
 #include <tuple>
 #include <vector>
 
-using Real = u_int8_t;
+// using Real = u_int8_t;
+using Real = double;
+
 
 int main(int argc, char* argv[])
 {
@@ -75,10 +78,45 @@ int main(int argc, char* argv[])
         }
     }
 #elif TEST == 1
-    size_t nx = 100, ny = 100, nz = 100;
-    bool   is_periodic[3] = {false, false, false};
+    size_t nx, ny, nz;
+
+    if (!decomp.rank())
+    { // Only rank 0 generates random values
+        std::random_device rd;
+        std::mt19937       gen(rd());
+
+        std::uniform_int_distribution<size_t> dist(100, 200);
+
+        nx = dist(gen);
+        ny = dist(gen);
+        nz = dist(gen);
+        std::cout << "N values : " << nx << " " << ny << " " << nz << "\n";
+    }
+
+    // Broadcast to all ranks (convert to an array for simplicity)
+    size_t sizes[3] = {nx, ny, nz};
+    MPI_Bcast(sizes, 3, MPI_UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
+
+    // Copy back to local variables (for ranks > 0, this fills them)
+    nx                  = sizes[0];
+    ny                  = sizes[1];
+    nz                  = sizes[2];
+    bool is_periodic[3] = {false, false, false};
 
     decomp.initialize_decomp(nx, ny, nz, is_periodic);
+
+    auto data1 = numPDE::make_scalar_field<Real, 3>(decomp.xSize());
+    auto data2 = numPDE::make_scalar_field<Real, 3>(decomp.ySize());
+    auto data3 = numPDE::make_scalar_field<Real, 3>(decomp.zSize());
+
+    /*
+    */
+    decomp.transposeY2Z(data1, data3);
+
+    double* u1 = data1.ptr_at(0);
+    double* u2 = data2.ptr_at(0);
+
+    decomp.transposeX2Y(u1, u2);
 
     if (0 == decomp.rank())
     {

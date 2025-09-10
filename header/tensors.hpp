@@ -500,6 +500,7 @@ namespace numPDE
         return Tensor<T, DIM + 1, DIM, TYPE>(new_dims);
     }
 
+#ifdef FROM_MESH
     template <typename MeshType, TypeIndex TYPE = ROW_MAJOR>
     auto make_scalar_field(const MeshType& mesh)
     {
@@ -520,5 +521,6 @@ namespace numPDE
 
         return Tensor<T, DIM + 1, DIM, TYPE>(new_dims);
     }
+#endif
 
 }; // namespace numPDE

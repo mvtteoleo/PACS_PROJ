@@ -15,23 +15,17 @@
 
 using namespace std;
 
-#include "../../deps/2Decomp_C/C2Decomp.hpp" // adjust path if needed
+#include "../../header/decompose.hpp" 
 #include "../../header/MY_LIB.hpp"
 
 int main(int argc, char* argv[])
 {
-    MPI_Init(&argc, &argv);
 
-    int totRank, mpiRank;
-    MPI_Comm_size(MPI_COMM_WORLD, &totRank);
-    MPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
+    auto& decomp = NewDecomp::get_instance(argc, argv);
 
-    if (!mpiRank)
-    {
-        cout << "\n------------------------------\n";
-        cout << " Parallel Poisson (C2Decomp+FFTW)\n";
-        cout << "------------------------------\n\n";
-    }
+        auto mpiRank = decomp.rank();
+        auto totank = decomp.totRank();
+
     const auto& exe_type = std::execution::par;
     // grid size per dimension (global)
     std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
@@ -44,16 +38,17 @@ int main(int argc, char* argv[])
     bool periodicBC[3] = {true, true, true};
 
     if (!mpiRank) cout << "Initializing C2Decomp...\n";
-    C2Decomp* c2d = new C2Decomp(nx, ny, nz, pRow, pCol, periodicBC);
+    decomp.initialize_decomp(nx, ny, nz, periodicBC);
     if (!mpiRank) cout << "C2Decomp initialized.\n";
 
     // copy sizes (local decomposition sizes)
     std::array<int, 3> xSizeArr, ySizeArr, zSizeArr;
     for (int i = 0; i < 3; ++i)
     {
-        xSizeArr[i] = c2d->xSize[i];
-        ySizeArr[i] = c2d->ySize[i];
-        zSizeArr[i] = c2d->zSize[i];
+        xSizeArr[i] = decomp.xSize()[i];
+        ySizeArr[i] = decomp.ySize()[i];
+        zSizeArr[i] = decomp.zSize()[i];
+        
     }
 
     // allocate three layouts
@@ -76,9 +71,9 @@ int main(int argc, char* argv[])
     {
         int ii = data1.get_linear_index(
             ip, jp, kp); // kp * xSizeArr[1] * xSizeArr[0] + jp * xSizeArr[0] + ip;
-        int    iglob    = c2d->xStart[0] + ip;
-        int    jglob    = c2d->xStart[1] + jp;
-        int    kglob    = c2d->xStart[2] + kp;
+        int    iglob    = decomp.xStart()[0] + ip;
+        int    jglob    = decomp.xStart()[1] + jp;
+        int    kglob    = decomp.xStart()[2] + kp;
         double val      = std::cos(iglob * h) * std::cos(jglob * h) * std::cos(kglob * h);
         u1[ii]          = -3.0 * val;
         check_local[ii] = val;
@@ -136,7 +131,7 @@ int main(int argc, char* argv[])
         }
 
     // transpose X -> Y (blocking)
-    c2d->transposeX2Y_MajorIndex(u1, u2);
+    decomp.transposeX2Y(u1, u2);
 
     // FFT along Y (contiguous along jp; indexing for u2: ii = ip * ySize[2]*ySize[1] + kp*ySize[1]
     // + jp)
@@ -150,7 +145,7 @@ int main(int argc, char* argv[])
         }
 
     // transpose Y -> Z
-    c2d->transposeY2Z_MajorIndex(u2, u3);
+    decomp.transposeY2Z(u2, u3);
 
     // FFT along Z (contiguous along kp; indexing for u3: ii = jp * zSize[2]*zSize[0] + ip *
     // zSize[2] + kp)
@@ -177,15 +172,15 @@ int main(int argc, char* argv[])
             for (int kp = 0; kp < zSizeArr[2]; ++kp)
             {
                 int    ii    = jp * zSizeArr[2] * zSizeArr[0] + ip * zSizeArr[2] + kp;
-                int    iglob = c2d->zStart[0] + ip;
-                int    jglob = c2d->zStart[1] + jp;
-                int    kglob = c2d->zStart[2] + kp;
+                int    iglob = decomp.zStart()[0] + ip;
+                int    jglob = decomp.zStart()[1] + jp;
+                int    kglob = decomp.zStart()[2] + kp;
                 double denom = eig(iglob) + eig(jglob) + eig(kglob);
                 u3[ii]       = u3[ii] / denom;
             }
 
     // set mean mode to 0 (as in serial)
-    if (c2d->zStart[0] == 0 && c2d->zStart[1] == 0 && c2d->zStart[2] == 0) u3[0] = 0.0;
+    if (decomp.zStart()[0] == 0 && decomp.zStart()[1] == 0 && decomp.zStart()[2] == 0) u3[0] = 0.0;
 
     MPI_Barrier(MPI_COMM_WORLD);
     double t2 = MPI_Wtime();
@@ -213,7 +208,7 @@ int main(int argc, char* argv[])
         }
 
     // transpose Z -> Y
-    c2d->transposeZ2Y_MajorIndex(u3, u2);
+    decomp.transposeZ2Y(u3, u2);
 
     // IFFT along Y (on u2)
     for (int ip = 0; ip < ySizeArr[0]; ++ip)
@@ -230,7 +225,7 @@ int main(int argc, char* argv[])
         }
 
     // transpose Y -> X
-    c2d->transposeY2X_MajorIndex(u2, u1);
+    decomp.transposeY2X(u2, u1);
 
     // IFFT along X (on u1)
     for (int kp = 0; kp < xSizeArr[2]; ++kp)
@@ -277,8 +272,4 @@ int main(int argc, char* argv[])
     if (ifft_z) fftw_destroy_plan(ifft_z);
     fftw_free(xbuf);
 
-    delete c2d;
-
-    MPI_Finalize();
-    return 0;
 }

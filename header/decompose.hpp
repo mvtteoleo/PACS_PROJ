@@ -1,12 +1,14 @@
 #pragma once
 
 #include "my_2Decomp/C2Decomp.hpp"
+#include "compiler_directives.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -20,46 +22,9 @@
 #include <vector>
 
 #include "./my_2Decomp/C2Decomp.hpp"
+#include "./my_2Decomp/MPI_types.hpp"
+#include "tensors.hpp"
 
-// --- Type trait to deduce MPI_Datatype from C++ type ---
-template <typename T>
-struct MpiTypeMap;
-
-template <>
-struct MpiTypeMap<uint8_t>
-{
-    static constexpr MPI_Datatype type = MPI_UNSIGNED_CHAR;
-};
-template <>
-struct MpiTypeMap<int>
-{
-    static constexpr MPI_Datatype type = MPI_INT;
-};
-template <>
-struct MpiTypeMap<long>
-{
-    static constexpr MPI_Datatype type = MPI_LONG;
-};
-template <>
-struct MpiTypeMap<float>
-{
-    static constexpr MPI_Datatype type = MPI_FLOAT;
-};
-template <>
-struct MpiTypeMap<double>
-{
-    static constexpr MPI_Datatype type = MPI_DOUBLE;
-};
-template <>
-struct MpiTypeMap<unsigned int>
-{
-    static constexpr MPI_Datatype type = MPI_UNSIGNED;
-};
-template <>
-struct MpiTypeMap<long long>
-{
-    static constexpr MPI_Datatype type = MPI_LONG_LONG;
-};
 
 // --- Main decomposition class ---
 class NewDecomp
@@ -101,6 +66,14 @@ class NewDecomp
         return instance;
     }
 
+    enum class neighbour_directions : uint8_t
+    {
+        TOP    = 0,
+        BOTTOM = 1,
+        LEFT   = 2,
+        RIGHT  = 3
+    };
+
     template <typename T>
     void exchange_edges(std::vector<T>& top, std::vector<T>& bottom, std::vector<T>& left,
                         std::vector<T>& right) const
@@ -121,39 +94,111 @@ class NewDecomp
     }
 
     int                       rank() const { return mpi_rank; }
-    int                       size() const { return tot_rank; }
+    int                       totRank() const { return tot_rank; }
     const std::array<int, 4>& get_neighbors() const { return neighbors; }
 
     template <typename Ts>
         requires std::is_integral_v<Ts>
     void initialize_decomp(Ts nx, Ts ny, Ts nz, bool periodicBC[3])
     {
-        nx  = static_cast<int>(nx);
-        ny  = static_cast<int>(ny);
-        nz  = static_cast<int>(nz);
-        c2d = std::make_unique<C2Decomp>(nx, ny, nz, dims[0], dims[1], periodicBC);
+        nx       = static_cast<int>(nx);
+        ny       = static_cast<int>(ny);
+        nz       = static_cast<int>(nz);
+        int pRow = dims[0];
+        int pCol = dims[1];
+        c2d      = std::make_unique<C2Decomp>(nx, ny, nz, pRow, pCol, periodicBC);
+        if (pCol != dims[1] or pRow != dims[0])
+        {
+            std::cerr << "Warning: Row or column values changed!!\n";
+            dims[0] = pRow;
+            dims[1] = pCol;
+            MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
+        }
     }
 
     /*
-     * Get start from the decomposition done by 2Decomp 
+     * Get start from the decomposition done by 2Decomp
      */
-    auto xStart() const { return std::span<int>(&c2d->xStart[0], 3); }
-    auto yStart() const { return std::span<int>(&c2d->yStart[0], 3); }
-    auto zStart() const { return std::span<int>(&c2d->zStart[0], 3); }
+    auto xStart() const { return std::span<const int>(&c2d->xStart[0], 3); }
+    auto yStart() const { return std::span<const int>(&c2d->yStart[0], 3); }
+    auto zStart() const { return std::span<const int>(&c2d->zStart[0], 3); }
 
     /*
-     * Get start from the decomposition done by 2Decomp 
+     * Get start from the decomposition done by 2Decomp
      */
-    auto xSize() const { return std::span<int>(&c2d->xSize[0], 3); }
-    auto ySize() const { return std::span<int>(&c2d->ySize[0], 3); }
-    auto zSize() const { return std::span<int>(&c2d->zSize[0], 3); }
+    auto xSize() const { return std::span<const int>(&c2d->xSize[0], 3); }
+    auto ySize() const { return std::span<const int>(&c2d->ySize[0], 3); }
+    auto zSize() const { return std::span<const int>(&c2d->zSize[0], 3); }
 
     /*
-     * Get start from the decomposition done by 2Decomp 
+     * Get start from the decomposition done by 2Decomp
      */
-    auto xEnd() const { return std::span<int>(&c2d->xEnd[0], 3); }
-    auto yEnd() const { return std::span<int>(&c2d->yEnd[0], 3); }
-    auto zEnd() const { return std::span<int>(&c2d->zEnd[0], 3); }
+    auto xEnd() const { return std::span<const int>(&c2d->xEnd[0], 3); }
+    auto yEnd() const { return std::span<const int>(&c2d->yEnd[0], 3); }
+    auto zEnd() const { return std::span<const int>(&c2d->zEnd[0], 3); }
+
+    /*
+     * Transpositions, just a templates overload for the moment that has the check for type mismatch
+     */
+    template <typename T>
+    void transposeX2Y(T* src, T* dst)
+    {
+        static_assert(std::is_same_v<T, double>, "Currently only double supported");
+        c2d->transposeX2Y_MajorIndex(src, dst);
+    }
+    template <typename T>
+    void transposeY2Z(T* src, T* dst) 
+    {
+        static_assert(std::is_same_v<T, double>, "Currently only double supported");
+        c2d->transposeY2Z_MajorIndex(src, dst);
+    }
+    template <typename T>
+    void transposeZ2Y(T* src, T* dst) 
+    {
+        static_assert(std::is_same_v<T, double>, "Currently only double supported");
+        c2d->transposeZ2Y_MajorIndex(src, dst);
+    }
+    template <typename T>
+    void transposeY2X(T* src, T* dst) 
+    {
+        static_assert(std::is_same_v<T, double>, "Currently only double supported");
+        c2d->transposeY2X_MajorIndex(src, dst);
+    }
+
+    // --- Transpose wrappers for the Tensor class ---
+    template <numPDE::TensorLike Tensor>
+    void transposeX2Y(Tensor& v1, Tensor& v2)
+    {
+        using T = typename Tensor::value_type;
+        T* u1 = v1.ptr_at(0);
+        T* u2 = v2.ptr_at(0);
+        c2d->transposeX2Y_MajorIndex(u1, u2);
+    }
+    template <numPDE::TensorLike Tensor>
+    void transposeY2Z(Tensor& v1, Tensor& v2)
+    {
+        using T = typename Tensor::value_type;
+        T* u1 = v1.ptr_at(0);
+        T* u2 = v2.ptr_at(0);
+        c2d->transposeY2Z_MajorIndex(u1, u2);
+    }
+    template <numPDE::TensorLike Tensor>
+    void transposeZ2Y(Tensor& v1, Tensor& v2)
+    {
+        using T = typename Tensor::value_type;
+        T* u1 = v1.ptr_at(0);
+        T* u2 = v2.ptr_at(0);
+        c2d->transposeZ2Y_MajorIndex(u1, u2);
+    }
+    template <numPDE::TensorLike Tensor>
+    void transposeY2X(Tensor& v1, Tensor& v2)
+    
+    {
+        using T = typename Tensor::value_type;
+        T* u1 = v1.ptr_at(0);
+        T* u2 = v2.ptr_at(0);
+        c2d->transposeY2X_MajorIndex(u1, u2);
+    }
 
   private:
     void split_rank_cartesian()
