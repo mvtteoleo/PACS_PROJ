@@ -15,16 +15,16 @@
 
 using namespace std;
 
-#include "../../header/decompose.hpp" 
 #include "../../header/MY_LIB.hpp"
+#include "../../header/decompose.hpp"
 
 int main(int argc, char* argv[])
 {
 
     auto& decomp = NewDecomp::get_instance(argc, argv);
 
-        auto mpiRank = decomp.rank();
-        auto totank = decomp.totRank();
+    auto mpiRank = decomp.rank();
+    auto totank  = decomp.totRank();
 
     const auto& exe_type = std::execution::par;
     // grid size per dimension (global)
@@ -48,7 +48,6 @@ int main(int argc, char* argv[])
         xSizeArr[i] = decomp.xSize()[i];
         ySizeArr[i] = decomp.ySize()[i];
         zSizeArr[i] = decomp.zSize()[i];
-        
     }
 
     // allocate three layouts
@@ -271,5 +270,4 @@ int main(int argc, char* argv[])
     if (fft_z) fftw_destroy_plan(fft_z);
     if (ifft_z) fftw_destroy_plan(ifft_z);
     fftw_free(xbuf);
-
 }

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "my_2Decomp/C2Decomp.hpp"
 #include "compiler_directives.hpp"
+#include "my_2Decomp/C2Decomp.hpp"
 
 #include <algorithm>
 #include <array>
@@ -24,7 +24,6 @@
 #include "./my_2Decomp/C2Decomp.hpp"
 #include "./my_2Decomp/MPI_types.hpp"
 #include "tensors.hpp"
-
 
 // --- Main decomposition class ---
 class NewDecomp
@@ -147,19 +146,19 @@ class NewDecomp
         c2d->transposeX2Y_MajorIndex(src, dst);
     }
     template <typename T>
-    void transposeY2Z(T* src, T* dst) 
+    void transposeY2Z(T* src, T* dst)
     {
         static_assert(std::is_same_v<T, double>, "Currently only double supported");
         c2d->transposeY2Z_MajorIndex(src, dst);
     }
     template <typename T>
-    void transposeZ2Y(T* src, T* dst) 
+    void transposeZ2Y(T* src, T* dst)
     {
         static_assert(std::is_same_v<T, double>, "Currently only double supported");
         c2d->transposeZ2Y_MajorIndex(src, dst);
     }
     template <typename T>
-    void transposeY2X(T* src, T* dst) 
+    void transposeY2X(T* src, T* dst)
     {
         static_assert(std::is_same_v<T, double>, "Currently only double supported");
         c2d->transposeY2X_MajorIndex(src, dst);
@@ -170,33 +169,33 @@ class NewDecomp
     void transposeX2Y(Tensor& v1, Tensor& v2)
     {
         using T = typename Tensor::value_type;
-        T* u1 = v1.ptr_at(0);
-        T* u2 = v2.ptr_at(0);
+        T* u1   = v1.ptr_at(0);
+        T* u2   = v2.ptr_at(0);
         c2d->transposeX2Y_MajorIndex(u1, u2);
     }
     template <numPDE::TensorLike Tensor>
     void transposeY2Z(Tensor& v1, Tensor& v2)
     {
         using T = typename Tensor::value_type;
-        T* u1 = v1.ptr_at(0);
-        T* u2 = v2.ptr_at(0);
+        T* u1   = v1.ptr_at(0);
+        T* u2   = v2.ptr_at(0);
         c2d->transposeY2Z_MajorIndex(u1, u2);
     }
     template <numPDE::TensorLike Tensor>
     void transposeZ2Y(Tensor& v1, Tensor& v2)
     {
         using T = typename Tensor::value_type;
-        T* u1 = v1.ptr_at(0);
-        T* u2 = v2.ptr_at(0);
+        T* u1   = v1.ptr_at(0);
+        T* u2   = v2.ptr_at(0);
         c2d->transposeZ2Y_MajorIndex(u1, u2);
     }
     template <numPDE::TensorLike Tensor>
     void transposeY2X(Tensor& v1, Tensor& v2)
-    
+
     {
         using T = typename Tensor::value_type;
-        T* u1 = v1.ptr_at(0);
-        T* u2 = v2.ptr_at(0);
+        T* u1   = v1.ptr_at(0);
+        T* u2   = v2.ptr_at(0);
         c2d->transposeY2X_MajorIndex(u1, u2);
     }
 

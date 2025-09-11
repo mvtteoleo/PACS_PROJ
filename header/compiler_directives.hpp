@@ -17,10 +17,8 @@ namespace numPDE
     template <typename... Ts>
     concept UnsignedInt = (std::conjunction_v<std::is_integral<Ts>...>);
 
- template <typename T>
-concept TensorLike = requires(T t) {
-    typename T::value_type;
-};
+    template <typename T>
+    concept TensorLike = requires(T t) { typename T::value_type; };
 
     constexpr std::size_t DEF_DIM = DIMS;
 } // namespace numPDE

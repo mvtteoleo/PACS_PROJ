@@ -17,7 +17,6 @@
 // using Real = u_int8_t;
 using Real = double;
 
-
 int main(int argc, char* argv[])
 {
     auto& decomp = NewDecomp::get_instance(argc, argv);
@@ -110,7 +109,7 @@ int main(int argc, char* argv[])
     auto data3 = numPDE::make_scalar_field<Real, 3>(decomp.zSize());
 
     /*
-    */
+     */
     decomp.transposeY2Z(data1, data3);
 
     double* u1 = data1.ptr_at(0);
