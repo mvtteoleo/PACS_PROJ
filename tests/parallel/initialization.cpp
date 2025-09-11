@@ -21,7 +21,8 @@ using namespace std;
 int main(int argc, char* argv[])
 {
 
-    auto& decomp = NewDecomp::get_instance(argc, argv);
+    // auto& decomp = NewDecomp::get_instance(argc, argv);
+    NewDecomp<double> decomp(argc, argv);
 
     auto mpiRank = decomp.rank();
     auto totank  = decomp.totRank();

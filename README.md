@@ -22,6 +22,9 @@ Milestones:
         - Dumb Jacobi iterations 
             - Good for memory + matches well the mom eq solver
             - Not efficent, may lead to scaling problems
+        - Maybe the Chebichev Polinomials
+            - Leverage fft to compute the coefficients
+            - Do some tricks on the coefficients to get the result
 
 
 Some more notes:
@@ -31,7 +34,9 @@ Some more notes:
     - Static reflections and compile time dispatch
 
 
-TODO 7 Settembre:
-    ⏳ Implementa il passaggio di informazioni, sfrutta 2Decomp gia che lo hai lì.
-    ⌛ Iniziare a ragionare una classe solvePoisson e in generale una classe solve 
+TODO 11 Settembre:
+    - Templetize the my2decomp class to make it general and better maybe
+    - Reason the dataflow in order to make the scheleton for at least a Poisson solver and maybe a 
+            full solver. It's starting to become close the Test time.
+    - Iniziare a ragionare una classe solvePoisson e in generale una classe solve 
         visto che le cose ormai iniziano a funzionare

@@ -19,7 +19,7 @@ using Real = double;
 
 int main(int argc, char* argv[])
 {
-    auto& decomp = NewDecomp::get_instance(argc, argv);
+    NewDecomp<Real> decomp(argc, argv);
 
     const auto& neighbors = decomp.get_neighbors();
     //
@@ -112,8 +112,8 @@ int main(int argc, char* argv[])
      */
     decomp.transposeY2Z(data1, data3);
 
-    double* u1 = data1.ptr_at(0);
-    double* u2 = data2.ptr_at(0);
+    Real* u1 = data1.ptr_at(0);
+    Real* u2 = data2.ptr_at(0);
 
     decomp.transposeX2Y(u1, u2);
 

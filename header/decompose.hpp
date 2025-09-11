@@ -21,11 +21,10 @@
 #include <type_traits>
 #include <vector>
 
-#include "./my_2Decomp/C2Decomp.hpp"
-#include "./my_2Decomp/MPI_types.hpp"
 #include "tensors.hpp"
 
 // --- Main decomposition class ---
+template<typename decType=double>
 class NewDecomp
 {
   private:
@@ -36,8 +35,9 @@ class NewDecomp
     std::array<int, 4> neighbors{};
     MPI_Comm           cart_comm{MPI_COMM_NULL};
 
-    std::unique_ptr<C2Decomp> c2d;
+    std::unique_ptr<C2Decomp<decType>> c2d;
 
+  public:
     NewDecomp(int argc, char** argv)
     {
         MPI_Init(&argc, &argv);
@@ -46,7 +46,6 @@ class NewDecomp
         this->split_rank_cartesian();
     }
 
-  public:
     // Delete copy/move to enforce singleton
     NewDecomp(const NewDecomp&)            = delete;
     NewDecomp& operator=(const NewDecomp&) = delete;
@@ -56,13 +55,6 @@ class NewDecomp
     {
         if (cart_comm != MPI_COMM_NULL) MPI_Comm_free(&cart_comm);
         MPI_Finalize();
-    }
-
-    static NewDecomp& get_instance(int argc, char** argv)
-    {
-        // Constructed once, destroyed automatically at program end
-        static NewDecomp instance(argc, argv);
-        return instance;
     }
 
     enum class neighbour_directions : uint8_t
@@ -79,7 +71,7 @@ class NewDecomp
     {
         static_assert(std::is_trivially_copyable_v<T>,
                       "exchange_edges requires trivially copyable types");
-        constexpr MPI_Datatype mpi_type = MpiTypeMap<T>::type;
+        MPI_Datatype mpi_type = MpiTypeMap<T>::type;
 
         // Exchange top <-> bottom
         MPI_Sendrecv(top.data(), static_cast<int>(top.size()), mpi_type, neighbors[1], 0,
@@ -105,7 +97,7 @@ class NewDecomp
         nz       = static_cast<int>(nz);
         int pRow = dims[0];
         int pCol = dims[1];
-        c2d      = std::make_unique<C2Decomp>(nx, ny, nz, pRow, pCol, periodicBC);
+        c2d      = std::make_unique<C2Decomp<decType>>(nx, ny, nz, pRow, pCol, periodicBC);
         if (pCol != dims[1] or pRow != dims[0])
         {
             std::cerr << "Warning: Row or column values changed!!\n";
@@ -139,28 +131,24 @@ class NewDecomp
     /*
      * Transpositions, just a templates overload for the moment that has the check for type mismatch
      */
-    template <typename T>
-    void transposeX2Y(T* src, T* dst)
+    void transposeX2Y(decType* src, decType* dst)
     {
-        static_assert(std::is_same_v<T, double>, "Currently only double supported");
+        static_assert(std::is_same_v<decType, double>, "Currently only double supported");
         c2d->transposeX2Y_MajorIndex(src, dst);
     }
-    template <typename T>
-    void transposeY2Z(T* src, T* dst)
+    void transposeY2Z(decType* src, decType* dst)
     {
-        static_assert(std::is_same_v<T, double>, "Currently only double supported");
+        static_assert(std::is_same_v<decType, double>, "Currently only double supported");
         c2d->transposeY2Z_MajorIndex(src, dst);
     }
-    template <typename T>
-    void transposeZ2Y(T* src, T* dst)
+    void transposeZ2Y(decType* src, decType* dst)
     {
-        static_assert(std::is_same_v<T, double>, "Currently only double supported");
+        static_assert(std::is_same_v<decType, double>, "Currently only double supported");
         c2d->transposeZ2Y_MajorIndex(src, dst);
     }
-    template <typename T>
-    void transposeY2X(T* src, T* dst)
+    void transposeY2X(decType* src, decType* dst)
     {
-        static_assert(std::is_same_v<T, double>, "Currently only double supported");
+        static_assert(std::is_same_v<decType, double>, "Currently only double supported");
         c2d->transposeY2X_MajorIndex(src, dst);
     }
 

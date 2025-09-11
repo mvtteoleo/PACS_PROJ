@@ -2,7 +2,6 @@
 
 #if TEST == 0
 #include <algorithm>
-#include <iomanip>
 #include <array>
 #include <assert.h>
 #include <cmath>
@@ -11,6 +10,7 @@
 #include <cstring>
 #include <fftw3.h>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <mpi.h>
 #include <numbers>
@@ -22,15 +22,15 @@
 int main(int argc, char* argv[])
 {
     // Initialize MPI
-    auto& decomp  = NewDecomp::get_instance(argc, argv);
-    auto  mpiRank = decomp.rank();
-    auto  totRank = decomp.totRank();
+    NewDecomp<double> decomp(argc, argv);
+    auto              mpiRank = decomp.rank();
+    auto              totRank = decomp.totRank();
 
     int  N  = 8;
-    int         nx = N, ny = N, nz = N;
+    int  nx = N, ny = N, nz = N;
     bool periodicBC[3] = {true, true, true};
 
-    if (!mpiRank) cout << "initializing " << endl;
+    if (!mpiRank) std::cout << "initializing " << std::endl;
 
     decomp.initialize_decomp(nx, ny, nz, periodicBC);
 
@@ -55,20 +55,21 @@ int main(int argc, char* argv[])
     // INITIALIZE THE FIELD
     for (auto [k, j, i] : data1.all_elems())
     {
-        data1(i, j, k) = (i + decomp.xStart()[0]) * 100+ (j + decomp.xStart()[1]) * 10 +
-                         (k + decomp.xStart()[2]) ;
+        data1(i, j, k) = (i + decomp.xStart()[0]) * 100 + (j + decomp.xStart()[1]) * 10 +
+                         (k + decomp.xStart()[2]);
     }
 
     if (!mpiRank)
         for (auto l : data1.all_linear_elements())
-            std::cout << "data1[" << l << "] " << std::setfill('0') << std::setw(3) <<   data1[l] << " \n";
+            std::cout << "data1[" << l << "] " << std::setfill('0') << std::setw(3) << data1[l]
+                      << " \n";
     check = data1;
     // Transpose X->Y
     if (!mpiRank) std::cout << "Transpose X->Y " << std::endl;
 
     decomp.transposeX2Y(u1, u2);
     if (!mpiRank)
-{
+    {
         std::cout << "\nStarts\n";
         for (auto i : decomp.yStart())
             std::cout << i << " ";
@@ -78,7 +79,8 @@ int main(int argc, char* argv[])
         std::cout << std::endl;
 
         for (auto l : data2.all_linear_elements())
-            std::cout << "data2[" << l << "] " << std::setfill('0') << std::setw(3) <<  data2[l] << " \n";
+            std::cout << "data2[" << l << "] " << std::setfill('0') << std::setw(3) << data2[l]
+                      << " \n";
     }
 
     // Transpose Y->Z
@@ -97,7 +99,8 @@ int main(int argc, char* argv[])
 
         std::cout << std::endl;
         for (auto l : data3.all_linear_elements())
-            std::cout << "data3[" << l << "] "  <<std::setfill('0') << std::setw(3)   << data3[l] << " \n";
+            std::cout << "data3[" << l << "] " << std::setfill('0') << std::setw(3) << data3[l]
+                      << " \n";
     }
 
     return 0;
@@ -127,16 +130,17 @@ int main(int argc, char* argv[])
     auto  mpiRank = decomp.rank();
     auto  totRank = decomp.totRank();
 
-    const int N = 5;
-    int nx = N, ny = N, nz = N;
-    bool periodicBC[3] = {true, true, true};
+    const int N  = 5;
+    int       nx = N, ny = N, nz = N;
+    bool      periodicBC[3] = {true, true, true};
 
     if (!mpiRank) std::cout << "=== MPI Transposition Test ===" << std::endl;
 
     decomp.initialize_decomp(nx, ny, nz, periodicBC);
 
     std::array<int, 3> xSizeArr, ySizeArr, zSizeArr;
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < 3; ++i)
+    {
         xSizeArr[i] = decomp.xSize()[i];
         ySizeArr[i] = decomp.ySize()[i];
         zSizeArr[i] = decomp.zSize()[i];
@@ -153,7 +157,8 @@ int main(int argc, char* argv[])
 
     // === Build global reference tensor on rank 0 ===
     std::vector<double> global_ref;
-    if (!mpiRank) {
+    if (!mpiRank)
+    {
         global_ref.resize(nx * ny * nz);
         for (int k = 0; k < nz; ++k)
             for (int j = 0; j < ny; ++j)
@@ -162,39 +167,45 @@ int main(int argc, char* argv[])
     }
 
     // === Fill local X layout ===
-    for (auto [k, j, i] : dataX.all_elems()) {
-        dataX(i, j, k) = 100 * (i + decomp.xStart()[0]) +
-                         10 * (j + decomp.xStart()[1]) +
+    for (auto [k, j, i] : dataX.all_elems())
+    {
+        dataX(i, j, k) = 100 * (i + decomp.xStart()[0]) + 10 * (j + decomp.xStart()[1]) +
                          (k + decomp.xStart()[2]);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
 
     // === Function to verify correctness against global reference ===
-    auto check_against_global = [&](const auto& local, auto  start, const std::string& label) {
+    auto check_against_global = [&](const auto& local, auto start, const std::string& label)
+    {
         // Each rank checks its portion independently
         int errors = 0;
-        for (auto [k, j, i] : local.all_elems()) {
-            int gi = i + start[0];
-            int gj = j + start[1];
-            int gk = k + start[2];
+        for (auto [k, j, i] : local.all_elems())
+        {
+            int    gi      = i + start[0];
+            int    gj      = j + start[1];
+            int    gk      = k + start[2];
             double ref_val = 100 * gi + 10 * gj + gk;
-            if (std::abs(local(i, j, k) - ref_val) > 1e-12) {
+            if (std::abs(local(i, j, k) - ref_val) > 1e-12)
+            {
                 errors++;
-                if (errors < 5) {
-                    std::cerr << "[Rank " << mpiRank << "] " << label
-                              << " mismatch at (i=" << gi << ",j=" << gj << ",k=" << gk
-                              << "): got " << local(i,j,k) << " expected " << ref_val << "\n";
+                if (errors < 5)
+                {
+                    std::cerr << "[Rank " << mpiRank << "] " << label << " mismatch at (i=" << gi
+                              << ",j=" << gj << ",k=" << gk << "): got " << local(i, j, k)
+                              << " expected " << ref_val << "\n";
                 }
             }
         }
         int global_errors;
         MPI_Reduce(&errors, &global_errors, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-        if (!mpiRank) {
+        if (!mpiRank)
+        {
             if (global_errors == 0)
                 std::cout << "[CHECK] " << label << " ✅ (all ranks)" << std::endl;
             else
-                std::cout << "[CHECK] " << label << " ❌ (" << global_errors << " mismatches)" << std::endl;
+                std::cout << "[CHECK] " << label << " ❌ (" << global_errors << " mismatches)"
+                          << std::endl;
         }
     };
 

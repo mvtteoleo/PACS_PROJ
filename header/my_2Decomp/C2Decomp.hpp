@@ -10,16 +10,15 @@
 #include <memory.h>
 #include <string>
 
-using namespace ::std;
-
+template <typename myType>
 class C2Decomp
 {
 
   public:
     // Just assume that we're using double precision all the time
-    typedef double myType;
-    MPI_Datatype   realType;
-    int            myTypeBytes;
+    MPI_Datatype myType_MPI = MPI_DOUBLE; //MpiTypeMap<myType>::type;
+
+    int myTypeBytes{0};
 
     // Global Size
     int nxGlobal, nyGlobal, nzGlobal;
@@ -33,8 +32,8 @@ class C2Decomp
     int periodic[2];
 
   public:
-    MPI_Comm DECOMP_2D_COMM_CART_X, DECOMP_2D_COMM_CART_Y, DECOMP_2D_COMM_CART_Z;
-    MPI_Comm DECOMP_2D_COMM_ROW, DECOMP_2D_COMM_COL;
+    MPI_Comm DECOMP_2D_COMM_CART_X = MPI_COMM_NULL, DECOMP_2D_COMM_CART_Y= MPI_COMM_NULL, DECOMP_2D_COMM_CART_Z= MPI_COMM_NULL;
+    MPI_Comm DECOMP_2D_COMM_ROW= MPI_COMM_NULL, DECOMP_2D_COMM_COL= MPI_COMM_NULL;
 
   private:
     // Defining neighboring blocks
@@ -73,7 +72,8 @@ class C2Decomp
 
   private:
     // These are the buffers used by MPI_ALLTOALL(V) calls
-    double *work1_r, *work2_r; // Only implementing real for now...
+    double *work1_r;
+    double *work2_r; // Only implementing real for now...
 
   public:
     C2Decomp(int nx, int ny, int nz, int pRow, int pCol, bool periodicBC[3])
@@ -91,8 +91,6 @@ class C2Decomp
         work1_r       = NULL;
         work2_r       = NULL;
 
-        realType = MPI_DOUBLE_PRECISION;
-
         decomp2DInit(pRow, pCol);
     }
 
@@ -103,21 +101,21 @@ class C2Decomp
 
     void decomp2DFinalize();
     // Get Transposes but with array indexing with the major index of the pencil...
-    void transposeX2Y_MajorIndex(double* src, double* dst);
-    void transposeY2Z_MajorIndex(double* src, double* dst);
-    void transposeZ2Y_MajorIndex(double* src, double* dst);
-    void transposeY2X_MajorIndex(double* src, double* dst);
+    void transposeX2Y_MajorIndex(myType* src, myType* dst);
+    void transposeY2Z_MajorIndex(myType* src, myType* dst);
+    void transposeZ2Y_MajorIndex(myType* src, myType* dst);
+    void transposeY2X_MajorIndex(myType* src, myType* dst);
 
     void decompInfoInit();
     void decompInfoFinalize();
 
     // only doing real
-    void allocX(double*& var);
-    void allocY(double*& var);
-    void allocZ(double*& var);
-    void deallocXYZ(double*& var);
+    void allocX(myType*& var);
+    void allocY(myType*& var);
+    void allocZ(myType*& var);
+    void deallocXYZ(myType*& var);
 
-    void decomp2DAbort(int errorCode, string msg);
+    void decomp2DAbort(int errorCode, std::string msg);
     void initNeighbor();
     void getDist();
     void distribute(int data1, int proc, int* st, int* en, int* sz);
@@ -126,17 +124,23 @@ class C2Decomp
 
     void getDecompInfo(DecompInfo dcompinfo_in);
 
-    void memSplitXY(double* in, int n1, int n2, int n3, double* out, int iproc, int* dist);
+    void memSplitXY(myType* in, int n1, int n2, int n3, myType* out, int iproc, int* dist);
 
-    void memMergeXY_YMajor(double* in, int n1, int n2, int n3, double* out, int iproc, int* dist);
+    void memMergeXY_YMajor(myType* in, int n1, int n2, int n3, myType* out, int iproc, int* dist);
 
-    void memSplitYZ_YMajor(double* in, int n1, int n2, int n3, double* out, int iproc, int* dist);
+    void memSplitYZ_YMajor(myType* in, int n1, int n2, int n3, myType* out, int iproc, int* dist);
 
-    void memMergeZY_YMajor(double* in, int n1, int n2, int n3, double* out, int iproc, int* dist);
+    void memMergeZY_YMajor(myType* in, int n1, int n2, int n3, myType* out, int iproc, int* dist);
 
-    void memSplitYX_YMajor(double* in, int n1, int n2, int n3, double* out, int iproc, int* dist);
+    void memSplitYX_YMajor(myType* in, int n1, int n2, int n3, myType* out, int iproc, int* dist);
 
-    void memMergeYX(double* in, int n1, int n2, int n3, double* out, int iproc, int* dist);
+    void memMergeYX(myType* in, int n1, int n2, int n3, myType* out, int iproc, int* dist);
 };
+
+#include "Alloc.H"
+#include "Best2DGrid.H"
+#include "C2Decomp.H"
+#include "MemSplitMerge.H"
+#include "Transpose.H"
 
 #endif
