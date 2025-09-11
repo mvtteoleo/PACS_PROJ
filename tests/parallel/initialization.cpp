@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
     auto mpiRank = decomp.rank();
     auto totank  = decomp.totRank();
 
-    const auto& exe_type = std::execution::par;
+    const auto& exe_type = std::execution::seq;
     // grid size per dimension (global)
     std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;

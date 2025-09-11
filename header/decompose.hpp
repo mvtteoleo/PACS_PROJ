@@ -95,9 +95,11 @@ class NewDecomp
         nx       = static_cast<int>(nx);
         ny       = static_cast<int>(ny);
         nz       = static_cast<int>(nz);
-        int pRow = dims[0];
-        int pCol = dims[1];
+        int& pRow = dims[0];
+        int& pCol = dims[1];
+        MPI_Barrier(MPI_COMM_WORLD);
         c2d      = std::make_unique<C2Decomp<decType>>(nx, ny, nz, pRow, pCol, periodicBC);
+        MPI_Barrier(MPI_COMM_WORLD);
         if (pCol != dims[1] or pRow != dims[0])
         {
             std::cerr << "Warning: Row or column values changed!!\n";
@@ -105,6 +107,7 @@ class NewDecomp
             dims[1] = pCol;
             MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
         }
+        MPI_Barrier(MPI_COMM_WORLD);
     }
 
     /*

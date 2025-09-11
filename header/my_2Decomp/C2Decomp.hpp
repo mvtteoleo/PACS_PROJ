@@ -72,8 +72,8 @@ class C2Decomp
 
   private:
     // These are the buffers used by MPI_ALLTOALL(V) calls
-    double *work1_r;
-    double *work2_r; // Only implementing real for now...
+    myType *work1_r;
+    myType *work2_r; // Only implementing real for now...
 
   public:
     C2Decomp(int nx, int ny, int nz, int pRow, int pCol, bool periodicBC[3])
