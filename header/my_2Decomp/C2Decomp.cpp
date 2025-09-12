@@ -5,7 +5,6 @@
 //  return (a<b)?b:a;     // or: return comp(a,b)?b:a; for version (2)
 //}
 
-
 void C2Decomp::decomp2DInit(int pRow, int pCol)
 {
 
@@ -21,13 +20,12 @@ void C2Decomp::decomp2DInit(int pRow, int pCol)
     if (pRow == 0 && pCol == 0)
     {
         best2DGrid(nProc, row, col);
-        
     }
     else
     {
         if (nProc != pRow * pCol)
         {
-            errorcode          = 1;
+            errorcode               = 1;
             std::string errorstring = "Invalid 2D processor grid - nproc /= p_row*p_col\n";
             decomp2DAbort(errorcode, errorstring);
         }
@@ -271,8 +269,7 @@ void C2Decomp::distribute(int data1, int proc, int* st, int* en, int* sz)
     sz[proc - 1] = data1 - st[proc - 1] + 1;
 };
 
-void C2Decomp::partition(int nx, int ny, int nz, int* pdim, int* lstart, int* lend,
-                                 int* lsize)
+void C2Decomp::partition(int nx, int ny, int nz, int* pdim, int* lstart, int* lend, int* lsize)
 {
 
     int gsize;

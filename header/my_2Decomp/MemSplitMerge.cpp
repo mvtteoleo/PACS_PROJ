@@ -507,7 +507,8 @@ void C2Decomp::memMergeYX(double* in, int n1, int n2, int n3, double* out, int i
 }
 #elif NEW_IMP == 1
 template <bool YMajor = false>
-void memTransfer(double*& in, double*& out, int n1, int n2, int n3, int iproc, int* dist, int* disp)
+void memTransfer(C2Decomp::myType*& in, C2Decomp::myType*& out, int n1, int n2, int n3, int iproc,
+                 int* dist, int* disp)
 {
     for (int m = 0; m < iproc; ++m)
     {
@@ -529,7 +530,8 @@ void memTransfer(double*& in, double*& out, int n1, int n2, int n3, int iproc, i
                 if constexpr (!YMajor)
                 {
                     // contiguous in i
-                    std::memcpy(out + pos, in + k * n2 * n1 + j * n1, sizeof(double) * n1);
+                    std::memcpy(out + pos, in + k * n2 * n1 + j * n1,
+                                sizeof(C2Decomp::myType) * n1);
                     pos += n1;
                 }
                 else
@@ -546,42 +548,42 @@ void memTransfer(double*& in, double*& out, int n1, int n2, int n3, int iproc, i
 }
 /* MINIMAL SETUP, JUST WHAT IS USED */
 // ----------------------- XY -----------------------
-void C2Decomp::memSplitXY(double* in, int n1, int n2, int n3, double* out, int iproc,
-                                  int* dist)
+void C2Decomp::memSplitXY(C2Decomp::myType* in, int n1, int n2, int n3, C2Decomp::myType* out,
+                          int iproc, int* dist)
 {
     memTransfer<false>(in, out, n1, n2, n3, iproc, dist, decompMain.x1disp);
 }
 
-void C2Decomp::memMergeXY_YMajor(double* in, int n1, int n2, int n3, double* out, int iproc,
-                                         int* dist)
+void C2Decomp::memMergeXY_YMajor(C2Decomp::myType* in, int n1, int n2, int n3,
+                                 C2Decomp::myType* out, int iproc, int* dist)
 {
     memTransfer<true>(in, out, n1, n2, n3, iproc, dist, decompMain.y1disp);
 }
 
 // ----------------------- YX -----------------------
-void C2Decomp::memSplitYX_YMajor(double* in, int n1, int n2, int n3, double* out, int iproc,
-                                         int* dist)
+void C2Decomp::memSplitYX_YMajor(C2Decomp::myType* in, int n1, int n2, int n3,
+                                 C2Decomp::myType* out, int iproc, int* dist)
 {
     memTransfer<true>(in, out, n1, n2, n3, iproc, dist, decompMain.y1disp);
 }
 
-void C2Decomp::memMergeYX(double* in, int n1, int n2, int n3, double* out, int iproc,
-                                  int* dist)
+void C2Decomp::memMergeYX(C2Decomp::myType* in, int n1, int n2, int n3, C2Decomp::myType* out,
+                          int iproc, int* dist)
 {
     memTransfer<false>(in, out, n1, n2, n3, iproc, dist, decompMain.x1disp);
 }
 
 // ----------------------- YZ -----------------------
 
-void C2Decomp::memSplitYZ_YMajor(double* in, int n1, int n2, int n3, double* out, int iproc,
-                                         int* dist)
+void C2Decomp::memSplitYZ_YMajor(C2Decomp::myType* in, int n1, int n2, int n3,
+                                 C2Decomp::myType* out, int iproc, int* dist)
 {
     memTransfer<true>(in, out, n1, n2, n3, iproc, dist, decompMain.y2disp);
 }
 
 // ----------------------- ZY -----------------------
-void C2Decomp::memMergeZY_YMajor(double* in, int n1, int n2, int n3, double* out, int iproc,
-                                         int* dist)
+void C2Decomp::memMergeZY_YMajor(C2Decomp::myType* in, int n1, int n2, int n3,
+                                 C2Decomp::myType* out, int iproc, int* dist)
 {
     memTransfer<true>(in, out, n1, n2, n3, iproc, dist, decompMain.y2disp);
 }

@@ -126,9 +126,9 @@ int main(int argc, char* argv[])
 int main(int argc, char* argv[])
 {
     // Initialize MPI and decomp
- NewDecomp<double>   decomp(argc, argv);
-    auto  mpiRank = decomp.rank();
-    auto  totRank = decomp.totRank();
+    NewDecomp<double> decomp(argc, argv);
+    auto              mpiRank = decomp.rank();
+    auto              totRank = decomp.totRank();
 
     const int N  = 5;
     int       nx = N, ny = N, nz = N;

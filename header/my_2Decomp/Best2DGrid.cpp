@@ -125,7 +125,8 @@ void C2Decomp::best2DGrid(int iproc, int& best_pRow, int& best_pCol)
 
             if (!nRank)
             {
-                std::cout << "    Processor Grid " << row << " by " << col << ", time = " << t1 << std::endl;
+                std::cout << "    Processor Grid " << row << " by " << col << ", time = " << t1
+                          << std::endl;
             }
 
             if (best_time > t1)
@@ -148,16 +149,18 @@ void C2Decomp::best2DGrid(int iproc, int& best_pRow, int& best_pCol)
     {
         if (!nRank)
         {
-            std::cout << "    ===============================================================" << std::endl;
-            std::cout << "    The best processor grid is probably " << best_pRow << " by " << best_pCol
-                 << std::endl;
+            std::cout << "    ==============================================================="
+                      << std::endl;
+            std::cout << "    The best processor grid is probably " << best_pRow << " by "
+                      << best_pCol << std::endl;
         }
     }
     else
     {
-        int    errorcode   = 9;
-        std::string errorstring = "The processor=grid auto-tuning code fail. The number of processes "
-                             "requested is probably too large ";
+        int         errorcode = 9;
+        std::string errorstring =
+            "The processor=grid auto-tuning code fail. The number of processes "
+            "requested is probably too large ";
         decomp2DAbort(errorcode, errorstring);
     }
 }

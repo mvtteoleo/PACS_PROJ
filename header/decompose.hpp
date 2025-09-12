@@ -27,7 +27,7 @@
 #include "tensors.hpp"
 
 // --- Main decomposition class ---
-template<typename decType=double>
+template <typename decType = double>
 class NewDecomp
 {
   private:
@@ -38,7 +38,7 @@ class NewDecomp
     std::array<int, 4> neighbors{};
     MPI_Comm           cart_comm{MPI_COMM_NULL};
 
-    C2Decomp* c2d;
+    std::unique_ptr<C2Decomp> c2d;
 
   public:
     NewDecomp(int argc, char** argv)
@@ -57,6 +57,7 @@ class NewDecomp
     ~NewDecomp()
     {
         if (cart_comm != MPI_COMM_NULL) MPI_Comm_free(&cart_comm);
+        if (c2d.get() != nullptr) c2d->decomp2DFinalize();
         MPI_Finalize();
     }
 
@@ -95,14 +96,12 @@ class NewDecomp
         requires std::is_integral_v<Ts>
     void initialize_decomp(Ts nx, Ts ny, Ts nz, bool periodicBC[3])
     {
-        nx       = static_cast<int>(nx);
-        ny       = static_cast<int>(ny);
-        nz       = static_cast<int>(nz);
+        nx        = static_cast<int>(nx);
+        ny        = static_cast<int>(ny);
+        nz        = static_cast<int>(nz);
         int& pRow = dims[0];
         int& pCol = dims[1];
-        MPI_Barrier(MPI_COMM_WORLD);
-        c2d      = new C2Decomp(nx, ny, nz, pRow, pCol, periodicBC);
-        MPI_Barrier(MPI_COMM_WORLD);
+        c2d       = std::make_unique<C2Decomp>(nx, ny, nz, pRow, pCol, periodicBC);
         if (pCol != dims[1] or pRow != dims[0])
         {
             std::cerr << "Warning: Row or column values changed!!\n";
@@ -110,7 +109,6 @@ class NewDecomp
             dims[1] = pCol;
             MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
         }
-        MPI_Barrier(MPI_COMM_WORLD);
     }
 
     /*

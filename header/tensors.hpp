@@ -162,8 +162,7 @@ namespace numPDE
         {
             // if (indices.size() != N_DIMS) throw std::out_of_range("Dimensions not matching");
 #if PEDANTIC
-            [[unlikely]]
-            if (indices.size() > N_DIMS)
+            [[unlikely]] if (indices.size() > N_DIMS)
                 indices = indices.first(N_DIMS);
 
             for (size_t i = 0; i < indices.size(); ++i) [[unlikely]]

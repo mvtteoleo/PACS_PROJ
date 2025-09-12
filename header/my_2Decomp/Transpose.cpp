@@ -1,7 +1,6 @@
 #include "C2Decomp.hpp"
 
-
-void C2Decomp::transposeX2Y_MajorIndex(double* src, double* dst)
+void C2Decomp::transposeX2Y_MajorIndex(C2Decomp::myType* src, C2Decomp::myType* dst)
 {
 
     auto& s1 = decompMain.xsz[0];
@@ -21,8 +20,7 @@ void C2Decomp::transposeX2Y_MajorIndex(double* src, double* dst)
     memMergeXY_YMajor(work2_r, d1, d2, d3, dst, dims[0], decompMain.y1dist);
 }
 
-
-void C2Decomp::transposeY2X_MajorIndex(double* src, double* dst)
+void C2Decomp::transposeY2X_MajorIndex(C2Decomp::myType* src, C2Decomp::myType* dst)
 {
 
     auto& s1 = decompMain.ysz[0];
@@ -42,8 +40,7 @@ void C2Decomp::transposeY2X_MajorIndex(double* src, double* dst)
     memMergeYX(work2_r, d1, d2, d3, dst, dims[0], decompMain.x1dist);
 }
 
-
-void C2Decomp::transposeY2Z_MajorIndex(double* src, double* dst)
+void C2Decomp::transposeY2Z_MajorIndex(C2Decomp::myType* src, C2Decomp::myType* dst)
 {
 
     auto& s1 = decompMain.ysz[0];
@@ -70,8 +67,7 @@ void C2Decomp::transposeY2Z_MajorIndex(double* src, double* dst)
             }
 }
 
-
-void C2Decomp::transposeZ2Y_MajorIndex(double* src, double* dst)
+void C2Decomp::transposeZ2Y_MajorIndex(C2Decomp::myType* src, C2Decomp::myType* dst)
 {
 
     auto& s1 = decompMain.zsz[0];
