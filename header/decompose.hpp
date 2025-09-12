@@ -1,9 +1,12 @@
 #pragma once
 
 #include "compiler_directives.hpp"
+
+#include "my_2Decomp/MPI_types.hpp"
+#include "tensors.hpp"
 #include "my_2Decomp/C2Decomp.hpp"
 // #include "../deps/2Decomp_C/C2Decomp.hpp"
-#include "my_2Decomp/MPI_types.hpp"
+// #include "my_2Decomp/MPI_types.hpp"
 
 #include <algorithm>
 #include <array>
@@ -23,8 +26,6 @@
 #include <type_traits>
 #include <vector>
 
-#include "my_2Decomp/MPI_types.hpp"
-#include "tensors.hpp"
 
 // --- Main decomposition class ---
 template <typename decType = double>
@@ -38,7 +39,7 @@ class NewDecomp
     std::array<int, 4> neighbors{};
     MPI_Comm           cart_comm{MPI_COMM_NULL};
 
-    std::unique_ptr<C2Decomp> c2d;
+    std::unique_ptr<C2Decomp<decType>> c2d;
 
   public:
     NewDecomp(int argc, char** argv)
@@ -101,7 +102,7 @@ class NewDecomp
         nz        = static_cast<int>(nz);
         int& pRow = dims[0];
         int& pCol = dims[1];
-        c2d       = std::make_unique<C2Decomp>(nx, ny, nz, pRow, pCol, periodicBC);
+        c2d       = std::make_unique<C2Decomp<decType>>(nx, ny, nz, pRow, pCol, periodicBC);
         if (pCol != dims[1] or pRow != dims[0])
         {
             std::cerr << "Warning: Row or column values changed!!\n";
