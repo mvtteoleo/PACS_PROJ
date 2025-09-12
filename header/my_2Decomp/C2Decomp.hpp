@@ -3,12 +3,13 @@
 
 #include "MPI_types.hpp"
 #include "math.h"
-#include < mpi.h >
+#include <mpi.h>
 #include <cstddef>
 #include <cstdlib>
 #include <iostream>
 #include <memory.h>
 #include <string>
+#include <vector>
 
 template <typename myType>
 class C2Decomp
@@ -17,7 +18,7 @@ class C2Decomp
   public:
     // Just assume that we're using double precision all the time
     // MPI_Datatype myType_MPI = MPI_DOUBLE; // MpiTypeMap<myType>::type;
-    auto myType_MPI = mpi_get_type<myType>()  ;
+    MPI_Datatype  myType_MPI = mpi_get_type<myType>()  ;
 
     int myTypeBytes{0};
 
@@ -76,6 +77,8 @@ class C2Decomp
     // These are the buffers used by MPI_ALLTOALL(V) calls
     myType* work1_r;
     myType* work2_r; // Only implementing real for now...
+
+    std::vector<myType> work_1b, work_2b;
 
   public:
     C2Decomp(int nx, int ny, int nz, int pRow, int pCol, bool periodicBC[3])

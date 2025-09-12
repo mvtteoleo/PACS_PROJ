@@ -213,8 +213,10 @@ void C2Decomp<myType>::decompInfoInit()
             work2_r = NULL;
         }
 
-        work1_r       = new myType[globalBufSize];
-        work2_r       = new myType[globalBufSize];
+        work_1b.resize(globalBufSize*10); 
+        work_2b.resize(globalBufSize*10); 
+        work1_r       = work_1b.data();
+        work2_r       =  work_2b.data();
         decompBufSize = globalBufSize;
     }
     MPI_Barrier(MPI_COMM_WORLD);

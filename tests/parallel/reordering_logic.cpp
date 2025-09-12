@@ -126,7 +126,7 @@ int main(int argc, char* argv[])
 int main(int argc, char* argv[])
 {
     // Initialize MPI and decomp
-    auto& decomp  = NewDecomp::get_instance(argc, argv);
+ NewDecomp<double>   decomp(argc, argv);
     auto  mpiRank = decomp.rank();
     auto  totRank = decomp.totRank();
 

@@ -530,7 +530,8 @@ void memTransfer(myType* in, myType* out, int n1, int n2, int n3, int iproc, int
                 if constexpr (!YMajor)
                 {
                     // contiguous in i
-                    std::memcpy(out + pos, in + k * n2 * n1 + j * n1, sizeof(myType) * n1);
+                    // std::memcpy(out + pos, in + k * n2 * n1 + j * n1, sizeof(myType) * n1);
+                    std::copy_n(out +pos, n1,  in + k * n2 * n1 + j * n1);
                     pos += n1;
                 }
                 else
