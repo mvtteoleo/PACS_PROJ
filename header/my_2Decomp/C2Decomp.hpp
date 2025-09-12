@@ -3,7 +3,7 @@
 
 #include "MPI_types.hpp"
 #include "math.h"
-#include "mpi.h"
+#include < mpi.h >
 #include <cstddef>
 #include <cstdlib>
 #include <iostream>
@@ -16,7 +16,8 @@ class C2Decomp
 
   public:
     // Just assume that we're using double precision all the time
-    MPI_Datatype myType_MPI = MPI_DOUBLE; //MpiTypeMap<myType>::type;
+    // MPI_Datatype myType_MPI = MPI_DOUBLE; // MpiTypeMap<myType>::type;
+    auto myType_MPI = mpi_get_type<myType>()  ;
 
     int myTypeBytes{0};
 
@@ -32,8 +33,9 @@ class C2Decomp
     int periodic[2];
 
   public:
-    MPI_Comm DECOMP_2D_COMM_CART_X = MPI_COMM_NULL, DECOMP_2D_COMM_CART_Y= MPI_COMM_NULL, DECOMP_2D_COMM_CART_Z= MPI_COMM_NULL;
-    MPI_Comm DECOMP_2D_COMM_ROW= MPI_COMM_NULL, DECOMP_2D_COMM_COL= MPI_COMM_NULL;
+    MPI_Comm DECOMP_2D_COMM_CART_X = MPI_COMM_NULL, DECOMP_2D_COMM_CART_Y = MPI_COMM_NULL,
+             DECOMP_2D_COMM_CART_Z = MPI_COMM_NULL;
+    MPI_Comm DECOMP_2D_COMM_ROW = MPI_COMM_NULL, DECOMP_2D_COMM_COL = MPI_COMM_NULL;
 
   private:
     // Defining neighboring blocks
@@ -72,8 +74,8 @@ class C2Decomp
 
   private:
     // These are the buffers used by MPI_ALLTOALL(V) calls
-    myType *work1_r;
-    myType *work2_r; // Only implementing real for now...
+    myType* work1_r;
+    myType* work2_r; // Only implementing real for now...
 
   public:
     C2Decomp(int nx, int ny, int nz, int pRow, int pCol, bool periodicBC[3])

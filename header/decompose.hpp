@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "my_2Decomp/MPI_types.hpp"
 #include "tensors.hpp"
 
 // --- Main decomposition class ---
@@ -71,7 +72,7 @@ class NewDecomp
     {
         static_assert(std::is_trivially_copyable_v<T>,
                       "exchange_edges requires trivially copyable types");
-        MPI_Datatype mpi_type = MpiTypeMap<T>::type;
+        MPI_Datatype mpi_type = mpi_get_type<T>();
 
         // Exchange top <-> bottom
         MPI_Sendrecv(top.data(), static_cast<int>(top.size()), mpi_type, neighbors[1], 0,
