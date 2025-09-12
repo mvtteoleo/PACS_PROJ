@@ -112,6 +112,11 @@ class NewDecomp
     }
 
     /*
+     * Get global sizes
+     */
+    std::tuple<int, int, int> globSizes() const { return {c2d->nxGlobal, c2d->nyGlobal, c2d->nzGlobal}; }
+
+    /*
      * Get start from the decomposition done by 2Decomp
      */
     auto xStart() const { return std::span<const int>(&c2d->xStart[0], 3); }

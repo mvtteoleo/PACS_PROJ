@@ -22,9 +22,9 @@ namespace numPDE
 {
     enum TypeIndex
     {
-        // Indexing like T(i, j, k) => datas[ i + y*Nx + k*Nx*Ny ]
+        // HPC-like  indexing like T(i, j, k) => datas[ i + y*Nx + k*Nx*Ny ]
         ROW_MAJOR,
-        // Indexing like T(i, j, k) => datas[ i*Nx*Ny + j*Ny + k ]
+        // CUDA-like indexing like T(i, j, k) => datas[ i*Nx*Ny + j*Ny + k ]
         COMPACT
     };
 

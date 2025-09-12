@@ -106,7 +106,6 @@ int main(int argc, char* argv[])
      *
      * U_new = U_tmp - dt * GRAD(P_new - P_old)
      */
-    // --- assume inside your i,j,k loop, and h_U(i,j,k)[comp] is valid for neighbors ---
 
     Real              toll{1e-5}, err{2};
     numPDE::Vec<Real> f_u;
