@@ -1,4 +1,3 @@
-#pragma once
 #include "C2Decomp.hpp"
 #include <string>
 
@@ -6,8 +5,8 @@
 //  return (a<b)?b:a;     // or: return comp(a,b)?b:a; for version (2)
 //}
 
-template <typename myType>
-void C2Decomp<myType>::decomp2DInit(int pRow, int pCol)
+
+void C2Decomp::decomp2DInit(int pRow, int pCol)
 {
 
     int errorcode, ierr, row, col;
@@ -22,6 +21,7 @@ void C2Decomp<myType>::decomp2DInit(int pRow, int pCol)
     if (pRow == 0 && pCol == 0)
     {
         best2DGrid(nProc, row, col);
+        
     }
     else
     {
@@ -93,8 +93,7 @@ void C2Decomp<myType>::decomp2DInit(int pRow, int pCol)
     ierr = MPI_Type_size(myType_MPI, &myTypeBytes);
 };
 
-template <typename myType>
-void C2Decomp<myType>::decomp2DAbort(int errorCode, std::string msg)
+void C2Decomp::decomp2DAbort(int errorCode, std::string msg)
 {
     int ierr;
     if (!nRank)
@@ -105,8 +104,7 @@ void C2Decomp<myType>::decomp2DAbort(int errorCode, std::string msg)
     ierr = MPI_Abort(MPI_COMM_WORLD, errorCode);
 };
 
-template <typename myType>
-void C2Decomp<myType>::initNeighbor()
+void C2Decomp::initNeighbor()
 {
 
     // X-pencil
@@ -128,8 +126,7 @@ void C2Decomp<myType>::initNeighbor()
     neighbor[2][5] = MPI_PROC_NULL;
 };
 
-template <typename myType>
-void C2Decomp<myType>::decompInfoInit()
+void C2Decomp::decompInfoInit()
 {
 
     int bufSize, nx, ny, nz, errorcode;
@@ -141,7 +138,7 @@ void C2Decomp<myType>::decompInfoInit()
     if (nx < dims[0] || ny < dims[0] || ny < dims[1] || nz < dims[1])
     {
         errorcode  = 6;
-        std::string msg = "Invalid 2D processor grid. \n Make sure that min(nx, ny) > p_row and min(ny, "
+        string msg = "Invalid 2D processor grid. \n Make sure that min(nx, ny) > p_row and min(ny, "
                      "nz) >= p_col.";
         decomp2DAbort(errorcode, msg);
     }
@@ -191,16 +188,11 @@ void C2Decomp<myType>::decompInfoInit()
     int size2 = decompMain.ysz[0] * decompMain.ysz[1] * decompMain.xsz[2];
     int size3 = decompMain.zsz[0] * decompMain.zsz[1] * decompMain.zsz[2];
 
-    bufSize = std::max(size2, size3);
-    bufSize = std::max(size1, bufSize);
-
-    int globalBufSize = 0;
-    MPI_Allreduce(&bufSize, &globalBufSize, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD);
+    bufSize = max(size2, size3);
+    bufSize = max(size1, bufSize);
 
     if (bufSize > decompBufSize)
     {
-        std::cout << "\n" << this->nRank << "initializing at " << bufSize << std::endl;
         if (work1_r != NULL)
         {
             delete[] work1_r;
@@ -213,17 +205,13 @@ void C2Decomp<myType>::decompInfoInit()
             work2_r = NULL;
         }
 
-        work_1b.resize(globalBufSize*10); 
-        work_2b.resize(globalBufSize*10); 
-        work1_r       = work_1b.data();
-        work2_r       =  work_2b.data();
-        decompBufSize = globalBufSize;
+        work1_r       = new double[bufSize];
+        work2_r       = new double[bufSize];
+        decompBufSize = bufSize;
     }
-    MPI_Barrier(MPI_COMM_WORLD);
 };
 
-template <typename myType>
-void C2Decomp<myType>::getDist()
+void C2Decomp::getDist()
 {
 
     int nx, ny, nz;
@@ -250,8 +238,7 @@ void C2Decomp<myType>::getDist()
     delete[] en2;
 }
 
-template <typename myType>
-void C2Decomp<myType>::distribute(int data1, int proc, int* st, int* en, int* sz)
+void C2Decomp::distribute(int data1, int proc, int* st, int* en, int* sz)
 {
 
     int size1, nl, nu;
@@ -284,8 +271,7 @@ void C2Decomp<myType>::distribute(int data1, int proc, int* st, int* en, int* sz
     sz[proc - 1] = data1 - st[proc - 1] + 1;
 };
 
-template <typename myType>
-void C2Decomp<myType>::partition(int nx, int ny, int nz, int* pdim, int* lstart, int* lend,
+void C2Decomp::partition(int nx, int ny, int nz, int* pdim, int* lstart, int* lend,
                                  int* lsize)
 {
 
@@ -351,8 +337,7 @@ void C2Decomp<myType>::partition(int nx, int ny, int nz, int* pdim, int* lstart,
     }
 };
 
-template <typename myType>
-void C2Decomp<myType>::prepareBuffer(DecompInfo* dii)
+void C2Decomp::prepareBuffer(DecompInfo* dii)
 {
 
     // MPI_Alltoallv buffer info
@@ -396,8 +381,7 @@ void C2Decomp<myType>::prepareBuffer(DecompInfo* dii)
     dii->z2count = dii->y2count;
 }
 
-template <typename myType>
-void C2Decomp<myType>::decompInfoFinalize()
+void C2Decomp::decompInfoFinalize()
 {
 
     decompBufSize = 0;

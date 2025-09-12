@@ -1,11 +1,9 @@
-#pragma once
 #include "C2Decomp.hpp"
 #include <iterator>
 #include <memory>
 #include <ostream>
 
-template <typename myType>
-void C2Decomp<myType>::FindFactor(int num, int* factors, int& nfact)
+void C2Decomp::FindFactor(int num, int* factors, int& nfact)
 {
 
     int m;
@@ -42,8 +40,7 @@ void C2Decomp<myType>::FindFactor(int num, int* factors, int& nfact)
     }
 }
 
-template <typename myType>
-void C2Decomp<myType>::best2DGrid(int iproc, int& best_pRow, int& best_pCol)
+void C2Decomp::best2DGrid(int iproc, int& best_pRow, int& best_pCol)
 {
 
     if (!nRank)

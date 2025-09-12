@@ -9,16 +9,16 @@
 #include <iostream>
 #include <memory.h>
 #include <string>
-#include <vector>
 
-template <typename myType>
+
 class C2Decomp
 {
 
   public:
     // Just assume that we're using double precision all the time
     // MPI_Datatype myType_MPI = MPI_DOUBLE; // MpiTypeMap<myType>::type;
-    MPI_Datatype  myType_MPI = mpi_get_type<myType>()  ;
+    using myType =double ;
+    MPI_Datatype myType_MPI = mpi_get_type<myType>()  ;
 
     int myTypeBytes{0};
 
@@ -77,8 +77,6 @@ class C2Decomp
     // These are the buffers used by MPI_ALLTOALL(V) calls
     myType* work1_r;
     myType* work2_r; // Only implementing real for now...
-
-    std::vector<myType> work_1b, work_2b;
 
   public:
     C2Decomp(int nx, int ny, int nz, int pRow, int pCol, bool periodicBC[3])
@@ -141,11 +139,5 @@ class C2Decomp
 
     void memMergeYX(myType* in, int n1, int n2, int n3, myType* out, int iproc, int* dist);
 };
-
-#include "Alloc.H"
-#include "Best2DGrid.H"
-#include "C2Decomp.H"
-#include "MemSplitMerge.H"
-#include "Transpose.H"
 
 #endif

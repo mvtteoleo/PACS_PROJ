@@ -1,8 +1,8 @@
 #pragma once
 
 #include "compiler_directives.hpp"
-//#include "my_2Decomp/C2Decomp.hpp"
-#include "../deps/2Decomp_C/C2Decomp.hpp"
+#include "my_2Decomp/C2Decomp.hpp"
+// #include "../deps/2Decomp_C/C2Decomp.hpp"
 #include "my_2Decomp/MPI_types.hpp"
 
 #include <algorithm>
