@@ -1,4 +1,6 @@
 #pragma once
+// 1 => true , 0 => false
+#define WORK_VEC 1
 
 #include "MPI_types.hpp"
 #include "math.h"
@@ -9,6 +11,7 @@
 #include <memory.h>
 #include <mpi.h>
 #include <string>
+#include <vector>
 
 template <typename T>
 class C2Decomp
@@ -26,13 +29,10 @@ class C2Decomp
 
     // MPI rank info
     int nRank, nProc;
-
-  public:
     // parameters for 2D Cartesian Topology
     int dims[2], coord[2];
     int periodic[2];
 
-  public:
     MPI_Comm DECOMP_2D_COMM_CART_X = MPI_COMM_NULL, DECOMP_2D_COMM_CART_Y = MPI_COMM_NULL,
              DECOMP_2D_COMM_CART_Z = MPI_COMM_NULL;
     MPI_Comm DECOMP_2D_COMM_ROW = MPI_COMM_NULL, DECOMP_2D_COMM_COL = MPI_COMM_NULL;
@@ -42,6 +42,14 @@ class C2Decomp
     int neighbor[3][6];
     // Flags for periodic condition in 3D
     bool periodicX, periodicY, periodicZ;
+    // These are the buffers used by MPI_ALLTOALL(V) calls
+    myType* work1_r;
+    myType* work2_r; // Only implementing real for now...
+
+    #if WORK_VEC == 1
+    std::vector<myType> work_1b;
+    std::vector<myType> work_2b;
+    #endif
 
   public:
     // Struct used to store decomposition info for a given global data size
@@ -60,24 +68,16 @@ class C2Decomp
         bool even;
     } DecompInfo;
 
-  public:
     // main default decomposition information for global size nx*ny*nz
     DecompInfo decompMain;
     int        decompBufSize;
 
-  public:
     // Starting/ending index and size of data held by the current processor
     // duplicate 'decompMain', needed by apps to define data structure
     int xStart[3], xEnd[3], xSize[3]; // x-pencil
     int yStart[3], yEnd[3], ySize[3]; // y-pencil
     int zStart[3], zEnd[3], zSize[3]; // z-pencil
 
-  private:
-    // These are the buffers used by MPI_ALLTOALL(V) calls
-    myType* work1_r;
-    myType* work2_r; // Only implementing real for now...
-
-  public:
     C2Decomp(int nx, int ny, int nz, int pRow, int pCol, bool periodicBC[3])
     {
 
@@ -508,18 +508,33 @@ class C2Decomp
         {
             if (work1_r != NULL)
             {
+                #if WORK_VEC == 0
                 delete[] work1_r;
+                #else 
+                work_1b.clear();
+                #endif
                 work1_r = NULL;
             }
 
             if (work2_r != NULL)
             {
+                #if WORK_VEC == 0
                 delete[] work2_r;
+                #else
+                this->work_2b.clear();
+                #endif
                 work2_r = NULL;
             }
 
+            #if WORK_VEC ==0
             work1_r       = new myType[bufSize];
             work2_r       = new myType[bufSize];
+            #else 
+            this->work_1b.resize(bufSize);
+            this->work_2b.resize(bufSize);
+            work1_r = &work_1b[0];
+            work2_r = &work_2b[0];
+            #endif
             decompBufSize = bufSize;
         }
     }
@@ -952,12 +967,20 @@ class C2Decomp
         // --- Free work buffers used for alltoall/alltoallv ---
         if (work1_r)
         {
+            #if WORK_VEC == 0
             delete[] work1_r;
+            #else 
+                work_1b.clear();
+            #endif
             work1_r = nullptr;
         }
         if (work2_r)
         {
+            #if WORK_VEC == 0
             delete[] work2_r;
+            #else 
+                work_2b.clear();
+            #endif
             work2_r = nullptr;
         }
         decompBufSize = 0;
