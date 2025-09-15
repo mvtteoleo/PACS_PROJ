@@ -15,7 +15,7 @@ class C2Decomp
   public:
     // Just assume that we're using double precision all the time
     using myType            = double;
-    MPI_Datatype myType_MPI = mpi_get_type<myType>();
+    const MPI_Datatype myType_MPI = mpi_get_type<myType>();
 
     int myTypeBytes{0};
 
@@ -24,13 +24,10 @@ class C2Decomp
 
     // MPI rank info
     int nRank, nProc;
-
-  public:
     // parameters for 2D Cartesian Topology
     int dims[2], coord[2];
     int periodic[2];
 
-  public:
     MPI_Comm DECOMP_2D_COMM_CART_X = MPI_COMM_NULL, DECOMP_2D_COMM_CART_Y = MPI_COMM_NULL,
              DECOMP_2D_COMM_CART_Z = MPI_COMM_NULL;
     MPI_Comm DECOMP_2D_COMM_ROW = MPI_COMM_NULL, DECOMP_2D_COMM_COL = MPI_COMM_NULL;
@@ -287,11 +284,9 @@ class C2Decomp
             for (int k = 0; k < 6; ++k)
                 neighbor[d][k] = -1;
 
-        // --- Reset global sizes and mpi info (optional but cleans state) ---
+        // --- Reset global sizes and mpi info  ---
         nxGlobal = nyGlobal = nzGlobal = 0;
         nRank = nProc = 0;
-
-        // myTypeBytes can be reset if desired
         myTypeBytes = 0;
     };
 };

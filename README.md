@@ -34,8 +34,7 @@ Some more notes:
     - Static reflections and compile time dispatch
 
 
-TODO 11 Settembre:
-    - Templetize the my2decomp class to make it general and better maybe
+TODO 13 Settembre:
     - Reason the dataflow in order to make the scheleton for at least a Poisson solver and maybe a 
             full solver. It's starting to become close the Test time.
     - Iniziare a ragionare una classe solvePoisson e in generale una classe solve 

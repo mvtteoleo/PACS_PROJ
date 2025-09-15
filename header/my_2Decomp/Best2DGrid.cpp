@@ -11,7 +11,7 @@ void C2Decomp::FindFactor(int num, int* factors, int& nfact)
     // Finding factors <= sqrt(num)
     m     = (int) sqrt((double) num);
     nfact = 1;
-    for (int ip = 1; ip < m + 1; ip++)
+    for (int ip = 1; ip < m + 1; ++ip)
     {
         if (num / ip * ip == num)
         {
@@ -24,7 +24,7 @@ void C2Decomp::FindFactor(int num, int* factors, int& nfact)
     // Finding factors > sqrt(num)
     if (factors[nfact - 1] * factors[nfact - 1] != num)
     {
-        for (int ip = nfact + 1; ip < 2 * nfact + 1; ip++)
+        for (int ip = nfact + 1; ip < 2 * nfact + 1; ++ip)
         {
             factors[ip - 1] = num / factors[2 * nfact - ip];
         }
@@ -32,7 +32,7 @@ void C2Decomp::FindFactor(int num, int* factors, int& nfact)
     }
     else
     {
-        for (int ip = nfact + 1; ip < 2 * nfact; ip++)
+        for (int ip = nfact + 1; ip < 2 * nfact; ++ip)
         {
             factors[ip - 1] = num / factors[2 * nfact - ip - 1];
         }
@@ -66,14 +66,14 @@ void C2Decomp::best2DGrid(int iproc, int& best_pRow, int& best_pCol)
     if (!nRank)
     {
         std::cout << "    factors: ";
-        for (int ip = 0; ip < nfact; ip++)
+        for (int ip = 0; ip < nfact; ++ip)
         {
             std::cout << factors[ip] << " ";
         }
         std::cout << std::endl;
     }
 
-    for (int ip = 0; ip < nfact; ip++)
+    for (int ip = 0; ip < nfact; ++ip)
     {
 
         int row = factors[ip];

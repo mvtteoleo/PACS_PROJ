@@ -94,7 +94,7 @@ class NewDecomp
 
     template <typename Ts>
         requires std::is_integral_v<Ts>
-    void initialize_decomp(Ts nx, Ts ny, Ts nz, bool periodicBC[3])
+    void initialize_decomp(Ts nx, Ts ny, Ts nz, bool periodicBC[3]={false, false, false})
     {
         nx        = static_cast<int>(nx);
         ny        = static_cast<int>(ny);

@@ -72,7 +72,7 @@ void C2Decomp::decomp2DInit(int pRow, int pCol)
 
     decompInfoInit();
 
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 3; ++i)
     {
         // minus 1 to get C style zero start indices
         xStart[i] = decompMain.xst[i] - 1;
@@ -186,8 +186,8 @@ void C2Decomp::decompInfoInit()
     int size2 = decompMain.ysz[0] * decompMain.ysz[1] * decompMain.xsz[2];
     int size3 = decompMain.zsz[0] * decompMain.zsz[1] * decompMain.zsz[2];
 
-    bufSize = max(size2, size3);
-    bufSize = max(size1, bufSize);
+    bufSize = std::max(size2, size3);
+    bufSize = std::max(size1, bufSize);
 
     if (bufSize > decompBufSize)
     {
@@ -249,7 +249,7 @@ void C2Decomp::distribute(int data1, int proc, int* st, int* en, int* sz)
     sz[0] = size1;
     en[0] = size1;
 
-    for (int i = 1; i < nl; i++)
+    for (int i = 1; i < nl; ++i)
     {
         st[i] = st[i - 1] + size1;
         sz[i] = size1;
@@ -258,7 +258,7 @@ void C2Decomp::distribute(int data1, int proc, int* st, int* en, int* sz)
 
     size1 = size1 + 1;
 
-    for (int i = nl; i < proc; i++)
+    for (int i = nl; i < proc; ++i)
     {
         st[i] = en[i - 1] + 1;
         sz[i] = size1;
@@ -274,7 +274,7 @@ void C2Decomp::partition(int nx, int ny, int nz, int* pdim, int* lstart, int* le
 
     int gsize;
 
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 3; ++i)
     {
 
         if (i == 0)
@@ -339,7 +339,7 @@ void C2Decomp::prepareBuffer(DecompInfo* dii)
 
     // MPI_Alltoallv buffer info
 
-    for (int i = 0; i < dims[0]; i++)
+    for (int i = 0; i < dims[0]; ++i)
     {
         dii->x1cnts[i] = dii->x1dist[i] * dii->xsz[1] * dii->xsz[2];
         dii->y1cnts[i] = dii->y1dist[i] * dii->ysz[0] * dii->ysz[2];
@@ -355,7 +355,7 @@ void C2Decomp::prepareBuffer(DecompInfo* dii)
         }
     }
 
-    for (int i = 0; i < dims[1]; i++)
+    for (int i = 0; i < dims[1]; ++i)
     {
         dii->y2cnts[i] = dii->ysz[0] * dii->y2dist[i] * dii->ysz[2];
         dii->z2cnts[i] = dii->zsz[0] * dii->zsz[1] * dii->z2dist[i];

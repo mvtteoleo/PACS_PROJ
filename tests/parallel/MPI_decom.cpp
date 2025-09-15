@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
             mesh(0, j) = left[j];
 
     // Print results rank by rank
-    for (int r = 0; r < decomp.size(); ++r)
+    for (int r = 0; r < decomp.totRank(); ++r)
     {
         MPI_Barrier(MPI_COMM_WORLD);
         if (decomp.rank() == r)
