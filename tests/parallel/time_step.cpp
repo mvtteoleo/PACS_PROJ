@@ -25,7 +25,7 @@ int main(int argc, char* argv[])
 {
     // MPI AND DOMAIN DECOMPOSITION LOGIC
     NewDecomp<Real> decomposer(argc, argv);
-      
+
     // GEOMETRY CONSTRAINTS
     constexpr std::size_t           N_DIMS = 3;
     std::size_t                     nx = 10, ny = 10, nz = 10;
@@ -46,13 +46,13 @@ int main(int argc, char* argv[])
     auto N = std::max({nx, ny, nz});
 
     // Buffer and plans for the FFT
-    Real*     bufft    = (Real*) fftw_malloc(sizeof(Real) * N);
+    Real* bufft = (Real*) fftw_malloc(sizeof(Real) * N);
     // Plans for x, y, z FFT
-    fftw_plan fft_x  = fftw_plan_r2r_1d(N, bufft, bufft, fft_type::DST, FFTW_ESTIMATE);
+    fftw_plan fft_x  = fftw_plan_r2r_1d(N, bufft, bufft, fft_type::DCT, FFTW_ESTIMATE);
     fftw_plan ifft_x = fftw_plan_r2r_1d(N, bufft, bufft, fft_type::DST, FFTW_ESTIMATE);
-    fftw_plan fft_y  = fftw_plan_r2r_1d(N, bufft, bufft, fft_type::DST, FFTW_ESTIMATE);
+    fftw_plan fft_y  = fftw_plan_r2r_1d(N, bufft, bufft, fft_type::DCT, FFTW_ESTIMATE);
     fftw_plan ifft_y = fftw_plan_r2r_1d(N, bufft, bufft, fft_type::DST, FFTW_ESTIMATE);
-    fftw_plan fft_z  = fftw_plan_r2r_1d(N, bufft, bufft, fft_type::DST, FFTW_ESTIMATE);
+    fftw_plan fft_z  = fftw_plan_r2r_1d(N, bufft, bufft, fft_type::DCT, FFTW_ESTIMATE);
     fftw_plan ifft_z = fftw_plan_r2r_1d(N, bufft, bufft, fft_type::DST, FFTW_ESTIMATE);
 
     // Buffer for the transpositions

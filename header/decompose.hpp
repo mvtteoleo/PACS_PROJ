@@ -94,7 +94,7 @@ class NewDecomp
 
     template <typename Ts>
         requires std::is_integral_v<Ts>
-    void initialize_decomp(Ts nx, Ts ny, Ts nz, bool periodicBC[3]={false, false, false})
+    void initialize_decomp(Ts nx, Ts ny, Ts nz, bool periodicBC[3] = {false, false, false})
     {
         nx        = static_cast<int>(nx);
         ny        = static_cast<int>(ny);
@@ -114,7 +114,10 @@ class NewDecomp
     /*
      * Get global sizes
      */
-    std::tuple<int, int, int> globSizes() const { return {c2d->nxGlobal, c2d->nyGlobal, c2d->nzGlobal}; }
+    std::tuple<int, int, int> globSizes() const
+    {
+        return {c2d->nxGlobal, c2d->nyGlobal, c2d->nzGlobal};
+    }
 
     /*
      * Get start from the decomposition done by 2Decomp
