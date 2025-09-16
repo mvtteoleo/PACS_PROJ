@@ -21,7 +21,7 @@ namespace numPDE
     enum BC
     {
         NeuHomo,
-        DirHomo,
+        DirHomo
         // No support for periodic for the moment
         // Periodic
     };
@@ -47,15 +47,16 @@ namespace numPDE
     class FastPoissonSolver
     {
       public:
-        FastPoissonSolver(BoudaryConditions& Bcs)
-            : m_Decomp(NewDecomp::get_instance()), m_BCs{Bcs}
+        using type_vale = T;
+        FastPoissonSolver(NewDecomp<T>& decomp, BoudaryConditions& Bcs)
+            : m_Decomp(decomp), m_BCs{Bcs}
         {
 
-            auto& Lx = m_Decomp.xSize()[0];
-            auto& Ly = m_Decomp.ySize()[1];
-            auto& Lz = m_Decomp.zSize()[2];
+            int Lx = m_Decomp.xSize()[0];
+            int Ly = m_Decomp.ySize()[1];
+            int Lz = m_Decomp.zSize()[2];
 
-            auto buf_size = int{std::max({Lx, Ly, Lz})};
+            int  buf_size = std::max({Lx, Ly, Lz});
             auto y_size   = m_Decomp.yDims();
             auto z_size   = m_Decomp.zDims();
 
@@ -108,6 +109,7 @@ namespace numPDE
                    numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& out)
         {
             std::cout << "Ciao" << in[0] << " " << std::endl;
+            m_Decomp.transposeX2Y(in, in);
             // FFT x
             // X2Y
             // FFT y
@@ -126,7 +128,7 @@ namespace numPDE
         }
 
       private:
-        NewDecomp&     m_Decomp;
+        NewDecomp<T>&     m_Decomp;
         BoudaryConditions m_BCs;
         T*                m_fftbuf   = nullptr;
         T*                m_Y_Pencil = nullptr;

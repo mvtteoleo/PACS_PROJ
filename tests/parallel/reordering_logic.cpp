@@ -32,7 +32,7 @@ int main(int argc, char* argv[])
 
     if (!mpiRank) std::cout << "initializing " << std::endl;
 
-    decomp.initialize_decomp(nx, ny, nz, periodicBC);
+    decomp.initialize_decomp(nx, ny, nz);
 
     std::array<int, 3> xSizeArr, ySizeArr, zSizeArr;
     for (int i = 0; i < 3; ++i)

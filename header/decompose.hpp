@@ -27,7 +27,7 @@
 #include "tensors.hpp"
 
 // --- Main decomposition class ---
-template <typename decType = double>
+template <typename value_type = double>
 class NewDecomp
 {
   private:
@@ -50,16 +50,17 @@ class NewDecomp
     }
 
     // Delete copy/move to enforce singleton
-    NewDecomp(const NewDecomp&)            = delete;
-    NewDecomp& operator=(const NewDecomp&) = delete;
-    NewDecomp(NewDecomp&&)                 = delete;
-    NewDecomp& operator=(NewDecomp&&)      = delete;
+    NewDecomp(const NewDecomp&)            = default;
+    NewDecomp& operator=(const NewDecomp&) = default;
+    NewDecomp(NewDecomp&&)                 = default;
+    NewDecomp& operator=(NewDecomp&&)      = default;
     ~NewDecomp()
     {
         if (cart_comm != MPI_COMM_NULL) MPI_Comm_free(&cart_comm);
         if (c2d.get() != nullptr) c2d->decomp2DFinalize();
         MPI_Finalize();
     }
+
 
     enum class neighbour_directions : uint8_t
     {
@@ -94,13 +95,14 @@ class NewDecomp
 
     template <typename Ts>
         requires std::is_integral_v<Ts>
-    void initialize_decomp(Ts nx, Ts ny, Ts nz, bool periodicBC[3] = {false, false, false})
+    void initialize_decomp(Ts nx, Ts ny, Ts nz)
     {
         nx        = static_cast<int>(nx);
         ny        = static_cast<int>(ny);
         nz        = static_cast<int>(nz);
         int& pRow = dims[0];
         int& pCol = dims[1];
+          bool periodicBC[3] ={false, false, false};
         c2d       = std::make_unique<C2Decomp>(nx, ny, nz, pRow, pCol, periodicBC);
         if (pCol != dims[1] or pRow != dims[0])
         {
@@ -110,7 +112,6 @@ class NewDecomp
             MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
         }
     }
-
     /*
      * Get global sizes
      */
@@ -140,27 +141,30 @@ class NewDecomp
     auto yEnd() const { return std::span<const int>(&c2d->yEnd[0], 3); }
     auto zEnd() const { return std::span<const int>(&c2d->zEnd[0], 3); }
 
+    int yDims() const { return c2d->ySize[0] * c2d->ySize[1] * c2d->ySize[2];}
+    int zDims() const { return c2d->zSize[0] * c2d->zSize[1] * c2d->zSize[2];}
+
     /*
      * Transpositions, just a templates overload for the moment that has the check for type mismatch
      */
-    void transposeX2Y(decType* src, decType* dst)
+    void transposeX2Y(value_type* src, value_type* dst)
     {
-        static_assert(std::is_same_v<decType, double>, "Currently only double supported");
+        static_assert(std::is_same_v<value_type, double>, "Currently only double supported");
         c2d->transposeX2Y_MajorIndex(src, dst);
     }
-    void transposeY2Z(decType* src, decType* dst)
+    void transposeY2Z(value_type* src, value_type* dst)
     {
-        static_assert(std::is_same_v<decType, double>, "Currently only double supported");
+        static_assert(std::is_same_v<value_type, double>, "Currently only double supported");
         c2d->transposeY2Z_MajorIndex(src, dst);
     }
-    void transposeZ2Y(decType* src, decType* dst)
+    void transposeZ2Y(value_type* src, value_type* dst)
     {
-        static_assert(std::is_same_v<decType, double>, "Currently only double supported");
+        static_assert(std::is_same_v<value_type, double>, "Currently only double supported");
         c2d->transposeZ2Y_MajorIndex(src, dst);
     }
-    void transposeY2X(decType* src, decType* dst)
+    void transposeY2X(value_type* src, value_type* dst)
     {
-        static_assert(std::is_same_v<decType, double>, "Currently only double supported");
+        static_assert(std::is_same_v<value_type, double>, "Currently only double supported");
         c2d->transposeY2X_MajorIndex(src, dst);
     }
 

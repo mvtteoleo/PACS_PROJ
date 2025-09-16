@@ -14,7 +14,7 @@ class C2Decomp
 
   public:
     // Just assume that we're using double precision all the time
-    using myType            = double;
+    using myType                  = double;
     const MPI_Datatype myType_MPI = mpi_get_type<myType>();
 
     int myTypeBytes{0};
@@ -287,6 +287,6 @@ class C2Decomp
         // --- Reset global sizes and mpi info  ---
         nxGlobal = nyGlobal = nzGlobal = 0;
         nRank = nProc = 0;
-        myTypeBytes = 0;
+        myTypeBytes   = 0;
     };
 };

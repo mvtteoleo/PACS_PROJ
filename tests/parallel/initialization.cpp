@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
     bool periodicBC[3] = {true, true, true};
 
     if (!mpiRank) cout << "Initializing C2Decomp...\n";
-    decomp.initialize_decomp(nx, ny, nz, periodicBC);
+    decomp.initialize_decomp(nx, ny, nz);
     if (!mpiRank) cout << "C2Decomp initialized.\n";
 
     // copy sizes (local decomposition sizes)
