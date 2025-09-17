@@ -35,7 +35,6 @@ namespace numPDE
     };
 
     template <typename T, std::size_t N_DIMS = DEF_DIM>
-        requires std::is_floating_point_v<T>
     class Mesh
     {
       public:
@@ -53,20 +52,6 @@ namespace numPDE
             }
         }
 
-        template <typename Ts>
-            requires std::is_integral_v<Ts>
-        Mesh(const std::vector<T>& x0, const std::vector<size_t>& n_nodes, T h)
-        {
-            assert(x0.size() == n_nodes.size() && x0.size() == N_DIMS);
-            for (std::size_t i = 0; i < N_DIMS; ++i)
-            {
-                X0[i]        = x0[i];
-                N_nodes[i]   = n_nodes[i];
-                Delta_x_i[i] = h;
-                X_end[i]     = X0[i] + h * static_cast<T>(N_nodes[i] - 1);
-            }
-            H = h;
-        }
         template <typename Ts>
             requires std::is_integral_v<Ts>
         Mesh(const std::vector<T>& x0, const std::vector<Ts>& n_nodes, T h)

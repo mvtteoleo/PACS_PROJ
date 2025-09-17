@@ -2,9 +2,11 @@
 #include "compiler_directives.hpp"
 #include "decompose.hpp"
 #include "tensors.hpp"
+#include <algorithm>
 #include <cstddef>
 #include <fftw3.h>
 #include <memory>
+#include <omp.h>
 #include <random>
 #include <type_traits>
 #include <utility>
@@ -44,12 +46,20 @@ namespace numPDE
     };
 
     template <typename T = double>
+    struct Constants
+    {
+        T dx{1};
+        T dy{1};
+        T dz{1};
+    };
+
+    template <typename T = double>
     class FastPoissonSolver
     {
       public:
         using type_vale = T;
-        FastPoissonSolver(NewDecomp<T>& decomp, BoudaryConditions& Bcs)
-            : m_Decomp(decomp), m_BCs{Bcs}
+        FastPoissonSolver(NewDecomp<T>& decomp, BoudaryConditions& Bcs, Constants<T> constants)
+            : m_Decomp{decomp}, m_BCs{Bcs}, m_constants{constants}
         {
 
             int Lx = m_Decomp.xSize()[0];
@@ -100,6 +110,7 @@ namespace numPDE
             fftw_destroy_plan(fft_y);
             fftw_destroy_plan(fft_z);
             fftw_free(m_fftbuf);
+            fftw_free(m_X_Pencil);
             fftw_free(m_Y_Pencil);
             fftw_free(m_Z_Pencil);
         };
@@ -141,45 +152,107 @@ namespace numPDE
                     auto start = static_cast<int>(m_BCs.BC_z == DirHomo);
                     int  ii    = start + (jp * m_Decomp.zSize()[0] + ip) * m_Decomp.zSize()[2];
                     std::copy_n(m_Z_Pencil + ii, m_Nz, m_fftbuf);
-                    fftw_execute(fft_y);
+                    fftw_execute(fft_z);
                     std::copy_n(m_fftbuf, m_Nz, m_Z_Pencil + ii);
                 }
 
             // BACKSUB
-            auto eig_neu = [](int index, T h) -> T
-            { return (2.0 * std::cos(index * h) - 2.0) / (h * h); };
-            auto eig_dir = [](int index, T h) -> T
-            { return (2.0 * std::cos(index * h) - 2.0) / (h * h); };
+            auto eig_neu = [](int index, T h, int N) -> T
+            { return (2.0 - 2.0 * std::cos(M_PI * index / (N - 1))) / (h * h); };
+            auto eig_dir = [](int index, T h, int N) -> T
+            { return (2.0 * std::cos(M_PI * index / (N - 1)) - 2.0) / (h * h); };
 
-            for (int jp = 0; jp < zSizeArr[1]; ++jp)
-                for (int ip = 0; ip < zSizeArr[0]; ++ip)
-                    for (int kp = 0; kp < zSizeArr[2]; ++kp)
+            auto eig_x = (m_BCs.BC_x == NeuHomo) ? eig_neu : eig_dir;
+            auto eig_y = (m_BCs.BC_y == NeuHomo) ? eig_neu : eig_dir;
+            auto eig_z = (m_BCs.BC_z == NeuHomo) ? eig_neu : eig_dir;
+
+            auto& dx = m_constants.dx;
+            auto& dy = m_constants.dy;
+            auto& dz = m_constants.dz;
+
+            for (int jp = 0; jp < m_Decomp.zSize()[1]; ++jp)
+            {
+                int jglob   = m_Decomp.zStart()[1] + jp;
+                T   lambdaY = eig_y(jglob, dy, m_Decomp.ySize()[1]);
+                for (int ip = 0; ip < m_Decomp.zSize()[0]; ++ip)
+                {
+                    int iglob   = m_Decomp.zStart()[0] + ip;
+                    T   lambdaX = eig_x(iglob, dx, m_Decomp.xSize()[0]);
+                    for (int kp = 0; kp < m_Decomp.zSize()[2]; ++kp)
                     {
-                        int    ii    = jp * zSizeArr[2] * zSizeArr[0] + ip * zSizeArr[2] + kp;
-                        int    iglob = m_Decomp.zStart()[0] + ip;
-                        int    jglob = m_Decomp.zStart()[1] + jp;
-                        int    kglob = m_Decomp.zStart()[2] + kp;
-                        double denom = eig(iglob) + eig(jglob) + eig(kglob);
-                        u3[ii]       = u3[ii] / denom;
-                    }
 
-            // set mean mode to 0 (as in serial)
+                        int ii = jp * m_Decomp.zSize()[2] * m_Decomp.zSize()[0] +
+                                 ip * m_Decomp.zSize()[2] + kp;
+
+                        int kglob   = m_Decomp.zStart()[2] + kp;
+                        T   lambdaZ = eig_z(kglob, dz, m_Decomp.zSize()[0]);
+
+                        T denom        = lambdaZ + lambdaX + lambdaY;
+                        m_Z_Pencil[ii] = m_Z_Pencil[ii] / denom;
+                    }
+                }
+            }
+
+            // set mean mode to 0
             if (m_Decomp.zStart()[0] == 0 && m_Decomp.zStart()[1] == 0 && m_Decomp.zStart()[2] == 0)
-                u3[0] = 0.0;
-            //  - Lambda Dirich and Neu !!
+                m_Z_Pencil[0] = 0.0;
             // IFFT z
+            for (int jp = 0; jp < m_Decomp.zSize()[1]; ++jp)
+                for (int ip = 0; ip < m_Decomp.zSize()[0]; ++ip)
+                {
+                    auto start = static_cast<int>(m_BCs.BC_z == DirHomo);
+                    int  ii    = start + (jp * m_Decomp.zSize()[0] + ip) * m_Decomp.zSize()[2];
+                    std::copy_n(m_Z_Pencil + ii, m_Nz, m_fftbuf);
+                    fftw_execute(fft_z);
+                    std::copy_n(m_fftbuf, m_Nz, m_Z_Pencil + ii);
+                }
             // Z2Y
+            m_Decomp.transposeZ2Y(m_Z_Pencil, m_Y_Pencil);
             // IFFT y
+            for (int ip = 0; ip < m_Decomp.ySize()[0]; ++ip)
+                for (int kp = 0; kp < m_Decomp.ySize()[2]; ++kp)
+                {
+                    auto start = static_cast<int>(m_BCs.BC_y == DirHomo);
+                    int  ii    = start + (ip * m_Decomp.ySize()[2] + kp) * m_Decomp.ySize()[1];
+                    std::copy_n(m_Y_Pencil + ii, m_Ny, m_fftbuf);
+                    fftw_execute(fft_y);
+                    std::copy_n(m_fftbuf, m_Ny, m_Y_Pencil + ii);
+                }
             // Y2X
+            m_Decomp.transposeY2X(m_Y_Pencil, m_X_Pencil);
             // IFFT x
+            for (int kp = 0; kp < m_Decomp.xSize()[2]; ++kp)
+                for (int jp = 0; jp < m_Decomp.xSize()[1]; ++jp)
+                {
+                    auto start = static_cast<int>(m_BCs.BC_x == DirHomo);
+                    // +1 cause there are ghost points on the sides
+                    int ii = start + m_Decomp.xSize()[1] * (jp + m_Decomp.xSize()[2] * kp);
+                    std::copy_n(m_X_Pencil + ii, m_Nx, m_fftbuf);
+                    fftw_execute(fft_x);
+                    std::copy_n(m_fftbuf, m_Nx, m_X_Pencil + ii);
+                }
             // SCALE BACK
-            //  - /(2 * (N-1)) for Neumann / EVEN
-            //  - /(2 * (N-1)) for Dirich  / ODD
+            T scale_x = (2 * (m_Decomp.xSize()[0] - 1));
+            T scale_y = (2 * (m_Decomp.ySize()[1] - 1));
+            T scale_z = (2 * (m_Decomp.zSize()[2] - 1));
+            T scale   = 1 / (scale_z * scale_y * scale_x);
+
+            for (int kp = 0; kp < m_Decomp.xSize()[2]; ++kp)
+                for (int jp = 0; jp < m_Decomp.xSize()[1]; ++jp)
+                {
+                    auto start = static_cast<int>(m_BCs.BC_x == DirHomo);
+                    // +1 cause there are ghost points on the sides
+                    int ii = start + m_Decomp.xSize()[1] * (jp + m_Decomp.xSize()[2] * kp);
+                    std::transform(m_X_Pencil + ii, m_X_Pencil + ii + m_Decomp.xSize()[0],
+                                   out.ptr_at(start, jp + 1, kp + 1),
+                                   [scale](T v) { return v * scale; });
+                }
         }
 
       private:
         NewDecomp<T>&     m_Decomp;
         BoudaryConditions m_BCs;
+        Constants<T>&     m_constants;
         T*                m_fftbuf   = nullptr;
         T*                m_X_Pencil = nullptr;
         T*                m_Y_Pencil = nullptr;

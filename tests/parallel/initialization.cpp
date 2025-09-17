@@ -13,14 +13,13 @@
 #include <numbers>
 #include <vector>
 
-using namespace std;
-
 #include "../../header/MY_LIB.hpp"
 #include "../../header/decompose.hpp"
 
 int main(int argc, char* argv[])
 {
 
+#if 0
     // auto& decomp = NewDecomp::get_instance(argc, argv);
     NewDecomp<double> decomp(argc, argv);
 
@@ -271,4 +270,5 @@ int main(int argc, char* argv[])
     if (fft_z) fftw_destroy_plan(fft_z);
     if (ifft_z) fftw_destroy_plan(ifft_z);
     fftw_free(xbuf);
+#endif
 }

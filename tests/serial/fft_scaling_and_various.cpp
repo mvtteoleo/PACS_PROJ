@@ -115,14 +115,14 @@ int main(int argc, char* argv[])
     for (std::size_t j = 0; j < N_p; ++j)
     {
         auto x  = j * h;
-        u_ex[j] = std::cos(M_PI * x / L);
+        u_ex[j] = std::cos(0.5 * M_PI * x / L);
     }
 
     // ---- Fill RHS f(x) ----
     for (std::size_t j = 0; j < N_p; ++j)
     {
         auto x = j * h;
-        f[j]   = (M_PI / L) * (M_PI / L) * (std::cos(M_PI * x / L));
+        f[j]   = (0.5 * M_PI / L) * (0.5 * M_PI / L) * (std::cos(0.5 * M_PI * x / L));
     }
     /*
     // Full u_ex initialization (polynomial)
