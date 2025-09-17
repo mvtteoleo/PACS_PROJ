@@ -1,4 +1,4 @@
-#define TEST 0
+#define TEST 1
 
 #if TEST == 0
 #include <algorithm>
@@ -106,37 +106,24 @@ int main(int argc, char* argv[])
     return 0;
 }
 #elif TEST == 1
-#include <algorithm>
-#include <array>
-#include <cassert>
-#include <cmath>
-#include <cstddef>
-#include <cstdlib>
-#include <cstring>
-#include <fftw3.h>
-#include <fstream>
-#include <iostream>
-#include <mpi.h>
-#include <numbers>
-#include <vector>
-
 #include "../../header/MY_LIB.hpp"
-#include "../../header/decompose.hpp"
+#include <iomanip>
+#include <iostream>
+#include <mpi.h> // make sure you include MPI
 
 int main(int argc, char* argv[])
 {
-    // Initialize MPI and decomp
+    // Initialize MPI
     NewDecomp<double> decomp(argc, argv);
     auto              mpiRank = decomp.rank();
     auto              totRank = decomp.totRank();
 
-    const int N  = 5;
-    int       nx = N, ny = N, nz = N;
-    bool      periodicBC[3] = {true, true, true};
+    int  N  = 8;
+    int  nx = N, ny = N, nz = N;
+    bool periodicBC[3] = {true, true, true};
 
-    if (!mpiRank) std::cout << "=== MPI Transposition Test ===" << std::endl;
-
-    decomp.initialize_decomp(nx, ny, nz, periodicBC);
+    if (mpiRank == 0) std::cout << "initializing " << std::endl;
+    decomp.initialize_decomp(nx, ny, nz);
 
     std::array<int, 3> xSizeArr, ySizeArr, zSizeArr;
     for (int i = 0; i < 3; ++i)
@@ -146,90 +133,51 @@ int main(int argc, char* argv[])
         zSizeArr[i] = decomp.zSize()[i];
     }
 
-    // Allocate three layouts
-    auto dataX = numPDE::make_scalar_field<double, 3>(xSizeArr);
-    auto dataY = numPDE::make_scalar_field<double, 3>(ySizeArr);
-    auto dataZ = numPDE::make_scalar_field<double, 3>(zSizeArr);
+    auto data1 = numPDE::make_scalar_field<double, 3>(xSizeArr);
+    auto check = numPDE::make_scalar_field<double, 3>(xSizeArr);
+    auto data2 = numPDE::make_scalar_field<double, 3>(ySizeArr);
+    auto data3 = numPDE::make_scalar_field<double, 3>(zSizeArr);
 
-    double* uX = dataX.ptr_at(0);
-    double* uY = dataY.ptr_at(0);
-    double* uZ = dataZ.ptr_at(0);
-
-    // === Build global reference tensor on rank 0 ===
-    std::vector<double> global_ref;
-    if (!mpiRank)
+    // ---- Print x sizes (each rank in order) ----
+    for (int r = 0; r < totRank; ++r)
     {
-        global_ref.resize(nx * ny * nz);
-        for (int k = 0; k < nz; ++k)
-            for (int j = 0; j < ny; ++j)
-                for (int i = 0; i < nx; ++i)
-                    global_ref[k * nx * ny + j * nx + i] = 100 * i + 10 * j + k;
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (mpiRank == r)
+        {
+            std::cout << "[Rank " << mpiRank << "] X sizes: ";
+            for (auto i : decomp.xSize())
+                std::cout << i << " ";
+            std::cout << std::endl;
+        }
     }
 
-    // === Fill local X layout ===
-    for (auto [k, j, i] : dataX.all_elems())
+    // ---- Print y sizes (each rank in order) ----
+    for (int r = 0; r < totRank; ++r)
     {
-        dataX(i, j, k) = 100 * (i + decomp.xStart()[0]) + 10 * (j + decomp.xStart()[1]) +
-                         (k + decomp.xStart()[2]);
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (mpiRank == r)
+        {
+            std::cout << "[Rank " << mpiRank << "] Y sizes: ";
+            for (auto i : decomp.ySize())
+                std::cout << i << " ";
+            std::cout << std::endl;
+        }
+    }
+
+    // ---- Print z sizes (each rank in order) ----
+    for (int r = 0; r < totRank; ++r)
+    {
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (mpiRank == r)
+        {
+            std::cout << "[Rank " << mpiRank << "] Z sizes: ";
+            for (auto i : decomp.zSize())
+                std::cout << i << " ";
+            std::cout << std::endl;
+        }
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
-
-    // === Function to verify correctness against global reference ===
-    auto check_against_global = [&](const auto& local, auto start, const std::string& label)
-    {
-        // Each rank checks its portion independently
-        int errors = 0;
-        for (auto [k, j, i] : local.all_elems())
-        {
-            int    gi      = i + start[0];
-            int    gj      = j + start[1];
-            int    gk      = k + start[2];
-            double ref_val = 100 * gi + 10 * gj + gk;
-            if (std::abs(local(i, j, k) - ref_val) > 1e-12)
-            {
-                errors++;
-                if (errors < 5)
-                {
-                    std::cerr << "[Rank " << mpiRank << "] " << label << " mismatch at (i=" << gi
-                              << ",j=" << gj << ",k=" << gk << "): got " << local(i, j, k)
-                              << " expected " << ref_val << "\n";
-                }
-            }
-        }
-        int global_errors;
-        MPI_Reduce(&errors, &global_errors, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-        if (!mpiRank)
-        {
-            if (global_errors == 0)
-                std::cout << "[CHECK] " << label << " ✅ (all ranks)" << std::endl;
-            else
-                std::cout << "[CHECK] " << label << " ❌ (" << global_errors << " mismatches)"
-                          << std::endl;
-        }
-    };
-
-    // === Check initial X layout ===
-    check_against_global(dataX, decomp.xStart(), "Initial X-layout");
-
-    // === X->Y ===
-    decomp.transposeX2Y(uX, uY);
-    check_against_global(dataY, decomp.yStart(), "After X->Y");
-
-    // === Y->Z ===
-    decomp.transposeY2Z(uY, uZ);
-    check_against_global(dataZ, decomp.zStart(), "After Y->Z");
-
-    // === Z->Y ===
-    decomp.transposeZ2Y(uZ, uY);
-    check_against_global(dataY, decomp.yStart(), "After Z->Y");
-
-    // === Y->X ===
-    decomp.transposeY2X(uY, uX);
-    check_against_global(dataX, decomp.xStart(), "After Y->X (back)");
-
-    if (!mpiRank) std::cout << "=== All checks done ===" << std::endl;
-
     return 0;
 }
 

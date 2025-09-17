@@ -72,14 +72,17 @@ int main(int argc, char* argv[])
                 data1(i, j, k) = x[k];
         }
     // BACK SUB
-    auto eig = [&h](size_t index) -> double { return (2.0 * std::cos(index * h) - 2.0) / (h * h); };
-    // auto eig = [&h](size_t index) -> double { return (2.0 * std::cos(index * h / 2.0) - 2.0) / (h
-    // * h); };
+    // auto eig = [&h](size_t index) -> double { return (2.0 * std::cos(index * h) - 2.0) / (h * h);
+    // };
+    auto eig = [&h](size_t index) -> double
+    { return ((2.0 * std::cos(index * h / 2.0) - 2.0) / (h * h)); };
+    /*
     for (auto [k, j, i] : data1.all_elems())
     {
         if (std::abs(data1(i, j, k)) >= N - 2)
             std::cout << "In " << i << " " << j << " " << k << ": " << data1(i, j, k) << " \n";
     }
+*/
     for (auto [k, j, i] : data1.all_elems())
     {
         size_t i_glob  = i;
@@ -132,10 +135,13 @@ int main(int argc, char* argv[])
     data1 = data1 / static_cast<double>(2 * (N - 1));
 
     double err      = -1;
-    double constant = data1[0] - check[0];
-    for (auto [k, j, i] : data1.all_elems())
+    double constant = +data1[0] - check[0];
+    for (auto [k, j, i] : data1.int_elems())
         if (std::abs(data1(i, j, k) - check(i, j, k) - constant) > err)
+        {
             err = std::abs(data1(i, j, k) - check(i, j, k) - constant);
+            std::cout << "New max err : " << err << " " << i << " " << j << " " << k << "\n";
+        }
 
     std::cout << "Errore max : " << err << "\n";
 

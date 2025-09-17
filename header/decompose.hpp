@@ -61,7 +61,6 @@ class NewDecomp
         MPI_Finalize();
     }
 
-
     enum class neighbour_directions : uint8_t
     {
         TOP    = 0,
@@ -97,13 +96,13 @@ class NewDecomp
         requires std::is_integral_v<Ts>
     void initialize_decomp(Ts nx, Ts ny, Ts nz)
     {
-        nx        = static_cast<int>(nx);
-        ny        = static_cast<int>(ny);
-        nz        = static_cast<int>(nz);
-        int& pRow = dims[0];
-        int& pCol = dims[1];
-          bool periodicBC[3] ={false, false, false};
-        c2d       = std::make_unique<C2Decomp>(nx, ny, nz, pRow, pCol, periodicBC);
+        nx                 = static_cast<int>(nx);
+        ny                 = static_cast<int>(ny);
+        nz                 = static_cast<int>(nz);
+        int& pRow          = dims[0];
+        int& pCol          = dims[1];
+        bool periodicBC[3] = {false, false, false};
+        c2d                = std::make_unique<C2Decomp>(nx, ny, nz, pRow, pCol, periodicBC);
         if (pCol != dims[1] or pRow != dims[0])
         {
             std::cerr << "Warning: Row or column values changed!!\n";
@@ -113,11 +112,15 @@ class NewDecomp
         }
     }
     /*
-     * Get global sizes
+     * Get global number of elements in each pencil
+     * WARNING!! DOES NOT INCLUDE THE GHOST POINTS!!
      */
+    int xDims() const { return c2d->xSize[0] * c2d->xSize[1] * c2d->xSize[2]; }
+    int yDims() const { return c2d->ySize[0] * c2d->ySize[1] * c2d->ySize[2]; }
+    int zDims() const { return c2d->zSize[0] * c2d->zSize[1] * c2d->zSize[2]; }
     std::tuple<int, int, int> globSizes() const
     {
-        return {c2d->nxGlobal, c2d->nyGlobal, c2d->nzGlobal};
+        return {this->xDims(), this->yDims(), this->zDims()};
     }
 
     /*
@@ -140,9 +143,6 @@ class NewDecomp
     auto xEnd() const { return std::span<const int>(&c2d->xEnd[0], 3); }
     auto yEnd() const { return std::span<const int>(&c2d->yEnd[0], 3); }
     auto zEnd() const { return std::span<const int>(&c2d->zEnd[0], 3); }
-
-    int yDims() const { return c2d->ySize[0] * c2d->ySize[1] * c2d->ySize[2];}
-    int zDims() const { return c2d->zSize[0] * c2d->zSize[1] * c2d->zSize[2];}
 
     /*
      * Transpositions, just a templates overload for the moment that has the check for type mismatch

@@ -56,12 +56,13 @@ namespace numPDE
             int Ly = m_Decomp.ySize()[1];
             int Lz = m_Decomp.zSize()[2];
 
-            int  buf_size = std::max({Lx, Ly, Lz});
-            auto y_size   = m_Decomp.yDims();
-            auto z_size   = m_Decomp.zDims();
+            int buf_size = std::max({Lx, Ly, Lz});
+            // Sizes without ghost points
+            auto [x_size, y_size, z_size] = decomp.globSizes();
 
             // Allocate memory for the buffers
             m_fftbuf   = static_cast<T*>(fftw_malloc(sizeof(T) * buf_size));
+            m_X_Pencil = (T*) fftw_malloc(sizeof(T) * x_size);
             m_Y_Pencil = (T*) fftw_malloc(sizeof(T) * y_size);
             m_Z_Pencil = (T*) fftw_malloc(sizeof(T) * z_size);
 
@@ -108,14 +109,63 @@ namespace numPDE
         void solve(numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& in,
                    numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& out)
         {
-            std::cout << "Ciao" << in[0] << " " << std::endl;
-            m_Decomp.transposeX2Y(in, in);
             // FFT x
+            for (int kp = 0; kp < m_Decomp.xSize()[2]; ++kp)
+                for (int jp = 0; jp < m_Decomp.xSize()[1]; ++jp)
+                {
+                    auto start = static_cast<int>(m_BCs.BC_x == DirHomo);
+                    // +1 cause there are ghost points on the sides
+                    std::copy_n(in.ptr_at(start, jp + 1, kp + 1), m_Nx, m_fftbuf);
+                    fftw_execute(fft_x);
+                    int ii = start + m_Decomp.xSize()[1] * (jp + m_Decomp.xSize()[2] * kp);
+                    std::copy_n(m_fftbuf, m_Nx, m_X_Pencil + ii);
+                }
             // X2Y
+            m_Decomp.transposeX2Y(m_X_Pencil, m_Y_Pencil);
             // FFT y
+            for (int ip = 0; ip < m_Decomp.ySize()[0]; ++ip)
+                for (int kp = 0; kp < m_Decomp.ySize()[2]; ++kp)
+                {
+                    auto start = static_cast<int>(m_BCs.BC_y == DirHomo);
+                    int  ii    = start + (ip * m_Decomp.ySize()[2] + kp) * m_Decomp.ySize()[1];
+                    std::copy_n(m_Y_Pencil + ii, m_Ny, m_fftbuf);
+                    fftw_execute(fft_y);
+                    std::copy_n(m_fftbuf, m_Ny, m_Y_Pencil + ii);
+                }
             // Y2Z
+            m_Decomp.transposeY2Z(m_Y_Pencil, m_Z_Pencil);
             // FFT z
+            for (int jp = 0; jp < m_Decomp.zSize()[1]; ++jp)
+                for (int ip = 0; ip < m_Decomp.zSize()[0]; ++ip)
+                {
+                    auto start = static_cast<int>(m_BCs.BC_z == DirHomo);
+                    int  ii    = start + (jp * m_Decomp.zSize()[0] + ip) * m_Decomp.zSize()[2];
+                    std::copy_n(m_Z_Pencil + ii, m_Nz, m_fftbuf);
+                    fftw_execute(fft_y);
+                    std::copy_n(m_fftbuf, m_Nz, m_Z_Pencil + ii);
+                }
+
             // BACKSUB
+            auto eig_neu = [](int index, T h) -> T
+            { return (2.0 * std::cos(index * h) - 2.0) / (h * h); };
+            auto eig_dir = [](int index, T h) -> T
+            { return (2.0 * std::cos(index * h) - 2.0) / (h * h); };
+
+            for (int jp = 0; jp < zSizeArr[1]; ++jp)
+                for (int ip = 0; ip < zSizeArr[0]; ++ip)
+                    for (int kp = 0; kp < zSizeArr[2]; ++kp)
+                    {
+                        int    ii    = jp * zSizeArr[2] * zSizeArr[0] + ip * zSizeArr[2] + kp;
+                        int    iglob = m_Decomp.zStart()[0] + ip;
+                        int    jglob = m_Decomp.zStart()[1] + jp;
+                        int    kglob = m_Decomp.zStart()[2] + kp;
+                        double denom = eig(iglob) + eig(jglob) + eig(kglob);
+                        u3[ii]       = u3[ii] / denom;
+                    }
+
+            // set mean mode to 0 (as in serial)
+            if (m_Decomp.zStart()[0] == 0 && m_Decomp.zStart()[1] == 0 && m_Decomp.zStart()[2] == 0)
+                u3[0] = 0.0;
             //  - Lambda Dirich and Neu !!
             // IFFT z
             // Z2Y
@@ -131,6 +181,7 @@ namespace numPDE
         NewDecomp<T>&     m_Decomp;
         BoudaryConditions m_BCs;
         T*                m_fftbuf   = nullptr;
+        T*                m_X_Pencil = nullptr;
         T*                m_Y_Pencil = nullptr;
         T*                m_Z_Pencil = nullptr;
         // Just one because we can leverage the symmetry DCT and DST are equal in this case
