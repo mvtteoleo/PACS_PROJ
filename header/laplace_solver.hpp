@@ -4,6 +4,7 @@
 #include "tensors.hpp"
 #include <algorithm>
 #include <cstddef>
+#include <execution>
 #include <fftw3.h>
 #include <memory>
 #include <omp.h>
@@ -54,86 +55,78 @@ namespace numPDE
         T dz{1};
     };
 
-template <typename T = double>
+    template <typename T = double>
     class FastPoissonSolver
     {
       public:
         using type_value = T;
         FastPoissonSolver(NewDecomp<T>& decomp, BoudaryConditions Bcs, Constants<T>& constants)
-            : r_dec{decomp}, m_BCs{Bcs}, r_const{constants}
-        {
+            : decomp{decomp}, m_BCs{Bcs}, r_const{constants} {};
 
-            int Lx = r_dec.xSize()[0];
-            int Ly = r_dec.ySize()[1];
-            int Lz = r_dec.zSize()[2];
-
-            int buf_size = std::max({Lx, Ly, Lz});
-            // Sizes without ghost points (Total number of elements)
-            auto [x_tot_elems, y_tot_elems, z_tot_elems] = decomp.globSizes();
-
-            // Allocate memory for the buffers
-            m_fftbuf = (T*) fftw_malloc(sizeof(T) * buf_size);
-
-            m_data_x.resize(x_tot_elems);
-            m_data_y.resize(y_tot_elems);
-            m_data_z.resize(z_tot_elems);
-
-            p_x_data = &m_data_x[0];
-            p_y_data = &m_data_y[0];
-            p_z_data = &m_data_z[0];
-
-            auto get_Ni = [&](size_t L, BC bc)
-            {
-                int N = (bc == DirHomo) ? L - 2 : L;
-                return N;
-            };
-            m_Nx = get_Ni(Lx, m_BCs.BC_x);
-            m_Ny = get_Ni(Ly, m_BCs.BC_y);
-            m_Nz = get_Ni(Lz, m_BCs.BC_z);
-
-            // X PLANS
-            if (m_BCs.BC_x == DirHomo)
-                fft_x = fftw_plan_r2r_1d(m_Nx, m_fftbuf, m_fftbuf, FFTW_RODFT00, FFTW_ESTIMATE);
-            else if (m_BCs.BC_x == NeuHomo)
-                fft_x = fftw_plan_r2r_1d(m_Nx, m_fftbuf, m_fftbuf, FFTW_REDFT00, FFTW_ESTIMATE);
-
-            // Y PLANS
-            if (m_BCs.BC_y == DirHomo)
-                fft_y = fftw_plan_r2r_1d(m_Ny, m_fftbuf, m_fftbuf, FFTW_RODFT00, FFTW_ESTIMATE);
-            else if (m_BCs.BC_y == NeuHomo)
-                fft_y = fftw_plan_r2r_1d(m_Ny, m_fftbuf, m_fftbuf, FFTW_REDFT00, FFTW_ESTIMATE);
-
-            // Z PLANS
-            if (m_BCs.BC_z == DirHomo)
-                fft_z = fftw_plan_r2r_1d(m_Nz, m_fftbuf, m_fftbuf, FFTW_RODFT00, FFTW_ESTIMATE);
-            else if (m_BCs.BC_z == NeuHomo)
-                fft_z = fftw_plan_r2r_1d(m_Nz, m_fftbuf, m_fftbuf, FFTW_REDFT00, FFTW_ESTIMATE);
-        };
-
-        ~FastPoissonSolver()
-        {
-            fftw_destroy_plan(fft_x);
-            fftw_destroy_plan(fft_y);
-            fftw_destroy_plan(fft_z);
-            fftw_free(m_fftbuf);
-            /*
-                fftw_free(m_X_Pencil);
-                fftw_free(m_Y_Pencil);
-                fftw_free(m_Z_Pencil);
-            */
-        };
+        ~FastPoissonSolver() {};
 
         // Expects a contiguos block of memory that contains 3d values in ROW Major order with:
         // k slowest idx, j middle, i fastest
-        void solve(numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& in,
+        void solve(const numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& in,
                    numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& out, bool verbose = true)
         {
-            int mpiRank = 0;
-            MPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
+            int                mpiRank  = decomp.rank();
+            const auto&        exe_type = std::execution::seq;
+            std::array<int, 3> xSizeArr, ySizeArr, zSizeArr;
+            for (int i = 0; i < 3; ++i)
+            {
+                xSizeArr[i] = decomp.xSize()[i];
+                ySizeArr[i] = decomp.ySize()[i];
+                zSizeArr[i] = decomp.zSize()[i];
+            }
 
-            int start_x = (m_BCs.BC_x == DirHomo) ? 1 : 0;
-            int start_y = (m_BCs.BC_y == DirHomo) ? 1 : 0;
-            int start_z = (m_BCs.BC_z == DirHomo) ? 1 : 0;
+            // allocate three layouts
+            T *u1 = nullptr, *u2 = nullptr, *u3 = nullptr;
+
+            auto data2 = numPDE::make_scalar_field<T, 3>(ySizeArr);
+            auto data3 = numPDE::make_scalar_field<T, 3>(zSizeArr);
+            u1         = out.ptr_at(0);
+            u2         = data2.ptr_at(0);
+            u3         = data3.ptr_at(0);
+
+            // local contiguous lengths for transforms in each layout
+            auto Lx = xSizeArr[0]; // contiguous in X-layout (ip)
+            auto Ly = ySizeArr[1]; // contiguous in Y-layout (jp) 
+            auto Lz = zSizeArr[2]; // contiguous in Z-layout (kp)
+
+            // allocate FFTW buffers for max of the three lengths
+            int Lmax = std::max({Lx, Ly, Lz});
+            Lx       = xSizeArr[0] - 2;
+            Ly       = ySizeArr[1] - 2;
+            Lz       = zSizeArr[2] - 2;
+
+            T* xbuf = (T*) fftw_malloc(sizeof(T) * Lmax);
+            if (!xbuf)
+            {
+                if (!mpiRank) std::cerr << "fftw_malloc failed\n";
+                MPI_Abort(MPI_COMM_WORLD, 1);
+            }
+
+            // create FFTW plans for each length we will actually use (if length > 0)
+            fftw_plan fft_x = nullptr, ifft_x = nullptr;
+            fftw_plan fft_y = nullptr, ifft_y = nullptr;
+            fftw_plan fft_z = nullptr, ifft_z = nullptr;
+
+            if (Lx > 0)
+            {
+                fft_x  = fftw_plan_r2r_1d(Lx, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
+                ifft_x = fftw_plan_r2r_1d(Lx, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
+            }
+            if (Ly > 0)
+            {
+                fft_y  = fftw_plan_r2r_1d(Ly, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
+                ifft_y = fftw_plan_r2r_1d(Ly, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
+            }
+            if (Lz > 0)
+            {
+                fft_z  = fftw_plan_r2r_1d(Lz, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
+                ifft_z = fftw_plan_r2r_1d(Lz, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
+            }
 
             MPI_Barrier(MPI_COMM_WORLD);
             double t0 = MPI_Wtime();
@@ -141,45 +134,40 @@ template <typename T = double>
             // -------------------------
             // FORWARD TRANSFORMS
             // -------------------------
-            // FFT x
-            for (int kp = 0; kp < r_dec.xSize()[2]; ++kp)
-                for (int jp = 0; jp < r_dec.xSize()[1]; ++jp)
+
+            // FFT along X 
+            for (int kp = 0; kp < xSizeArr[2]; ++kp)
+                for (int jp = 0; jp < xSizeArr[1]; ++jp)
                 {
-                    // +1 cause there are ghost points on the sides
-                    std::copy_n(in.ptr_at(start_x, jp, kp), m_Nx, m_fftbuf);
+                    std::copy_n(in.ptr_at(1, jp, kp), Lx, xbuf);
                     fftw_execute(fft_x);
-                    int ii = start_x + r_dec.xSize()[1] * (jp + r_dec.xSize()[2] * kp);
-                    std::copy_n(m_fftbuf, m_Nx, p_x_data + ii);
+                    std::copy_n(xbuf, Lx, out.ptr_at(1, jp, kp));
                 }
 
-            // X2Y
-            if (verbose && !mpiRank) std::cout << "X->Y transposition \n";
-            MPI_Barrier(MPI_COMM_WORLD);
-            r_dec.transposeX2Y(p_x_data, p_y_data);
+            // transpose X -> Y 
+            decomp.transposeX2Y(u1, u2);
 
-            // FFT y
-            for (int ip = 0; ip < r_dec.ySize()[0]; ++ip)
-                for (int kp = 0; kp < r_dec.ySize()[2]; ++kp)
+            // FFT along Y 
+            for (int ip = 0; ip < ySizeArr[0]; ++ip)
+                for (int kp = 0; kp < ySizeArr[2]; ++kp)
                 {
-                    int ii = start_y + (ip * r_dec.ySize()[2] + kp) * r_dec.ySize()[1];
-                    std::copy_n(p_y_data + ii, m_Ny, m_fftbuf);
+                    int ii = ip * ySizeArr[2] * ySizeArr[1] + kp * ySizeArr[1] + 1;
+                    std::copy_n(data2.ptr_at(ii), Ly, xbuf);
                     fftw_execute(fft_y);
-                    std::copy_n(m_fftbuf, m_Ny, p_y_data + ii);
+                    std::copy_n(xbuf, Ly, data2.ptr_at(ii));
                 }
 
-            // Y2Z
-            if (verbose && !mpiRank) std::cout << "Y->Z transposition \n";
-            MPI_Barrier(MPI_COMM_WORLD);
-            r_dec.transposeY2Z(p_y_data, p_z_data);
+            // transpose Y -> Z
+            decomp.transposeY2Z(u2, u3);
 
-            // FFT z                         double free or corruption (!prev)
-            for (int jp = 0; jp < r_dec.zSize()[1]; ++jp)
-                for (int ip = 0; ip < r_dec.zSize()[0]; ++ip)
+            // FFT along Z 
+            for (int jp = 0; jp < zSizeArr[1]; ++jp)
+                for (int ip = 0; ip < zSizeArr[0]; ++ip)
                 {
-                    int ii = start_z + (jp * r_dec.zSize()[0] + ip) * r_dec.zSize()[2];
-                    std::copy_n(p_z_data + ii, m_Nz, m_fftbuf);
+                    int ii = jp * zSizeArr[2] * zSizeArr[0] + ip * zSizeArr[2] + 1;
+                    std::copy_n(data3.ptr_at(ii), Lz, xbuf);
                     fftw_execute(fft_z);
-                    std::copy_n(m_fftbuf, m_Nz, p_z_data + ii);
+                    std::copy_n(xbuf, Lz, data3.ptr_at(ii));
                 }
 
             MPI_Barrier(MPI_COMM_WORLD);
@@ -187,49 +175,28 @@ template <typename T = double>
             if (!mpiRank) printf("Forward transforms + transposes took: %f s\n", t1 - t0);
 
             // -------------------------
-            // BACKSUB / SPECTRAL SOLVE
+            // SOLVE IN SPECTRAL SPACE
             // -------------------------
-            if (verbose && !mpiRank) std::cout << "Backsub step \n";
+            T    h   = r_const.dx;
+            T    N   = xSizeArr[0];
+            auto eig = [&h, &N](int index) -> T
+            { return -(2.0 * std::cos(index * M_PI / (N - 1)) - 2.0) / (h * h); };
 
-            auto eig_dir = [](int index, T h, int N) -> T
-            { return (2.0 - 2.0 * std::cos(M_PI * index / (N - 1))) / (h * h); };
-            auto eig_neu = [](int index, T h, int N) -> T
-            { return (2.0 * std::cos(index * h) - 2.0) / (h * h); };
-
-            auto eig_x = (m_BCs.BC_x == NeuHomo) ? eig_neu : eig_dir;
-            auto eig_y = (m_BCs.BC_y == NeuHomo) ? eig_neu : eig_dir;
-            auto eig_z = (m_BCs.BC_z == NeuHomo) ? eig_neu : eig_dir;
-
-            auto& dx = r_const.dx;
-            auto& dy = r_const.dy;
-            auto& dz = r_const.dz;
-
-            for (int jp = 0; jp < r_dec.zSize()[1]; ++jp)
-            {
-                for (int ip = 0; ip < r_dec.zSize()[0]; ++ip)
-                {
-                    for (int kp = 0; kp < r_dec.zSize()[2]; ++kp)
+            for (int jp = 0; jp < zSizeArr[1]; ++jp)
+                for (int ip = 0; ip < zSizeArr[0]; ++ip)
+                    for (int kp = 0; kp < zSizeArr[2]; ++kp)
                     {
-                        int ii =
-                            jp * r_dec.zSize()[2] * r_dec.zSize()[0] + ip * r_dec.zSize()[2] + kp;
-
-                        int iglob = r_dec.zStart()[0] + ip;
-                        int jglob = r_dec.zStart()[1] + jp;
-                        int kglob = r_dec.zStart()[2] + kp;
-
-                        T lambdaY = eig_y(jglob, dy, r_dec.ySize()[1]);
-                        T lambdaX = eig_x(iglob, dx, r_dec.xSize()[0]);
-                        T lambdaZ = eig_z(kglob, dz, r_dec.zSize()[2]);
-
-                        T denom      = lambdaZ + lambdaX + lambdaY;
-                        p_z_data[ii] = p_z_data[ii] / denom;
+                        int ii    = jp * zSizeArr[2] * zSizeArr[0] + ip * zSizeArr[2] + kp;
+                        int iglob = decomp.zStart()[0] + ip;
+                        int jglob = decomp.zStart()[1] + jp;
+                        int kglob = decomp.zStart()[2] + kp;
+                        T   denom = eig(iglob) + eig(jglob) + eig(kglob);
+                        u3[ii]    = u3[ii] / denom;
                     }
-                }
-            }
 
-            // set mean mode to 0
-            if (r_dec.zStart()[0] == 0 && r_dec.zStart()[1] == 0 && r_dec.zStart()[2] == 0)
-                p_z_data[0] = 0.0;
+            // set mean mode to 0 
+            if (decomp.zStart()[0] == 0 && decomp.zStart()[1] == 0 && decomp.zStart()[2] == 0)
+                u3[0] = 0.0;
 
             MPI_Barrier(MPI_COMM_WORLD);
             double t2 = MPI_Wtime();
@@ -238,93 +205,67 @@ template <typename T = double>
             // -------------------------
             // INVERSE TRANSFORMS
             // -------------------------
-            // IFFT z
-            for (int jp = 0; jp < r_dec.zSize()[1]; ++jp)
-                for (int ip = 0; ip < r_dec.zSize()[0]; ++ip)
+            T scale = 1.0 / static_cast<T>(2 * (N - 1));
+
+            // IFFT along Z 
+            for (int jp = 0; jp < zSizeArr[1]; ++jp)
+                for (int ip = 0; ip < zSizeArr[0]; ++ip)
                 {
-                    int ii = start_z + (jp * r_dec.zSize()[0] + ip) * r_dec.zSize()[2];
-                    std::copy_n(p_z_data + ii, m_Nz, m_fftbuf);
-                    fftw_execute(fft_z);
-                    std::copy_n(m_fftbuf, m_Nz, p_z_data + ii);
+                    int base = jp * zSizeArr[2] * zSizeArr[0] + ip * zSizeArr[2] + 1;
+
+                    // copy to buffer
+                    std::copy_n(u3 + base, Lz, xbuf);
+
+                    fftw_execute(ifft_z);
+
+                    // copy back + apply scaling
+                    std::transform(exe_type, xbuf, xbuf + Lz, u3 + base,
+                                   [scale](T v) { return v * scale; });
                 }
 
-            // Z2Y
-            if (verbose && !mpiRank) std::cout << "Y<-Z transposition \n";
+            // transpose Z -> Y
+            decomp.transposeZ2Y(u3, u2);
 
-            MPI_Barrier(MPI_COMM_WORLD);
-            r_dec.transposeZ2Y(p_z_data, p_y_data);
-
-            MPI_Barrier(MPI_COMM_WORLD);
-            // IFFT y
-            for (int ip = 0; ip < r_dec.ySize()[0]; ++ip)
-                for (int kp = 0; kp < r_dec.ySize()[2]; ++kp)
+            // IFFT along Y 
+            for (int ip = 0; ip < ySizeArr[0]; ++ip)
+                for (int kp = 0; kp < ySizeArr[2]; ++kp)
                 {
-                    int ii = start_y + (ip * r_dec.ySize()[2] + kp) * r_dec.ySize()[1];
-                    std::copy_n(p_y_data + ii, m_Ny, m_fftbuf);
-                    fftw_execute(fft_y);
-                    std::copy_n(m_fftbuf, m_Ny, p_y_data + ii);
+                    int base = ip * ySizeArr[2] * ySizeArr[1] + kp * ySizeArr[1] + 1;
+
+                    std::copy_n(u2 + base, Ly, xbuf);
+
+                    fftw_execute(ifft_y);
+
+                    std::transform(exe_type, xbuf, xbuf + Ly, u2 + base,
+                                   [scale](T v) { return v * scale; });
                 }
 
-            // Y2X
-            if (verbose && !mpiRank) std::cout << "X<-Y transposition \n";
-            MPI_Barrier(MPI_COMM_WORLD);
-            r_dec.transposeY2X(p_y_data, p_x_data);
+            // transpose Y -> X
+            decomp.transposeY2X(u2, u1);
 
-            MPI_Barrier(MPI_COMM_WORLD);
-            // IFFT x
-            for (int kp = 0; kp < r_dec.xSize()[2]; ++kp)
-                for (int jp = 0; jp < r_dec.xSize()[1]; ++jp)
+            // IFFT along X 
+            for (int kp = 0; kp < xSizeArr[2]; ++kp)
+                for (int jp = 0; jp < xSizeArr[1]; ++jp)
                 {
-                    int ii = start_x + r_dec.xSize()[0] * (jp + r_dec.xSize()[1] * kp);
-                    std::copy_n(p_x_data + ii, m_Nx, m_fftbuf);
-                    fftw_execute(fft_x);
-                    std::copy_n(m_fftbuf, m_Nx, p_x_data + ii);
-                }
+                    int base = kp * xSizeArr[1] * xSizeArr[0] + jp * xSizeArr[0] + 1;
 
-            // SCALE BACK
-            T scale_x = (2 * (r_dec.xSize()[0] - 1));
-            T scale_y = (2 * (r_dec.ySize()[1] - 1));
-            T scale_z = (2 * (r_dec.zSize()[2] - 1));
-            T scale   = 1 / (scale_z * scale_y * scale_x);
+                    std::copy_n(u1 + base, xSizeArr[0], xbuf);
 
-            MPI_Barrier(MPI_COMM_WORLD);
-            for (int kp = 0; kp < r_dec.xSize()[2]; ++kp)
-                for (int jp = 0; jp < r_dec.xSize()[1]; ++jp)
-                {
-                    int ii = start_x + r_dec.xSize()[0] * (jp + r_dec.xSize()[1] * kp);
-                    // std::transform(m_X_Pencil + ii, m_X_Pencil + ii + r_dec.xSize()[0],
-                    //             out.ptr_at(start, jp, kp), [scale](T v) { return v * scale; });
-                    for (int ip = 0; ip < r_dec.xSize()[0]; ++ip)
-                        out(ip, jp, kp) = p_x_data[ii + ip] * scale;
+                    fftw_execute(ifft_x);
+
+                    std::transform(exe_type, xbuf, xbuf + Lx, u1 + base,
+                                   [scale](T v) { return v * scale; });
                 }
 
             MPI_Barrier(MPI_COMM_WORLD);
             double t3 = MPI_Wtime();
             if (!mpiRank) printf("Inverse transforms + transposes took: %f s\n", t3 - t2);
-
-            if (!mpiRank) printf("Total runtime: %f s\n", t3 - t0);
         }
 
       private:
-        NewDecomp<T>&     r_dec;
+        NewDecomp<T>&     decomp;
         BoudaryConditions m_BCs;
         Constants<T>&     r_const;
-
-        T*                m_fftbuf = nullptr;
-        T*                p_x_data = nullptr;
-        T*                p_y_data = nullptr;
-        T*                p_z_data = nullptr;
-
-        std::vector<T>    m_data_x;
-        std::vector<T>    m_data_y;
-        std::vector<T>    m_data_z;
-        // Just one because we can leverage the symmetry DCT and DST are equal in this case
-        fftw_plan fft_x = nullptr;
-        fftw_plan fft_y = nullptr;
-        fftw_plan fft_z = nullptr;
-        size_t    m_Nx;
-        size_t    m_Ny;
-        size_t    m_Nz;
     };
 
 } // namespace numPDE
