@@ -5,7 +5,7 @@
 #include <iostream>
 #include <vector>
 
-#define Dir false
+#define Dir true
 
 /*
  * In this case we solve a generic problem as -lap(u) = f, BUT

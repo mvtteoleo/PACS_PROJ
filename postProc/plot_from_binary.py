@@ -8,7 +8,7 @@ import subprocess
 N = int(20)
 rad = 0.6
 cc = 00.5
-exe = "build/bin_dump_from_py"
+exe = "build/serial/bin_dump_from_py"
 # Test 0 is the sanity check; 1, the plot; 2 is the more structured one
 test = 2
 
@@ -32,6 +32,7 @@ def write_data():
 
         # READ THE BINARY CREATED
         # Pay lot of care to the size!! here we expect the count to be in c++  a uint_64 and the data to be double
+        """
         with open(mesh_file, "rb") as f:
             count = int(np.fromfile(f, dtype=np.uint64, count=1)[0])
             data = np.fromfile(f, dtype=np.float64, count=count)  # 3 pos + 1 value
@@ -40,8 +41,12 @@ def write_data():
             x = np.linspace(x_0[0], x_end[0], num=int(n_nodes[0]), endpoint=True)
             y = np.linspace(x_0[1], x_end[1], num=int(n_nodes[1]), endpoint=True)
             z = np.linspace(x_0[2], x_end[2], num=int(n_nodes[2]), endpoint=True)
+        """
+        x = np.linspace(0, 6.14, 10, endpoint=True)
+        y = np.linspace(0, 6.14, 10, endpoint=True)
+        z = np.linspace(0, 6.14, 10, endpoint=True)
 
-            x, y, z = np.meshgrid(x, y, z, indexing="ij")
+        x, y, z = np.meshgrid(x, y, z, indexing="ij")
         with open(scal_file, "rb") as f:
             count = int(np.fromfile(f, dtype=np.uint64, count=1)[0])
             val = np.fromfile(f, dtype=np.float64, count=count)  # 3 pos + 1 value
@@ -52,21 +57,21 @@ if os.path.exists("./build") == False:
     print("Creating the missing build folder")
     os.mkdir("./build")
 
-# COMPILE AND RUN THE C++ CODE
-try:
-    if os.path.exists(exe) == False:
-        print(f"Compiling and producing new executable")
-        subprocess.run(
-            ["g++", "-std=c++23", f"-DTEST={test}", "tests/binary_dump.cpp", "-o", exe],
-            check=True,
-        )
-    else:
-        print(f"Executable already existing")
-    print(f"Running {exe}")
-    subprocess.run([f"./{exe}", str(N), str(rad), str(cc)], check=True)
-except subprocess.CalledProcessError as e:
-    print("Compilation or execution failed!")
-    print(e)
+# # COMPILE AND RUN THE C++ CODE
+# try:
+#     if os.path.exists(exe) == False:
+#         print(f"Compiling and producing new executable")
+#         subprocess.run(
+#             ["g++", "-std=c++23", f"-DTEST={test}", "tests/serial/binary_dump.cpp", "-o", exe],
+#             check=True,
+#         )
+#     else:
+#         print(f"Executable already existing")
+#     print(f"Running {exe}")
+#     subprocess.run([f"./{exe}", str(N), str(rad), str(cc)], check=True)
+# except subprocess.CalledProcessError as e:
+#     print("Compilation or execution failed!")
+#     print(e)
 
 x, y, z, val = write_data()
 

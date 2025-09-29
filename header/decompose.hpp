@@ -96,6 +96,7 @@ class NewDecomp
         requires std::is_integral_v<Ts>
     void initialize_decomp(Ts nx, Ts ny, Ts nz)
     {
+        MPI_Barrier(MPI_COMM_WORLD);
         nx                 = static_cast<int>(nx);
         ny                 = static_cast<int>(ny);
         nz                 = static_cast<int>(nz);
@@ -110,6 +111,7 @@ class NewDecomp
             dims[1] = pCol;
             MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
         }
+        MPI_Barrier(MPI_COMM_WORLD);
     }
     /*
      * Get global number of elements in each pencil
@@ -206,6 +208,8 @@ class NewDecomp
   private:
     void split_rank_cartesian()
     {
+
+        MPI_Barrier(MPI_COMM_WORLD);
         if (mpi_rank == 0)
         {
             auto [bRow, bCol] = best_rank_2D_grid(tot_rank);
@@ -220,6 +224,7 @@ class NewDecomp
         neighbors.fill(MPI_PROC_NULL);
         MPI_Cart_shift(cart_comm, 0, 1, &neighbors[1], &neighbors[0]); // top, bottom
         MPI_Cart_shift(cart_comm, 1, 1, &neighbors[3], &neighbors[2]); // left, right
+        MPI_Barrier(MPI_COMM_WORLD);
     }
 
     std::vector<int> findFactors(int num)
