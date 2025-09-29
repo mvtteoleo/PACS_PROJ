@@ -17,7 +17,7 @@ int main(int argc, char* argv[])
 
     // ---- Parameters ----
     std::size_t N_p = (argc > 1) ? std::stoul(argv[1]) : 64; // number of intervals
-    double      L   = 3.0;                                   // u_ex length
+    double      L   = 8.0;                                   // u_ex length
 
     std::size_t M      = N_p - 2;
     std::size_t N_ints = N_p - 1;    // number of point in the whole u_ex
@@ -72,17 +72,23 @@ int main(int argc, char* argv[])
         u_h[j + 1] = 3 * x + f[j];
     }
 
-    double err = -1;
-    size_t pos = -1;
+    double err   = -1;
+    double L2err = 0;
+    size_t pos   = -1;
     // ---- Print result ----
     for (std::size_t j = 0; j < N_p; ++j)
+    {
+        L2err += std::abs(u_h[j] - u_ex[j]);
         if (std::abs(u_h[j] - u_ex[j]) > err)
         {
             err = std::abs(u_h[j] - u_ex[j]);
             pos = j;
         }
+    }
+    L2err *= h;
 
     std::cout << "Max err : " << err << " \n";
+    std::cout << "L2 norm : " << L2err << "\n";
     std::cout << "Pos err : " << pos << " \n";
 
     // ---- Clean up ----

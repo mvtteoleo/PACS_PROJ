@@ -54,37 +54,33 @@ namespace numPDE
         T dz{1};
     };
 
-    template <typename T = double>
+template <typename T = double>
     class FastPoissonSolver
     {
       public:
         using type_value = T;
         FastPoissonSolver(NewDecomp<T>& decomp, BoudaryConditions Bcs, Constants<T>& constants)
-            : m_Decomp{decomp}, m_BCs{Bcs}, m_constants{constants}
+            : r_dec{decomp}, m_BCs{Bcs}, r_const{constants}
         {
 
-            int Lx = m_Decomp.xSize()[0];
-            int Ly = m_Decomp.ySize()[1];
-            int Lz = m_Decomp.zSize()[2];
+            int Lx = r_dec.xSize()[0];
+            int Ly = r_dec.ySize()[1];
+            int Lz = r_dec.zSize()[2];
 
             int buf_size = std::max({Lx, Ly, Lz});
-            // Sizes without ghost points (Total number  of elements)
-            auto [x_size, y_size, z_size] = decomp.globSizes();
+            // Sizes without ghost points (Total number of elements)
+            auto [x_tot_elems, y_tot_elems, z_tot_elems] = decomp.globSizes();
 
             // Allocate memory for the buffers
-            m_fftbuf   = (T*) fftw_malloc(sizeof(T) * buf_size);
+            m_fftbuf = (T*) fftw_malloc(sizeof(T) * buf_size);
 
-            m_data_x.resize(x_size);
-            m_data_y.resize(y_size);
-            m_data_z.resize(z_size);
-            
-            m_X_Pencil = m_data_x.data();
-            m_Y_Pencil = m_data_y.data();
-            m_Z_Pencil = m_data_z.data();
+            m_data_x.resize(x_tot_elems);
+            m_data_y.resize(y_tot_elems);
+            m_data_z.resize(z_tot_elems);
 
-//          m_X_Pencil = (T*) fftw_malloc(sizeof(T) * x_size);
-//          m_Y_Pencil = (T*) fftw_malloc(sizeof(T) * y_size);
-//          m_Z_Pencil = (T*) fftw_malloc(sizeof(T) * z_size);
+            p_x_data = &m_data_x[0];
+            p_y_data = &m_data_y[0];
+            p_z_data = &m_data_z[0];
 
             auto get_Ni = [&](size_t L, BC bc)
             {
@@ -120,11 +116,11 @@ namespace numPDE
             fftw_destroy_plan(fft_y);
             fftw_destroy_plan(fft_z);
             fftw_free(m_fftbuf);
-        /*
-            fftw_free(m_X_Pencil);
-            fftw_free(m_Y_Pencil);
-            fftw_free(m_Z_Pencil);
-        */
+            /*
+                fftw_free(m_X_Pencil);
+                fftw_free(m_Y_Pencil);
+                fftw_free(m_Z_Pencil);
+            */
         };
 
         // Expects a contiguos block of memory that contains 3d values in ROW Major order with:
@@ -135,6 +131,10 @@ namespace numPDE
             int mpiRank = 0;
             MPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
 
+            int start_x = (m_BCs.BC_x == DirHomo) ? 1 : 0;
+            int start_y = (m_BCs.BC_y == DirHomo) ? 1 : 0;
+            int start_z = (m_BCs.BC_z == DirHomo) ? 1 : 0;
+
             MPI_Barrier(MPI_COMM_WORLD);
             double t0 = MPI_Wtime();
 
@@ -142,47 +142,44 @@ namespace numPDE
             // FORWARD TRANSFORMS
             // -------------------------
             // FFT x
-            for (int kp = 0; kp < m_Decomp.xSize()[2]; ++kp)
-                for (int jp = 0; jp < m_Decomp.xSize()[1]; ++jp)
+            for (int kp = 0; kp < r_dec.xSize()[2]; ++kp)
+                for (int jp = 0; jp < r_dec.xSize()[1]; ++jp)
                 {
-                    auto start = static_cast<int>(m_BCs.BC_x == DirHomo);
                     // +1 cause there are ghost points on the sides
-                    std::copy_n(in.ptr_at(start, jp, kp), m_Nx, m_fftbuf);
+                    std::copy_n(in.ptr_at(start_x, jp, kp), m_Nx, m_fftbuf);
                     fftw_execute(fft_x);
-                    int ii = start + m_Decomp.xSize()[1] * (jp + m_Decomp.xSize()[2] * kp);
-                    std::copy_n(m_fftbuf, m_Nx, m_X_Pencil + ii);
+                    int ii = start_x + r_dec.xSize()[1] * (jp + r_dec.xSize()[2] * kp);
+                    std::copy_n(m_fftbuf, m_Nx, p_x_data + ii);
                 }
 
             // X2Y
             if (verbose && !mpiRank) std::cout << "X->Y transposition \n";
             MPI_Barrier(MPI_COMM_WORLD);
-            m_Decomp.transposeX2Y(m_X_Pencil, m_Y_Pencil);
+            r_dec.transposeX2Y(p_x_data, p_y_data);
 
             // FFT y
-            for (int ip = 0; ip < m_Decomp.ySize()[0]; ++ip)
-                for (int kp = 0; kp < m_Decomp.ySize()[2]; ++kp)
+            for (int ip = 0; ip < r_dec.ySize()[0]; ++ip)
+                for (int kp = 0; kp < r_dec.ySize()[2]; ++kp)
                 {
-                    auto start = static_cast<int>(m_BCs.BC_y == DirHomo);
-                    int  ii    = start + (ip * m_Decomp.ySize()[2] + kp) * m_Decomp.ySize()[1];
-                    std::copy_n(m_Y_Pencil + ii, m_Ny, m_fftbuf);
+                    int ii = start_y + (ip * r_dec.ySize()[2] + kp) * r_dec.ySize()[1];
+                    std::copy_n(p_y_data + ii, m_Ny, m_fftbuf);
                     fftw_execute(fft_y);
-                    std::copy_n(m_fftbuf, m_Ny, m_Y_Pencil + ii);
+                    std::copy_n(m_fftbuf, m_Ny, p_y_data + ii);
                 }
 
             // Y2Z
             if (verbose && !mpiRank) std::cout << "Y->Z transposition \n";
             MPI_Barrier(MPI_COMM_WORLD);
-            m_Decomp.transposeY2Z(m_Y_Pencil, m_Z_Pencil);
+            r_dec.transposeY2Z(p_y_data, p_z_data);
 
-            // FFT z
-            for (int jp = 0; jp < m_Decomp.zSize()[1]; ++jp)
-                for (int ip = 0; ip < m_Decomp.zSize()[0]; ++ip)
+            // FFT z                         double free or corruption (!prev)
+            for (int jp = 0; jp < r_dec.zSize()[1]; ++jp)
+                for (int ip = 0; ip < r_dec.zSize()[0]; ++ip)
                 {
-                    auto start = static_cast<int>(m_BCs.BC_z == DirHomo);
-                    int  ii    = start + (jp * m_Decomp.zSize()[0] + ip) * m_Decomp.zSize()[2];
-                    std::copy_n(m_Z_Pencil + ii, m_Nz, m_fftbuf);
+                    int ii = start_z + (jp * r_dec.zSize()[0] + ip) * r_dec.zSize()[2];
+                    std::copy_n(p_z_data + ii, m_Nz, m_fftbuf);
                     fftw_execute(fft_z);
-                    std::copy_n(m_fftbuf, m_Nz, m_Z_Pencil + ii);
+                    std::copy_n(m_fftbuf, m_Nz, p_z_data + ii);
                 }
 
             MPI_Barrier(MPI_COMM_WORLD);
@@ -203,35 +200,36 @@ namespace numPDE
             auto eig_y = (m_BCs.BC_y == NeuHomo) ? eig_neu : eig_dir;
             auto eig_z = (m_BCs.BC_z == NeuHomo) ? eig_neu : eig_dir;
 
-            auto& dx = m_constants.dx;
-            auto& dy = m_constants.dy;
-            auto& dz = m_constants.dz;
+            auto& dx = r_const.dx;
+            auto& dy = r_const.dy;
+            auto& dz = r_const.dz;
 
-            for (int jp = 0; jp < m_Decomp.zSize()[1]; ++jp)
+            for (int jp = 0; jp < r_dec.zSize()[1]; ++jp)
             {
-                int jglob   = m_Decomp.zStart()[1] + jp;
-                T   lambdaY = eig_y(jglob, dy, m_Decomp.ySize()[1]);
-                for (int ip = 0; ip < m_Decomp.zSize()[0]; ++ip)
+                for (int ip = 0; ip < r_dec.zSize()[0]; ++ip)
                 {
-                    int iglob   = m_Decomp.zStart()[0] + ip;
-                    T   lambdaX = eig_x(iglob, dx, m_Decomp.xSize()[0]);
-                    for (int kp = 0; kp < m_Decomp.zSize()[2]; ++kp)
+                    for (int kp = 0; kp < r_dec.zSize()[2]; ++kp)
                     {
-                        int ii = jp * m_Decomp.zSize()[2] * m_Decomp.zSize()[0] +
-                                 ip * m_Decomp.zSize()[2] + kp;
+                        int ii =
+                            jp * r_dec.zSize()[2] * r_dec.zSize()[0] + ip * r_dec.zSize()[2] + kp;
 
-                        int kglob   = m_Decomp.zStart()[2] + kp;
-                        T   lambdaZ = eig_z(kglob, dz, m_Decomp.zSize()[2]);
+                        int iglob = r_dec.zStart()[0] + ip;
+                        int jglob = r_dec.zStart()[1] + jp;
+                        int kglob = r_dec.zStart()[2] + kp;
 
-                        T denom        = lambdaZ + lambdaX + lambdaY;
-                        m_Z_Pencil[ii] = m_Z_Pencil[ii] / denom;
+                        T lambdaY = eig_y(jglob, dy, r_dec.ySize()[1]);
+                        T lambdaX = eig_x(iglob, dx, r_dec.xSize()[0]);
+                        T lambdaZ = eig_z(kglob, dz, r_dec.zSize()[2]);
+
+                        T denom      = lambdaZ + lambdaX + lambdaY;
+                        p_z_data[ii] = p_z_data[ii] / denom;
                     }
                 }
             }
 
             // set mean mode to 0
-            if (m_Decomp.zStart()[0] == 0 && m_Decomp.zStart()[1] == 0 && m_Decomp.zStart()[2] == 0)
-                m_Z_Pencil[0] = 0.0;
+            if (r_dec.zStart()[0] == 0 && r_dec.zStart()[1] == 0 && r_dec.zStart()[2] == 0)
+                p_z_data[0] = 0.0;
 
             MPI_Barrier(MPI_COMM_WORLD);
             double t2 = MPI_Wtime();
@@ -241,68 +239,63 @@ namespace numPDE
             // INVERSE TRANSFORMS
             // -------------------------
             // IFFT z
-            for (int jp = 0; jp < m_Decomp.zSize()[1]; ++jp)
-                for (int ip = 0; ip < m_Decomp.zSize()[0]; ++ip)
+            for (int jp = 0; jp < r_dec.zSize()[1]; ++jp)
+                for (int ip = 0; ip < r_dec.zSize()[0]; ++ip)
                 {
-                    auto start = static_cast<int>(m_BCs.BC_z == DirHomo);
-                    int  ii    = start + (jp * m_Decomp.zSize()[0] + ip) * m_Decomp.zSize()[2];
-                    std::copy_n(m_Z_Pencil + ii, m_Nz, m_fftbuf);
+                    int ii = start_z + (jp * r_dec.zSize()[0] + ip) * r_dec.zSize()[2];
+                    std::copy_n(p_z_data + ii, m_Nz, m_fftbuf);
                     fftw_execute(fft_z);
-                    std::copy_n(m_fftbuf, m_Nz, m_Z_Pencil + ii);
+                    std::copy_n(m_fftbuf, m_Nz, p_z_data + ii);
                 }
 
             // Z2Y
             if (verbose && !mpiRank) std::cout << "Y<-Z transposition \n";
-            MPI_Barrier(MPI_COMM_WORLD);
-            m_Decomp.transposeZ2Y(m_Z_Pencil, m_Y_Pencil);
 
-    MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Barrier(MPI_COMM_WORLD);
+            r_dec.transposeZ2Y(p_z_data, p_y_data);
+
+            MPI_Barrier(MPI_COMM_WORLD);
             // IFFT y
-            for (int ip = 0; ip < m_Decomp.ySize()[0]; ++ip)
-                for (int kp = 0; kp < m_Decomp.ySize()[2]; ++kp)
+            for (int ip = 0; ip < r_dec.ySize()[0]; ++ip)
+                for (int kp = 0; kp < r_dec.ySize()[2]; ++kp)
                 {
-                    auto start = static_cast<int>(m_BCs.BC_y == DirHomo);
-                    int  ii    = start + (ip * m_Decomp.ySize()[2] + kp) * m_Decomp.ySize()[1];
-                    std::copy_n(m_Y_Pencil + ii, m_Ny, m_fftbuf);
+                    int ii = start_y + (ip * r_dec.ySize()[2] + kp) * r_dec.ySize()[1];
+                    std::copy_n(p_y_data + ii, m_Ny, m_fftbuf);
                     fftw_execute(fft_y);
-                    std::copy_n(m_fftbuf, m_Ny, m_Y_Pencil + ii);
+                    std::copy_n(m_fftbuf, m_Ny, p_y_data + ii);
                 }
 
             // Y2X
             if (verbose && !mpiRank) std::cout << "X<-Y transposition \n";
             MPI_Barrier(MPI_COMM_WORLD);
-            m_Decomp.transposeY2X(m_Y_Pencil, m_X_Pencil);
+            r_dec.transposeY2X(p_y_data, p_x_data);
 
-    MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Barrier(MPI_COMM_WORLD);
             // IFFT x
-            for (int kp = 0; kp < m_Decomp.xSize()[2]; ++kp)
-                for (int jp = 0; jp < m_Decomp.xSize()[1]; ++jp)
+            for (int kp = 0; kp < r_dec.xSize()[2]; ++kp)
+                for (int jp = 0; jp < r_dec.xSize()[1]; ++jp)
                 {
-                    auto start = static_cast<int>(m_BCs.BC_x == DirHomo);
-                    // +1 cause there are ghost points on the sides
-                    int ii = start + m_Decomp.xSize()[0] * (jp + m_Decomp.xSize()[1] * kp);
-                    std::copy_n(m_X_Pencil + ii, m_Nx, m_fftbuf);
+                    int ii = start_x + r_dec.xSize()[0] * (jp + r_dec.xSize()[1] * kp);
+                    std::copy_n(p_x_data + ii, m_Nx, m_fftbuf);
                     fftw_execute(fft_x);
-                    std::copy_n(m_fftbuf, m_Nx, m_X_Pencil + ii);
+                    std::copy_n(m_fftbuf, m_Nx, p_x_data + ii);
                 }
 
             // SCALE BACK
-            T scale_x = (2 * (m_Decomp.xSize()[0] - 1));
-            T scale_y = (2 * (m_Decomp.ySize()[1] - 1));
-            T scale_z = (2 * (m_Decomp.zSize()[2] - 1));
+            T scale_x = (2 * (r_dec.xSize()[0] - 1));
+            T scale_y = (2 * (r_dec.ySize()[1] - 1));
+            T scale_z = (2 * (r_dec.zSize()[2] - 1));
             T scale   = 1 / (scale_z * scale_y * scale_x);
 
-    MPI_Barrier(MPI_COMM_WORLD);
-            for (int kp = 0; kp < m_Decomp.xSize()[2]; ++kp)
-                for (int jp = 0; jp < m_Decomp.xSize()[1]; ++jp)
+            MPI_Barrier(MPI_COMM_WORLD);
+            for (int kp = 0; kp < r_dec.xSize()[2]; ++kp)
+                for (int jp = 0; jp < r_dec.xSize()[1]; ++jp)
                 {
-                    auto start = static_cast<int>(m_BCs.BC_x == DirHomo);
-                    // +1 cause there are ghost points on the sides
-                    int ii = start + m_Decomp.xSize()[0] * (jp + m_Decomp.xSize()[1] * kp);
-                    // std::transform(m_X_Pencil + ii, m_X_Pencil + ii + m_Decomp.xSize()[0],
+                    int ii = start_x + r_dec.xSize()[0] * (jp + r_dec.xSize()[1] * kp);
+                    // std::transform(m_X_Pencil + ii, m_X_Pencil + ii + r_dec.xSize()[0],
                     //             out.ptr_at(start, jp, kp), [scale](T v) { return v * scale; });
-                    for(int ip=0; ip<m_Decomp.xSize()[0]; ++ip)
-                        out(ip, jp, kp) = m_X_Pencil[ii + ip] * scale;
+                    for (int ip = 0; ip < r_dec.xSize()[0]; ++ip)
+                        out(ip, jp, kp) = p_x_data[ii + ip] * scale;
                 }
 
             MPI_Barrier(MPI_COMM_WORLD);
@@ -313,13 +306,15 @@ namespace numPDE
         }
 
       private:
-        NewDecomp<T>&     m_Decomp;
+        NewDecomp<T>&     r_dec;
         BoudaryConditions m_BCs;
-        Constants<T>&     m_constants;
-        T*                m_fftbuf   = nullptr;
-        T*                m_X_Pencil = nullptr;
-        T*                m_Y_Pencil = nullptr;
-        T*                m_Z_Pencil = nullptr;
+        Constants<T>&     r_const;
+
+        T*                m_fftbuf = nullptr;
+        T*                p_x_data = nullptr;
+        T*                p_y_data = nullptr;
+        T*                p_z_data = nullptr;
+
         std::vector<T>    m_data_x;
         std::vector<T>    m_data_y;
         std::vector<T>    m_data_z;

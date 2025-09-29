@@ -16,12 +16,12 @@
 #include "../../header/MY_LIB.hpp"
 #include "../../header/decompose.hpp"
 
-#define   NEUMANN 0
+#define NEUMANN 1
 int main(int argc, char* argv[])
 {
 
-// dirich BC 
-    #if NEUMANN==0
+    // dirich BC
+#if NEUMANN == 0
 
     // auto& decomp = NewDecomp::get_instance(argc, argv);
     NewDecomp<double> decomp(argc, argv);
@@ -71,7 +71,7 @@ int main(int argc, char* argv[])
     // Initialize u1 (X-major layout) with check(i,j,k) = cos(i*h)*cos(j*h)*cos(k*h)
     for (auto [kp, jp, ip] : data1.all_elems())
     {
-        int ii = data1.get_linear_index( ip, jp, kp); 
+        int    ii       = data1.get_linear_index(ip, jp, kp);
         int    iglob    = decomp.xStart()[0] + ip;
         int    jglob    = decomp.xStart()[1] + jp;
         int    kglob    = decomp.xStart()[2] + kp;
@@ -86,10 +86,10 @@ int main(int argc, char* argv[])
     auto Lz = zSizeArr[2]; // contiguous in Z-layout (kp)
 
     // allocate FFTW buffers for max of the three lengths
-    int     Lmax = std::max({Lx, Ly, Lz});
-     Lx = xSizeArr[0] - 2;
-     Ly = ySizeArr[1] - 2;
-     Lz = zSizeArr[2] - 2;
+    int Lmax = std::max({Lx, Ly, Lz});
+    Lx       = xSizeArr[0] - 2;
+    Ly       = ySizeArr[1] - 2;
+    Lz       = zSizeArr[2] - 2;
 
     double* xbuf = (double*) fftw_malloc(sizeof(double) * Lmax);
     if (!xbuf)
@@ -170,7 +170,8 @@ int main(int argc, char* argv[])
     // -------------------------
     // SOLVE IN SPECTRAL SPACE
     // -------------------------
-    auto eig = [&h, &N](int index) -> double { return -(2.0 * std::cos(index * M_PI / (N -1)) - 2.0) / (h * h); };
+    auto eig = [&h, &N](int index) -> double
+    { return -(2.0 * std::cos(index * M_PI / (N - 1)) - 2.0) / (h * h); };
 
     for (int jp = 0; jp < zSizeArr[1]; ++jp)
         for (int ip = 0; ip < zSizeArr[0]; ++ip)
@@ -278,7 +279,7 @@ int main(int argc, char* argv[])
     if (ifft_z) fftw_destroy_plan(ifft_z);
     if (xbuf) fftw_free(xbuf);
     MPI_Barrier(MPI_COMM_WORLD);
-#elif NEUMANN==1
+#elif NEUMANN == 1
     // auto& decomp = NewDecomp::get_instance(argc, argv);
     NewDecomp<double> decomp(argc, argv);
 
@@ -327,7 +328,7 @@ int main(int argc, char* argv[])
     // Initialize u1 (X-major layout) with check(i,j,k) = cos(i*h)*cos(j*h)*cos(k*h)
     for (auto [kp, jp, ip] : data1.all_elems())
     {
-        int ii = data1.get_linear_index( ip, jp, kp); 
+        int    ii       = data1.get_linear_index(ip, jp, kp);
         int    iglob    = decomp.xStart()[0] + ip;
         int    jglob    = decomp.xStart()[1] + jp;
         int    kglob    = decomp.xStart()[2] + kp;
