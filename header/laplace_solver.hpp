@@ -87,34 +87,37 @@ namespace numPDE
                 if (!r_dec.rank()) std::cerr << "fftw_malloc failed\n";
                 MPI_Abort(MPI_COMM_WORLD, 1);
             }
+
             if (m_BCs.BC_x == DirHomo)
             {
-                fft_x  = fftw_plan_r2r_1d(Lx -2, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
-                ifft_x = fftw_plan_r2r_1d(Lx -2, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
-            }else  if (m_BCs.BC_x == NeuHomo)
+                fft_x  = fftw_plan_r2r_1d(Lx - 2, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
+                ifft_x = fftw_plan_r2r_1d(Lx - 2, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
+            }
+            else if (m_BCs.BC_x == NeuHomo)
             {
                 fft_x  = fftw_plan_r2r_1d(Lx, xbuf, xbuf, FFTW_REDFT00, FFTW_ESTIMATE);
                 ifft_x = fftw_plan_r2r_1d(Lx, xbuf, xbuf, FFTW_REDFT00, FFTW_ESTIMATE);
             }
             if (m_BCs.BC_y == DirHomo)
             {
-                fft_y  = fftw_plan_r2r_1d(Ly -2, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
-                ifft_y = fftw_plan_r2r_1d(Ly -2, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
-            } else if (m_BCs.BC_y == NeuHomo)
+                fft_y  = fftw_plan_r2r_1d(Ly - 2, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
+                ifft_y = fftw_plan_r2r_1d(Ly - 2, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
+            }
+            else if (m_BCs.BC_y == NeuHomo)
             {
                 fft_y  = fftw_plan_r2r_1d(Ly, xbuf, xbuf, FFTW_REDFT00, FFTW_ESTIMATE);
                 ifft_y = fftw_plan_r2r_1d(Ly, xbuf, xbuf, FFTW_REDFT00, FFTW_ESTIMATE);
             }
             if (m_BCs.BC_z == DirHomo)
             {
-                fft_z  = fftw_plan_r2r_1d(Lz -2, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
-                ifft_z = fftw_plan_r2r_1d(Lz -2, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
-            }     else if (m_BCs.BC_z == NeuHomo)
+                fft_z  = fftw_plan_r2r_1d(Lz - 2, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
+                ifft_z = fftw_plan_r2r_1d(Lz - 2, xbuf, xbuf, FFTW_RODFT00, FFTW_ESTIMATE);
+            }
+            else if (m_BCs.BC_z == NeuHomo)
             {
                 fft_z  = fftw_plan_r2r_1d(Lz, xbuf, xbuf, FFTW_REDFT00, FFTW_ESTIMATE);
                 ifft_z = fftw_plan_r2r_1d(Lz, xbuf, xbuf, FFTW_REDFT00, FFTW_ESTIMATE);
             }
-
         };
 
         ~FastPoissonSolver()
@@ -145,7 +148,7 @@ namespace numPDE
             int start_y = (m_BCs.BC_y == DirHomo) ? 1 : 0;
             int start_z = (m_BCs.BC_z == DirHomo) ? 1 : 0;
 
-            // allocate three layouts
+            // allocate three layouts needed for the transpositions
             T *u1 = nullptr, *u2 = nullptr, *u3 = nullptr;
 
             u1 = out.ptr_at(0);
@@ -201,7 +204,7 @@ namespace numPDE
             // -------------------------
             // SOLVE IN SPECTRAL SPACE
             // -------------------------
-            T h = r_const.dx;
+            const T& h = r_const.dx;
 
             auto eig = [](int index, int N, T h, bool dirichlet) -> T
             {
@@ -209,12 +212,9 @@ namespace numPDE
                 return dirichlet ? val : val;
             };
 
-            auto eig_x = [&](int index, int N)
-            { return eig(index, N, h, m_BCs.BC_x == DirHomo); };
-            auto eig_y = [&](int index, int N)
-            { return eig(index, N, h, m_BCs.BC_y == DirHomo); };
-            auto eig_z = [&](int index, int N)
-            { return eig(index, N, h, m_BCs.BC_z == DirHomo); };
+            auto eig_x = [&](int index, int N) { return eig(index, N, h, m_BCs.BC_x == DirHomo); };
+            auto eig_y = [&](int index, int N) { return eig(index, N, h, m_BCs.BC_y == DirHomo); };
+            auto eig_z = [&](int index, int N) { return eig(index, N, h, m_BCs.BC_z == DirHomo); };
 
             for (int jp = 0; jp < zSizeArr[1]; ++jp)
                 for (int ip = 0; ip < zSizeArr[0]; ++ip)
@@ -300,12 +300,12 @@ namespace numPDE
         NewDecomp<T>&     r_dec;
         BoudaryConditions m_BCs;
         Constants<T>&     r_const;
-        T*                xbuf = nullptr;
         std::vector<T>    data2, data3;
 
         int Lx, Ly, Lz;
 
-        // create FFTW plans for each length we will actually use (if length > 0)
+        // create FFTW plans for each length we will actually use
+        T*        xbuf  = nullptr;
         fftw_plan fft_x = nullptr, ifft_x = nullptr;
         fftw_plan fft_y = nullptr, ifft_y = nullptr;
         fftw_plan fft_z = nullptr, ifft_z = nullptr;
