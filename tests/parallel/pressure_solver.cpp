@@ -37,9 +37,9 @@ int main(int argc, char* argv[])
     auto P = numPDE::make_scalar_field<Real, N_DIMS>(xSizeArr);
 
     numPDE::BoudaryConditions bc;
-    bc.BC_x = numPDE::NeuHomo;
-    bc.BC_y = numPDE::NeuHomo;
-    bc.BC_z = numPDE::NeuHomo;
+    bc.BC_x = numPDE::DirHomo;
+    bc.BC_y = numPDE::DirHomo;
+    bc.BC_z = numPDE::DirHomo;
     numPDE::Constants<Real> csts;
     csts.dx = h;
     csts.dy = h;
@@ -48,8 +48,7 @@ int main(int argc, char* argv[])
     numPDE::FastPoissonSolver pSolver(decomposer, bc, csts);
 
     auto exact = P;
-
-    auto f = P;
+    auto f     = P;
 
     for (auto [kp, jp, ip] : P.all_elems())
     {
@@ -60,7 +59,8 @@ int main(int argc, char* argv[])
         double val   = std::sin(iglob * h) * std::sin(jglob * h) * std::sin(kglob * h);
         exact[ii]    = val;
 
-        f[ii] = 3.0 * val;
+        f[ii] = -3.0 * val;
+
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -75,7 +75,7 @@ int main(int argc, char* argv[])
     Real L2err   = 0;
     for (auto i : P.all_linear_elements())
     {
-        const Real loc_err = std::abs(P[i] - exact[i]);
+        const Real loc_err = std::pow(std::abs(P[i] - exact[i]), 2);
         L2err += loc_err;
         if (loc_err > max_err)
         {
@@ -89,6 +89,10 @@ int main(int argc, char* argv[])
     double glob_L2  = 0;
     MPI_Reduce(&L2err, &glob_L2, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(&max_err, &glob_max, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+
+    glob_L2 = std::sqrt(glob_L2);
+
 
     if (!decomposer.rank())
     {
