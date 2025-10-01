@@ -47,41 +47,45 @@ int main(int argc, char* argv[])
     auto exact = P;
     auto f     = P;
 
-    auto exact_sol_poly = [=](double x, double y, double z) -> Real
+    Real wave  = 11;
+    Real scale = 22;
+
+    auto sqr      = [](Real x) { return x * x; };
+    auto sqr_diff = [&](Real x, Real x0) { return sqr(x - x0); };
+
+    auto eta = [&](double x, double y, double z, double x0, double y0, double z0, double r)
     {
-        double Ax = x * x - Lx * x;
-        double By = y * y - Ly * y;
-        double Cz = z * z - Lz * z;
-        return Ax * By * Cz;
+        auto r2 = sqr_diff(x, x0) + sqr_diff(y, y0) * sqr_diff(z, z0);
+
+        auto k       = 134;
+        auto kr2r    = k * (r2 - r);
+        auto thu1    = std::tanh(kr2r - 1);
+        auto tahu    = std::tanh(kr2r);
+        auto val     = 0.5 * (1 - tahu);
+        auto lap_val = k * sqr(thu1) * (4 * k * r2 * tahu - 3);
+        return std::make_pair(val, lap_val);
     };
 
-    auto forcing_poly = [=](double x, double y, double z) -> Real
+    auto mask = [&](double x, double y, double z)
     {
-        double Ax = x * x - Lx * x;
-        double By = y * y - Ly * y;
-        double Cz = z * z - Lz * z;
-        return 2.0 * (By * Cz + Ax * Cz + Ax * By);
+        Real x0 = 0, y0 = 0, z0 = 0, ri = 0;
+        auto [val, lap_val] = eta(x, y, z, x0, y0, z0, ri);
+        return std::make_pair(val, lap_val);
     };
 
-    Real wave           = 11;
-    Real scale          = 22;
-    auto exact_sol_harm = [=](double x, double y, double z) -> Real
-    {
-        return scale * std::sin(wave * M_PI * x / Lx) * std::sin(wave * M_PI * y / Ly) *
-               std::sin(wave * M_PI * z / Lz);
-    };
 
-    auto forcing_harm = [=](double x, double y, double z) -> Real
+
+    // Handle as above the sines and stuff
+    auto Tilde = [=](double x, double y, double z)
     {
-        double u = exact_sol_harm(x, y, z);
+        auto csx = std::sin(wave * M_PI * x / Lx);
+        auto u   = scale * csx * std::sin(wave * M_PI * y / Ly) * std::sin(wave * M_PI * z / Lz);
 
         double coeff =
             -wave * wave * M_PI * M_PI * (1.0 / (Lx * Lx) + 1.0 / (Ly * Ly) + 1.0 / (Lz * Lz));
-        return coeff * u;
+        auto lap_u = coeff * u;
+        return std::make_pair(u, lap_u);
     };
-
-    auto exact_sol = exact_sol_harm;
-    auto forcing   = forcing_harm;
 
     for (auto [kp, jp, ip] : P.all_elems())
     {

@@ -12,6 +12,7 @@
 
             pyEnv = pkgs.python311.withPackages (ps: with ps; [
                 pandas
+                sympy
                 pyvista
                 matplotlib
                 numpy
