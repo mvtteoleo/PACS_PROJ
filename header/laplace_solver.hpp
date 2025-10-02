@@ -147,6 +147,10 @@ namespace numPDE
             int start_x = (m_BCs.BC_x == DirHomo) ? 1 : 0;
             int start_y = (m_BCs.BC_y == DirHomo) ? 1 : 0;
             int start_z = (m_BCs.BC_z == DirHomo) ? 1 : 0;
+            int Nx  = Lx - 2*start_x;
+            int Ny  = Ly - 2*start_y;
+            int Nz  = Lz - 2*start_z;
+
 
             // allocate three layouts needed for the transpositions
             T *u1 = nullptr, *u2 = nullptr, *u3 = nullptr;
@@ -166,35 +170,39 @@ namespace numPDE
             for (int kp = 0; kp < xSizeArr[2]; ++kp)
                 for (int jp = 0; jp < xSizeArr[1]; ++jp)
                 {
-                    std::copy_n(in.ptr_at(start_x, jp, kp), Lx, xbuf);
+                    std::copy_n(in.ptr_at(start_x, jp, kp), Nx, xbuf);
                     fftw_execute(fft_x);
-                    std::copy_n(xbuf, Lx, out.ptr_at(start_x, jp, kp));
+                    std::copy_n(xbuf, Nx, out.ptr_at(start_x, jp, kp));
                 }
 
             // transpose X -> Y
+            MPI_Barrier(MPI_COMM_WORLD);
             r_dec.transposeX2Y(u1, u2);
+            MPI_Barrier(MPI_COMM_WORLD);
 
             // FFT along Y
             for (int ip = 0; ip < ySizeArr[0]; ++ip)
                 for (int kp = 0; kp < ySizeArr[2]; ++kp)
                 {
                     int ii = ip * ySizeArr[2] * ySizeArr[1] + kp * ySizeArr[1] + start_y;
-                    std::copy_n(u2 + ii, Ly, xbuf);
+                    std::copy_n(u2 + ii, Ny, xbuf);
                     fftw_execute(fft_y);
-                    std::copy_n(xbuf, Ly, u2 + ii);
+                    std::copy_n(xbuf, Ny, u2 + ii);
                 }
 
             // transpose Y -> Z
+            MPI_Barrier(MPI_COMM_WORLD);
             r_dec.transposeY2Z(u2, u3);
+            MPI_Barrier(MPI_COMM_WORLD);
 
             // FFT along Z
             for (int jp = 0; jp < zSizeArr[1]; ++jp)
                 for (int ip = 0; ip < zSizeArr[0]; ++ip)
                 {
                     int ii = jp * zSizeArr[2] * zSizeArr[0] + ip * zSizeArr[2] + start_z;
-                    std::copy_n(u3 + ii, Lz, xbuf);
+                    std::copy_n(u3 + ii, Nz, xbuf);
                     fftw_execute(fft_z);
-                    std::copy_n(xbuf, Lz, u3 + ii);
+                    std::copy_n(xbuf, Nz, u3 + ii);
                 }
 
             MPI_Barrier(MPI_COMM_WORLD);
@@ -248,15 +256,17 @@ namespace numPDE
                     int base = jp * zSizeArr[2] * zSizeArr[0] + ip * zSizeArr[2] + start_z;
 
                     // copy to buffer
-                    std::copy_n(u3 + base, Lz, xbuf);
+                    std::copy_n(u3 + base, Nz, xbuf);
 
                     fftw_execute(ifft_z);
 
-                    std::copy_n(xbuf, Lz, u3 + base);
+                    std::copy_n(xbuf, Nz, u3 + base);
                 }
 
             // transpose Z -> Y
+            MPI_Barrier(MPI_COMM_WORLD);
             r_dec.transposeZ2Y(u3, u2);
+            MPI_Barrier(MPI_COMM_WORLD);
 
             // IFFT along Y
             for (int ip = 0; ip < ySizeArr[0]; ++ip)
@@ -264,15 +274,17 @@ namespace numPDE
                 {
                     int base = ip * ySizeArr[2] * ySizeArr[1] + kp * ySizeArr[1] + start_y;
 
-                    std::copy_n(u2 + base, Ly, xbuf);
+                    std::copy_n(u2 + base, Ny, xbuf);
 
                     fftw_execute(ifft_y);
 
-                    std::copy_n(xbuf, Ly, u2 + base);
+                    std::copy_n(xbuf, Ny, u2 + base);
                 }
 
             // transpose Y -> X
+            MPI_Barrier(MPI_COMM_WORLD);
             r_dec.transposeY2X(u2, u1);
+            MPI_Barrier(MPI_COMM_WORLD);
 
             // IFFT along X
             for (int kp = 0; kp < xSizeArr[2]; ++kp)
@@ -280,11 +292,11 @@ namespace numPDE
                 {
                     int base = kp * xSizeArr[1] * xSizeArr[0] + jp * xSizeArr[0] + start_x;
 
-                    std::copy_n(u1 + base, xSizeArr[0], xbuf);
+                    std::copy_n(u1 + base, Nx, xbuf);
 
                     fftw_execute(ifft_x);
 
-                    std::transform(exe_type, xbuf, xbuf + Lx, u1 + base,
+                    std::transform(exe_type, xbuf, xbuf + Nx, u1 + base,
                                    [scale](T v) { return v * scale; });
                 }
 

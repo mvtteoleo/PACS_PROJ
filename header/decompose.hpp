@@ -102,10 +102,10 @@ class NewDecomp
         nx                 = static_cast<int>(nx);
         ny                 = static_cast<int>(ny);
         nz                 = static_cast<int>(nz);
-        int& pRow          =  dims[0];
-        int& pCol          =  dims[1];
-        pRow = 0;
-        pCol = 0;
+        int pRow          =  dims[0];
+        int pCol          =  dims[1];
+     // pRow = 0;
+     // pCol = 0;
         bool periodicBC[3] = {false, false, false};
         c2d                = std::make_unique<C2Decomp>(nx, ny, nz, pRow, pCol, periodicBC);
         if (pCol != dims[1] or pRow != dims[0])

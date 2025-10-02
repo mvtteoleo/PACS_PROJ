@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
     constexpr std::size_t N_DIMS = 3;
     std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
-    std::size_t nx = N, ny = N, nz = N;
+    std::size_t nx = N, ny = N*3, nz = N*2;
     decomposer.initialize_decomp(nx, ny, nz);
 
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
@@ -47,8 +47,8 @@ int main(int argc, char* argv[])
     auto exact = P;
     auto f     = P;
 
-    Real wave  = 1;
-    Real scale = 0.22;
+    Real wave  = 3;
+    Real scale = 22;
 
     auto sqr = [](Real x) { return x * x; };
 
@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
     {
         auto r2 = sqr(x - x0) + sqr(y - y0) + sqr(z - z0);
 
-        auto k    = 100;
+        auto k    = 10;
         auto kr2r = k * (r2 - r * r);
         auto thu1 = std::tanh(kr2r - 1);
         auto tahu = std::tanh(kr2r);
@@ -75,32 +75,94 @@ int main(int argc, char* argv[])
 
     auto mask = [&](double x, double y, double z)
     {
-        Real x0 = 0.5, y0 = 0.5, z0 = 0.5, ri = 0.0;
+        Real x0 = 4, y0 = 4, z0 = 4, ri = 1;
         auto [val, grad, lap_val] = eta(x, y, z, x0, y0, z0, ri);
         return std::make_tuple(val, grad, lap_val);
     };
 
-    // Handle sines/cosines
+    // Multi-harmonic version of Tilde with boundary condition handling
     auto Tilde = [=](double x, double y, double z)
     {
-        auto csx = std::sin(wave * M_PI * x / Lx);
+        // List of (wx, wy, wz) harmonics
+        std::vector<std::tuple<int, int, int>> harmonics = {
+            {1, 1, 1}, {2, 1, 1}, {1, 2, 1}, {1, 1, 2}
+            // Add more as needed
+        };
 
-        auto sy = std::sin(wave * M_PI * y / Ly);
-        auto sz = std::sin(wave * M_PI * z / Lz);
+        Real                u_sum = 0.0;
+        std::array<Real, 3> grad_sum{0.0, 0.0, 0.0};
+        Real                lap_sum = 0.0;
 
-        auto u = scale * csx * sy * sz;
+        for (auto [wx, wy, wz] : harmonics)
+        {
+            // --- x direction ---
+            auto fx  = (bc.BC_x == numPDE::DirHomo) ? std::sin(wx * M_PI * x / Lx)
+                                                    : std::cos(wx * M_PI * x / Lx);
+            auto dfx = (bc.BC_x == numPDE::DirHomo)
+                           ? (wx * M_PI / Lx) * std::cos(wx * M_PI * x / Lx)
+                           : -(wx * M_PI / Lx) * std::sin(wx * M_PI * x / Lx);
+
+            // --- y direction ---
+            auto fy  = (bc.BC_y == numPDE::DirHomo) ? std::sin(wy * M_PI * y / Ly)
+                                                    : std::cos(wy * M_PI * y / Ly);
+            auto dfy = (bc.BC_y == numPDE::DirHomo)
+                           ? (wy * M_PI / Ly) * std::cos(wy * M_PI * y / Ly)
+                           : -(wy * M_PI / Ly) * std::sin(wy * M_PI * y / Ly);
+
+            // --- z direction ---
+            auto fz  = (bc.BC_z == numPDE::DirHomo) ? std::sin(wz * M_PI * z / Lz)
+                                                    : std::cos(wz * M_PI * z / Lz);
+            auto dfz = (bc.BC_z == numPDE::DirHomo)
+                           ? (wz * M_PI / Lz) * std::cos(wz * M_PI * z / Lz)
+                           : -(wz * M_PI / Lz) * std::sin(wz * M_PI * z / Lz);
+
+            // Value
+            auto u = scale * fx * fy * fz;
+
+            // Gradient
+            std::array<Real, 3> grad{scale * dfx * fy * fz, scale * fx * dfy * fz,
+                                     scale * fx * fy * dfz};
+
+            // Laplacian (eigenvalue formula)
+            double coeff = -M_PI * M_PI *
+                           ((wx * wx) / (Lx * Lx) + (wy * wy) / (Ly * Ly) + (wz * wz) / (Lz * Lz));
+            auto lap_u = coeff * u;
+
+            // Accumulate
+            u_sum += u;
+            grad_sum[0] += grad[0];
+            grad_sum[1] += grad[1];
+            grad_sum[2] += grad[2];
+            lap_sum += lap_u;
+        }
+
+        return std::make_tuple(u_sum, grad_sum, lap_sum);
+    };
+    // Polynomial bubble: u = x(Lx-x) * y(Ly-y) * z(Lz-z)
+    auto Bubble = [=](double x, double y, double z)
+    {
+        auto fx = x * (Lx - x);
+        auto fy = y * (Ly - y);
+        auto fz = z * (Lz - z);
+
+        auto dfx = (Lx - 2 * x);
+        auto dfy = (Ly - 2 * y);
+        auto dfz = (Lz - 2 * z);
+
+        auto ddx = -2.0;
+        auto ddy = -2.0;
+        auto ddz = -2.0;
+
+        // Value
+        Real u = fx * fy * fz;
 
         // Gradient
-        std::array<Real, 3> grad{
-            scale * (wave * M_PI / Lx) * (std::cos(wave * M_PI * x / Lx)) * sy * sz,
-            scale * csx * (wave * M_PI / Ly) * std::cos(wave * M_PI * y / Ly) * sz,
-            scale * csx * sy * (wave * M_PI / Lz) * std::cos(wave * M_PI * z / Lz)};
+        std::array<Real, 3> grad{dfx * fy * fz, fx * dfy * fz, fx * fy * dfz};
 
-        double coeff =
-            -wave * wave * M_PI * M_PI * (1.0 / (Lx * Lx) + 1.0 / (Ly * Ly) + 1.0 / (Lz * Lz));
-        auto lap_u = coeff * u;
+        // Laplacian: sum of 2nd partials
+        Real lap = ddx * fy * fz + fx * ddy * fz + fx * fy * ddz;
 
-        return std::make_tuple(u, grad, lap_u);
+        return std::make_tuple(u, grad, lap);
     };
 
     auto test_sol = [=](double x, double y, double z)
@@ -113,10 +175,8 @@ int main(int argc, char* argv[])
             m * lapPTilde + pTilde * lapm +
             2 * (gradTilde[0] * gradm[0] + gradTilde[1] * gradm[1] + gradTilde[2] * gradm[2]);
 
-        if (true)
-            return std::make_pair(p_ex, forcing);
-        else
-            return std::make_pair(pTilde, lapPTilde);
+        // return std::make_pair(p_ex, forcing);
+        return std::make_pair(pTilde, lapPTilde);
     };
 
     for (auto [kp, jp, ip] : P.all_elems())
@@ -130,6 +190,7 @@ int main(int argc, char* argv[])
         double y         = h * static_cast<Real>(jglob);
         double z         = h * static_cast<Real>(kglob);
         auto [val, forc] = test_sol(x, y, z);
+        // auto [val, _, forc] = Bubble(x, y, z);
         exact[ii]        = val;
         f[ii]            = forc;
     }
@@ -169,9 +230,9 @@ int main(int argc, char* argv[])
         std::cout << "L2  err  " << std::scientific << std::setprecision(4) << glob_L2 << "\n";
     }
     MPI_Barrier(MPI_COMM_WORLD);
-    glob_max =0;
+    glob_max = 0;
     MPI_Barrier(MPI_COMM_WORLD);
-    glob_L2=0;
+    glob_L2 = 0;
     MPI_Barrier(MPI_COMM_WORLD);
 
     return 0;

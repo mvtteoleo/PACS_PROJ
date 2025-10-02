@@ -79,7 +79,7 @@ int main(int argc, char* argv[])
 #elif TEST == 1
     size_t nx, ny, nz;
 
-    std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
+    std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (!decomp.rank())
     { // Only rank 0 generates random values
         std::random_device rd;
@@ -125,7 +125,8 @@ int main(int argc, char* argv[])
         if (decomp.rank() == r)
         {
             auto [xels, yels, zels] = decomp.globSizes();
-            std::cout << "x elems " << xels << "y elems " << yels << "z elems " <<zels << std::endl;
+            std::cout << "x elems " << xels << "y elems " << yels << "z elems " << zels
+                      << std::endl;
             std::cout << "Rank " << r << ":\n";
             /*
             for (auto i : decomp.xSize())
@@ -157,7 +158,7 @@ int main(int argc, char* argv[])
         MPI_Barrier(MPI_COMM_WORLD);
     }
 
-        MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
 
 #endif
 

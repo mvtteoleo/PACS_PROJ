@@ -63,25 +63,42 @@ int main(int argc, char* argv[])
         return 2.0 * (By * Cz + Ax * Cz + Ax * By);
     };
 
-    Real wave           = 11;
-    Real scale          = 22;
-    auto exact_sol_harm = [=](double x, double y, double z) -> Real
+    Real scale = 22;
+
+    // List of wave numbers for each harmonic (could be different in x,y,z)
+    std::vector<std::tuple<int, int, int>> harmonics = {
+        {1, 1, 1}, {2, 1, 1}, {1, 2, 1}, {1, 1, 2}
+        // Add as many as you like
+    };
+
+    auto exact_sol_harm = [&](double x, double y, double z) -> Real
     {
-        return scale * std::sin(wave * M_PI * x / Lx) * std::sin(wave * M_PI * y / Ly) *
-               std::sin(wave * M_PI * z / Lz);
+        Real sum = 0.0;
+        for (auto [wx, wy, wz] : harmonics)
+        {
+            sum += scale * std::sin(wx * M_PI * x / Lx) * std::sin(wy * M_PI * y / Ly) *
+                   std::sin(wz * M_PI * z / Lz);
+        }
+        return sum;
     };
 
     auto forcing_harm = [=](double x, double y, double z) -> Real
     {
-        double u = exact_sol_harm(x, y, z);
+        Real sum = 0.0;
+        for (auto [wx, wy, wz] : harmonics)
+        {
+            Real u = scale * std::sin(wx * M_PI * x / Lx) * std::sin(wy * M_PI * y / Ly) *
+                     std::sin(wz * M_PI * z / Lz);
 
-        double coeff =
-            -wave * wave * M_PI * M_PI * (1.0 / (Lx * Lx) + 1.0 / (Ly * Ly) + 1.0 / (Lz * Lz));
-        return coeff * u;
+            double coeff = -M_PI * M_PI *
+                           ((wx * wx) / (Lx * Lx) + (wy * wy) / (Ly * Ly) + (wz * wz) / (Lz * Lz));
+            sum += coeff * u;
+        }
+        return sum;
     };
 
-    auto exact_sol = exact_sol_poly;
-    auto forcing   = forcing_poly;
+    auto exact_sol = exact_sol_harm;
+    auto forcing   = forcing_harm;
 
     for (auto [kp, jp, ip] : P.all_elems())
     {
