@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
     constexpr std::size_t N_DIMS = 3;
     std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
-    std::size_t nx = N * 2, ny = 3 * N, nz = N;
+    std::size_t nx = N , ny = N, nz = N;
     decomposer.initialize_decomp(nx, ny, nz);
 
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
@@ -34,7 +34,7 @@ int main(int argc, char* argv[])
     bc.BC_x                    = numPDE::DirHomo;
     bc.BC_y                    = numPDE::DirHomo;
     bc.BC_z                    = numPDE::DirHomo;
-    Real                    Lx = 6;
+    Real                    Lx = M_PI;
     Real                    h  = Lx / (nx - 1);
     Real                    Ly = h * (ny - 1), Lz = h * (nz - 1);
     numPDE::Constants<Real> csts;
@@ -80,8 +80,8 @@ int main(int argc, char* argv[])
         return coeff * u;
     };
 
-    auto exact_sol = exact_sol_harm;
-    auto forcing   = forcing_harm;
+    auto exact_sol = exact_sol_poly;
+    auto forcing   = forcing_poly;
 
     for (auto [kp, jp, ip] : P.all_elems())
     {
