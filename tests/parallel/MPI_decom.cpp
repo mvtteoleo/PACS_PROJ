@@ -1,4 +1,4 @@
-#define TEST 0
+#define TEST 1
 #include "../../header/MY_LIB.hpp"
 #include <algorithm>
 #include <array>
@@ -79,12 +79,13 @@ int main(int argc, char* argv[])
 #elif TEST == 1
     size_t nx, ny, nz;
 
+    std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (!decomp.rank())
     { // Only rank 0 generates random values
         std::random_device rd;
         std::mt19937       gen(rd());
 
-        std::uniform_int_distribution<size_t> dist(100, 200);
+        std::uniform_int_distribution<size_t> dist(20, 30);
 
         nx = dist(gen);
         ny = dist(gen);
@@ -102,35 +103,61 @@ int main(int argc, char* argv[])
     nz                  = sizes[2];
     bool is_periodic[3] = {false, false, false};
 
-    decomp.initialize_decomp(nx, ny, nz, is_periodic);
+    decomp.initialize_decomp(nx, ny, nz);
 
     auto data1 = numPDE::make_scalar_field<Real, 3>(decomp.xSize());
     auto data2 = numPDE::make_scalar_field<Real, 3>(decomp.ySize());
     auto data3 = numPDE::make_scalar_field<Real, 3>(decomp.zSize());
 
-    /*
-     */
-    decomp.transposeY2Z(data1, data3);
-
     Real* u1 = data1.ptr_at(0);
     Real* u2 = data2.ptr_at(0);
+    Real* u3 = data3.ptr_at(0);
 
     decomp.transposeX2Y(u1, u2);
+    decomp.transposeY2Z(u2, u3);
+    decomp.transposeZ2Y(u3, u2);
+    decomp.transposeY2X(u2, u1);
 
-    if (0 == decomp.rank())
+    // Print results rank by rank
+    for (int r = 0; r < decomp.totRank(); ++r)
     {
-        for (auto i : decomp.xEnd())
-            std::cout << i << " ";
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (decomp.rank() == r)
+        {
+            auto [xels, yels, zels] = decomp.globSizes();
+            std::cout << "x elems " << xels << "y elems " << yels << "z elems " <<zels << std::endl;
+            std::cout << "Rank " << r << ":\n";
+            /*
+            for (auto i : decomp.xSize())
+                std::cout << i << " ";
 
-        std::cout << std::endl;
+            std::cout << std::endl;
 
-        for (auto i : decomp.yEnd())
-            std::cout << i << " ";
-        std::cout << std::endl;
-        for (auto i : decomp.zEnd())
-            std::cout << i << " ";
-        std::cout << std::endl;
+            for (auto i : decomp.ySize())
+                std::cout << i << " ";
+            std::cout << std::endl;
+            for (auto i : decomp.zSize())
+                std::cout << i << " ";
+            std::cout << std::endl;
+         */
+
+            for (auto i : decomp.xStart())
+                std::cout << i << " ";
+
+            std::cout << std::endl;
+
+            for (auto i : decomp.yStart())
+                std::cout << i << " ";
+            std::cout << std::endl;
+            for (auto i : decomp.zStart())
+                std::cout << i << " ";
+            std::cout << std::endl;
+            std::cout << std::endl;
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
     }
+
+        MPI_Barrier(MPI_COMM_WORLD);
 
 #endif
 

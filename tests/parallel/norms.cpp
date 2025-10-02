@@ -25,17 +25,17 @@ int main(int argc, char* argv[])
     constexpr std::size_t N_DIMS = 3;
     std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
-    std::size_t nx = N * 2, ny = 3 * N, nz = N;
+    std::size_t nx = N, ny = N, nz = N;
     decomposer.initialize_decomp(nx, ny, nz);
 
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
     auto P = numPDE::make_scalar_field<Real, N_DIMS>(decomposer.xSize());
 
     numPDE::BoudaryConditions bc;
-    bc.BC_x                    = numPDE::DirHomo;
-    bc.BC_y                    = numPDE::DirHomo;
-    bc.BC_z                    = numPDE::DirHomo;
-    Real                    Lx = 6;
+    bc.BC_x                    = numPDE::NeuHomo;
+    bc.BC_y                    = numPDE::NeuHomo;
+    bc.BC_z                    = numPDE::NeuHomo;
+    Real                    Lx = M_PI;
     Real                    h  = Lx / (nx - 1);
     Real                    Ly = h * (ny - 1), Lz = h * (nz - 1);
     numPDE::Constants<Real> csts;
@@ -68,8 +68,8 @@ int main(int argc, char* argv[])
     Real scale          = 22;
     auto exact_sol_harm = [=](double x, double y, double z) -> Real
     {
-        return scale * std::sin(wave * M_PI * x / Lx) * std::sin(wave * M_PI * y / Ly) *
-               std::sin(wave * M_PI * z / Lz);
+        return scale * std::cos(wave * M_PI * x / Lx) * std::cos(wave * M_PI * y / Ly) *
+               std::cos(wave * M_PI * z / Lz);
     };
 
     auto forcing_harm = [=](double x, double y, double z) -> Real

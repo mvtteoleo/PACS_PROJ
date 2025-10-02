@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
     constexpr std::size_t N_DIMS = 3;
     std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
-    std::size_t nx = N , ny = N, nz = N;
+    std::size_t nx = N, ny = N, nz = N;
     decomposer.initialize_decomp(nx, ny, nz);
 
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES

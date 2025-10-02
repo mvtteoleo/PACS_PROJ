@@ -121,6 +121,7 @@ int main(int argc, char* argv[])
 
     for (auto [kp, jp, ip] : P.all_elems())
     {
+
         int    ii        = P.get_linear_index(ip, jp, kp);
         int    iglob     = decomposer.xStart()[0] + ip;
         int    jglob     = decomposer.xStart()[1] + jp;
@@ -133,9 +134,9 @@ int main(int argc, char* argv[])
         f[ii]            = forc;
     }
 
-            MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
     pSolver.solve(f, P, false);
-            MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
 
     Real max_err = 0.0;
     Real L2err   = 0.0;
@@ -161,11 +162,17 @@ int main(int argc, char* argv[])
 
     glob_L2 = std::sqrt(glob_L2);
 
+    MPI_Barrier(MPI_COMM_WORLD);
     if (!decomposer.rank())
     {
         std::cout << "Max err  " << std::scientific << std::setprecision(4) << glob_max << "\n";
         std::cout << "L2  err  " << std::scientific << std::setprecision(4) << glob_L2 << "\n";
     }
+    MPI_Barrier(MPI_COMM_WORLD);
+    glob_max =0;
+    MPI_Barrier(MPI_COMM_WORLD);
+    glob_L2=0;
+    MPI_Barrier(MPI_COMM_WORLD);
 
     return 0;
 }
