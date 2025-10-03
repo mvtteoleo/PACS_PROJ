@@ -100,8 +100,7 @@ class C2Decomp
     void best2DGrid(int nProc, int& pRow, int& pCol);
     void FindFactor(int num, int* factors, int& nfact);
 
-    void decomp2DFinalize()
-    {std::cout << "Finalized\n";}
+    void decomp2DFinalize() { std::cout << "Finalized\n"; }
 
     // Just get it running without the optional decomp for now...
     void transposeX2Y(double* src, double* dst);

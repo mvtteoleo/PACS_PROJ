@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
     constexpr std::size_t N_DIMS = 3;
     std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
-    std::size_t nx = N, ny = N*3, nz = N*2;
+    std::size_t nx = N, ny = N * 3, nz = N * 2;
     decomposer.initialize_decomp(nx, ny, nz);
 
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
@@ -191,8 +191,8 @@ int main(int argc, char* argv[])
         double z         = h * static_cast<Real>(kglob);
         auto [val, forc] = test_sol(x, y, z);
         // auto [val, _, forc] = Bubble(x, y, z);
-        exact[ii]        = val;
-        f[ii]            = forc;
+        exact[ii] = val;
+        f[ii]     = forc;
     }
 
     MPI_Barrier(MPI_COMM_WORLD);

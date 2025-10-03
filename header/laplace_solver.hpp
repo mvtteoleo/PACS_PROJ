@@ -74,9 +74,9 @@ namespace numPDE
             data3.resize(zelems);
 
             // local contiguous lengths for transforms in each layout
-            Lx = &xSizeArr[0]; // contiguous in X-layout (ip)
-            Ly = &ySizeArr[1]; // contiguous in Y-layout (jp)
-            Lz = &zSizeArr[2]; // contiguous in Z-layout (kp)
+            Lx = xSizeArr[0]; // contiguous in X-layout (ip)
+            Ly = ySizeArr[1]; // contiguous in Y-layout (jp)
+            Lz = zSizeArr[2]; // contiguous in Z-layout (kp)
 
             // allocate FFTW buffers for max of the three lengths
             int Lmax = std::max({Lx, Ly, Lz});
@@ -147,10 +147,9 @@ namespace numPDE
             int start_x = (m_BCs.BC_x == DirHomo) ? 1 : 0;
             int start_y = (m_BCs.BC_y == DirHomo) ? 1 : 0;
             int start_z = (m_BCs.BC_z == DirHomo) ? 1 : 0;
-            int Nx  = Lx - 2*start_x;
-            int Ny  = Ly - 2*start_y;
-            int Nz  = Lz - 2*start_z;
-
+            int Nx      = Lx - 2 * start_x;
+            int Ny      = Ly - 2 * start_y;
+            int Nz      = Lz - 2 * start_z;
 
             // allocate three layouts needed for the transpositions
             T *u1 = nullptr, *u2 = nullptr, *u3 = nullptr;
@@ -314,7 +313,7 @@ namespace numPDE
         Constants<T>&     r_const;
         std::vector<T>    data2, data3;
 
-        const int Lx, Ly, Lz;
+        int Lx, Ly, Lz;
 
         // create FFTW plans for each length we will actually use
         T*        xbuf  = nullptr;
