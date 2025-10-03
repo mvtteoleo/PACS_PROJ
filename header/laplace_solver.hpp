@@ -206,7 +206,7 @@ namespace numPDE
 
             MPI_Barrier(MPI_COMM_WORLD);
             double t1 = MPI_Wtime();
-            if (!mpiRank) printf("Forward transforms + transposes took: %f s\n", t1 - t0);
+            if (verbose && !mpiRank) printf("Forward transforms + transposes took: %f s\n", t1 - t0);
 
             // -------------------------
             // SOLVE IN SPECTRAL SPACE
@@ -241,7 +241,7 @@ namespace numPDE
 
             MPI_Barrier(MPI_COMM_WORLD);
             double t2 = MPI_Wtime();
-            if (!mpiRank) printf("Spectral solve took: %f s\n", t2 - t1);
+            if (verbose && !mpiRank) printf("Spectral solve took: %f s\n", t2 - t1);
 
             // -------------------------
             // INVERSE TRANSFORMS
@@ -301,7 +301,7 @@ namespace numPDE
 
             MPI_Barrier(MPI_COMM_WORLD);
             double t3 = MPI_Wtime();
-            if (!mpiRank) printf("Inverse transforms + transposes took: %f s\n", t3 - t2);
+            if (verbose && !mpiRank) printf("Inverse transforms + transposes took: %f s\n", t3 - t2);
 
             // Set pointers back to null
             u1 = nullptr, u2 = nullptr, u3 = nullptr;

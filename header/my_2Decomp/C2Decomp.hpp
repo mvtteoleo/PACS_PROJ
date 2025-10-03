@@ -159,7 +159,7 @@ class C2Decomp
 
     void decomp2DFinalize()
     {
-        std::cout << "Freeing C2Decop structures and buffers\n";
+        // std::cout << "Freeing C2Decop structures and buffers\n";
         // --- Free main decomp arrays (if allocated) ---
         // x1dist, y1dist, y2dist, z2dist
         if (decompMain.x1dist)

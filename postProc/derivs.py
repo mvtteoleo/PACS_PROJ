@@ -6,6 +6,11 @@ if 1:
     R = 0.5
     sigma = R / 3
     k = 134
+    L = 2
+
+    pTilde = lambda x: np.sin(x*2*np.pi/L)
+    lapPtilde = lambda x:      2*np.pi/L  * np.sin(x*2*np.pi/L)
+
 
     x0 = 1
     gauss = lambda x: (1 - np.exp(-((x - x0) ** 2) / (2 * sigma**2))) ** 9
@@ -14,15 +19,19 @@ if 1:
 
     th = lambda x: 0.5 * (1.0 + np.tanh( k * ((x - x0) ** 2 - R**2)  ))
 
-    xx = np.linspace(-2, 2, 1000)
+    xx = np.linspace(0, L, 1000)
     plt.vlines(x0 - R, 0, 1)
     plt.vlines(x0 + R, 0, 1)
-    plt.plot(xx, gauss(xx), label="Gaussian step")
-    plt.plot(xx, logis(xx), label="Logistic step")
-    plt.plot(xx, th(xx), "o", label="Tanh step")
+    plt.plot(xx, pTilde(xx), label="pTilde")
+    plt.plot(xx, lapPtilde(xx), label="lap(pTilde)")
+    plt.plot(xx, gauss(xx)* lapPtilde(xx), label="Gaussian step")
+    ## plt.plot(xx, logis(xx), label="Logistic step")
+    ## plt.plot(xx, th(xx), "o", label="Tanh step")
+    plt.grid()
     plt.legend()
     plt.show()
 # Symbols
+exit()
 
 if 1:
     x, y, z = sp.symbols("x y z", real=True)
