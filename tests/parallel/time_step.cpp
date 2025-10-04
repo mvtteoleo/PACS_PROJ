@@ -227,7 +227,7 @@ int main(int argc, char* argv[])
     while (t < Tmax)
     {
 
-      auto   [ u_new, p_new ] = ns.solve(u_old, p_old);
+      // auto   [ u_new, p_new ] = ns.solve(u_old, p_old);
 
         std::swap(u_new, u_old);
         std::swap(p_new, p_old);
