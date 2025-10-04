@@ -120,9 +120,9 @@ struct NS_problem
     {
         ScalF chi   = p_old;
         ScalF p_new = p_old;
-        VecF  f1    = forcing(u_old);
+        VecF  BUFFER = forcing(u_old);
         // Exchange bounds
-        VecF y_2 = u_old + a21 * dt * f1 - dt * c1 * grad(p_old);
+        VecF y_2 = u_old + a21 * dt * BUFFER - dt * c1 * grad(p_old);
         // Exchange bounds
         ScalF LaplaceF = divergence(y_2) / (dt * c1);
         pressure_solve(LaplaceF, chi);
@@ -130,7 +130,7 @@ struct NS_problem
         y_2   = y_2 - c1 * dt * grad(chi);
         p_new = p_new + chi;
       
-        VecF BUFFER = u_old + a31 * dt * f1;
+        BUFFER = u_old + a31 * dt * BUFFER;
       
         // Exchange bounds
         VecF y_3 = BUFFER + a32 * dt * forcing(y_2) - dt * (c2 - c1) * grad(p_new);
