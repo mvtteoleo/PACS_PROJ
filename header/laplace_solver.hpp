@@ -50,9 +50,9 @@ namespace numPDE
     template <typename T = double>
     struct Constants
     {
-        T dx{1};
-        T dy{1};
-        T dz{1};
+        T h{1};
+        T Re{1};
+        T dt{1};
     };
 
     template <typename T = double>
@@ -134,7 +134,7 @@ namespace numPDE
         };
 
         // Expects a contiguos block of memory that contains 3d values in ROW Major order with:
-        // k slowest idx, j middle, i fastest
+        // k slowest i, j middle, i fastest
         void solve(const numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& in,
                    numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& out, bool verbose = true)
         {
@@ -212,7 +212,7 @@ namespace numPDE
             // -------------------------
             // SOLVE IN SPECTRAL SPACE
             // -------------------------
-            const T& h = r_const.dx;
+            const T& h = r_const.h;
 
             auto eig = [](int index, int N, T h, bool dirichlet) -> T
             {

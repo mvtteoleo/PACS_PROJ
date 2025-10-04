@@ -14,12 +14,17 @@ using Real = double;
 using ScalF = numPDE::Tensor<Real, 3, 3, numPDE::ROW_MAJOR>;
 using VecF  = numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>;
 
-struct NS_helpers
+namespace numPDE
 {
-    NS_helpers(h, Re) : m_h{h}, m_Re{Re};
-    numPDE::Vec<Real> predictor_f(VecF& h_U, Real h, Real Re, size_t i, size_t j, size_t k)
+template <typename T = double>
+struct NS_problem
+{
+    NS_problem(Constants<T> &csts, NewDecomp<T>& decomp) : r_cstns(csts), r_dec(decomp) {};
+    numPDE::Vec<Real> predictor_f(VecF& h_U, size_t i, size_t j, size_t k)
     {
 
+        const auto& h = r_cstns.h;
+        const auto& Re = r_cstns.Re;
         numPDE::Vec<Real, 3> U_x, U_y, U_z, dU_dx, dU_dy, dU_dz, lap, Conv, ris;
         // neighbor aliases (use auto& to avoid copies and help optimizer)
         const auto& C = h_U(i, j, k);     // center (i,j,k)
@@ -27,7 +32,7 @@ struct NS_helpers
         const auto& W = h_U(i - 1, j, k); // west
         const auto& N = h_U(i, j + 1, k); // north
         const auto& S = h_U(i, j - 1, k); // south
-        const auto& T = h_U(i, j, k + 1); // top
+        const auto& Top = h_U(i, j, k + 1); // top
         const auto& B = h_U(i, j, k - 1); // bottom
 
         const auto& NW = h_U(i - 1, j + 1, k);
@@ -40,7 +45,7 @@ struct NS_helpers
         const auto& ST = h_U(i, j - 1, k + 1);
 
         // --- Laplacian (if still needed) ---
-        lap = (E + W + N + S + T + B - 6.0 * C) / (h * h * Re);
+        lap = (E + W + N + S + Top + B - 6.0 * C) / (h * h * Re);
 
         // Approximate U on x
         U_x[0] = C[0];
@@ -52,13 +57,13 @@ struct NS_helpers
         U_y[1] = C[1];
         U_y[2] = 0.25 * (C[2] + B[2] + N[2] + NB[2]);
         // Approximate U on z
-        U_z[0] = 0.25 * (C[0] + W[0] + T[0] + WT[0]);
-        U_z[1] = 0.25 * (C[1] + S[1] + T[1] + ST[1]);
+        U_z[0] = 0.25 * (C[0] + W[0] + Top[0] + WT[0]);
+        U_z[1] = 0.25 * (C[1] + S[1] + Top[1] + ST[1]);
         U_z[2] = C[2];
 
         dU_dx = (E - W) / (2 * h);
         dU_dy = (N - S) / (2 * h);
-        dU_dz = (T - B) / (2 * h);
+        dU_dz = (Top - B) / (2 * h);
         // --- Nonlinear convective terms (u · ∇)u etc. at center ---
         // plain conservative form (component-wise)
         Conv[0] = dU_dx[0] * U_x[0] + U_x[1] * dU_dy[0] + U_x[2] * dU_dz[0];
@@ -73,22 +78,22 @@ struct NS_helpers
     {
         auto u_new = U;
         for (auto [kp, jp, ip] : U.int_elems())
-            u_new = predictor_f(U, m_h, m_Re, ip, jp, kp);
+            u_new(ip, jp, kp) = predictor_f(U, ip, jp, kp);
 
         return u_new;
     }
-    auto gradient(ScalF& F)
+    auto grad(ScalF& F)
     {
-        auto gF = numPDE::make_vector_field<Real, 3>(F.getsizes());
+        auto gF = numPDE::make_vector_field<Real, 3>(F.get_sizes());
 
-        for (auto [kp, jp, ip] : U.int_elems())
+        for (auto [kp, jp, ip] : F.int_elems())
         {
-            Real dF_dx       = (F(kp, jp, ip + 1) - F(kp, jp, ip - 1)) / (2 * m_h);
-            Real dF_dy       = (F(kp, jp + 1, ip) - F(kp, jp - 1, ip)) / (2 * m_h);
-            Real dF_dz       = (F(kp + 1, jp, ip) - F(kp - 1, jp, ip)) / (2 * m_h);
-            gF(ip, jp, kp) = dF_dx;
-            gF(ip, jp, kp) = dF_dy;
-            gF(ip, jp, kp) = dF_dz;
+            Real dF_dx     = (F.at(kp, jp, ip + 1) - F.at(kp, jp, ip - 1)) / (2 * m_h);
+            Real dF_dy     = (F.at(kp, jp + 1, ip) - F.at(kp, jp - 1, ip)) / (2 * m_h);
+            Real dF_dz     = (F.at(kp + 1, jp, ip) - F.at(kp - 1, jp, ip)) / (2 * m_h);
+            gF.at(ip, jp, kp, 0) = dF_dx;
+            gF.at(ip, jp, kp, 1) = dF_dy;
+            gF.at(ip, jp, kp, 2) = dF_dz;
         }
 
         return gF;
@@ -98,58 +103,74 @@ struct NS_helpers
     {
         auto gF = numPDE::make_scalar_field(F);
 
-        for (auto [kp, jp, ip] : U.int_elems())
+        for (auto [kp, jp, ip] : F.int_elems())
         {
-            Real grad_x       = (F(kp, jp, ip+1, 0) - F(kp, jp, ip-1, 0)) / (2 * m_h);
-            Real grad_y       = (F(kp, jp+1, ip, 1) - F(kp, jp-1, ip, 1)) / (2 * m_h); 
-            Real grad_z       = (F(kp+1, jp, ip, 2) - F(kp-1, jp, ip, 2)) / (2 * m_h); 
-            gF(ip, jp, kp, 0) = grad_x;
-            gF(ip, jp, kp, 1) = grad_y;
-            gF(ip, jp, kp, 2) = grad_z;
+            Real grad_x       = (F.at(kp, jp, ip + 1, 0) - F.at(kp, jp, ip - 1, 0)) / (2 * m_h);
+            Real grad_y       = (F.at(kp, jp + 1, ip, 1) - F.at(kp, jp - 1, ip, 1)) / (2 * m_h);
+            Real grad_z       = (F.at(kp + 1, jp, ip, 2) - F.at(kp - 1, jp, ip, 2)) / (2 * m_h);
+            gF.at(ip, jp, kp, 0) = grad_x;
+            gF.at(ip, jp, kp, 1) = grad_y;
+            gF.at(ip, jp, kp, 2) = grad_z;
         }
 
         return gF;
     };
 
-
-    auto solve(VecF &u_old, ScalF &p_old)
+    auto solve(VecF& u_old, ScalF& p_old)
     {
         ScalF chi   = p_old;
         ScalF p_new = p_old;
-        VecF f1 = forcing(u_old);
+        VecF  f1    = forcing(u_old);
         // Exchange bounds
-        VecF Y2 = u_old + a21 * dt * f1 - dt * c1 * grad(p_old);
+        VecF y_2 = u_old + a21 * dt * f1 - dt * c1 * grad(p_old);
         // Exchange bounds
-        chi = pressure_solve( divergence(Y2)/(dt*c1) );
+        ScalF LaplaceF = divergence(y_2) / (dt * c1);
+        pressure_solve(LaplaceF, chi);
         // Exchange bounds
-        Y2 = Y2 - c1*dt*grad( chi_2 );
+        y_2   = y_2 - c1 * dt * grad(chi);
         p_new = p_new + chi;
-
-        VecF BUFFER = u_old + a31*dt*f1 ;
-
+      
+        VecF BUFFER = u_old + a31 * dt * f1;
+      
         // Exchange bounds
-        VecF Y3 = BUFFER + a32*dt*forcing(Y2) - dt*(c2-c1)*grad(p_new);
+        VecF y_3 = BUFFER + a32 * dt * forcing(y_2) - dt * (c2 - c1) * grad(p_new);
         // Exchange bounds
-        chi = pressure_solve( divergence(Y3)/(dt*(c2-c1)) );
+        LaplaceF = divergence(y_3 / (dt * (c2 - c1)));
+        pressure_solve(LaplaceF, chi);
         // Exchange bounds
-        Y3 = Y3  -(c2-c1)*dt*grad( chi );
-
+        y_3 = y_3 - (c2 - c1) * dt * grad(chi);
+      
         p_new = p_new + chi;
-
+      
         // Exchange bounds
-        VecF u_new = BUFFER + dt*b3*forcing( Y3 ) - dt*(1-c2) * grad(p_new);
+        VecF u_new = BUFFER + dt * b3 * forcing(y_3) - dt * (1 - c2) * grad(p_new);
         // Exchange bounds
-        chi = pressure_solve( divergence(u_s) ) / (dt*(1 - c2)) );
+        LaplaceF = divergence(u_new);
+        pressure_solve(LaplaceF, chi);
         // Exchange bounds
         p_new = p_new + chi;
         // Exchange bounds
-        u_new = u_s - dt*(1 -c2)*grad(p_new);
+        u_new = u_new - dt * (1 - c2) * grad(p_new);
         // Exchange bounds
         return std::make_pair(u_new, p_new);
     }
 
+    auto pressure_solve(ScalF& F, ScalF& chi)
+    {
+        // TODO
+        // Call the correct solver
+        std::cout  << "TODO \n" ;
+    }
+
   private:
-    Real m_h, m_Re;
+    Constants<T>&    r_cstns;
+    Real&           m_h = r_cstns.h, dt=r_cstns.dt;
+    const Real a21 = 64.0 / 120.0, a31 = 0.25, a32 = 5.0 / 12.0;
+    const Real c1 = a21, c2 = 2.0 / 3.0, b3 = 0.75;
+
+    NewDecomp<T>&        r_dec;
+    // FastLaplaceSolver<T> fastLapSolver;
+};
 };
 
 int main(int argc, char* argv[])
@@ -178,9 +199,7 @@ int main(int argc, char* argv[])
 
     numPDE::BoudaryConditions bc;
     numPDE::Constants<Real>   csts;
-    csts.dx = h;
-    csts.dy = h;
-    csts.dz = h;
+    csts.h = h;
     numPDE::FastLaplaceSolver<Real> pSolver(decomposer, bc, csts);
 
     auto exact = P;
@@ -198,14 +217,17 @@ int main(int argc, char* argv[])
         P[ii]        = 3.0 * val;
     }
 
+    numPDE::NS_problem<Real> ns(csts, decomposer);
+
     auto u_old = V;
+
     auto u_new = V;
     auto p_old = P;
     auto p_new = P;
     while (t < Tmax)
     {
 
-        [u_new, p_new] = ns.solve(u_old, p_old);
+      auto   [ u_new, p_new ] = ns.solve(u_old, p_old);
 
         std::swap(u_new, u_old);
         std::swap(p_new, p_old);

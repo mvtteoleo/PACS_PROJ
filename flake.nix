@@ -31,6 +31,7 @@
                     pkgs.ginac
                     pkgs.fftw
                     pkgs.eigen
+                    pkgs.petsc
                     # compile and run
                     pkgs.gnumake
                     pkgs.gcc

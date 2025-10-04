@@ -186,7 +186,8 @@ namespace numPDE
             size_t lin  = get_linear_index(idxs...);
             T*     base = &m_Datas[lin];
 
-            if constexpr (N_DIMS == RANK)
+            // if constexpr (N_DIMS == RANK)
+            if constexpr (sizeof...(Ts) == RANK)
             {
                 return *base; // return T&
             }
@@ -207,7 +208,8 @@ namespace numPDE
             size_t   lin  = get_linear_index(idxs...);
             const T* base = &m_Datas[lin];
 
-            if constexpr (N_DIMS == RANK)
+            // if constexpr (N_DIMS == RANK)
+            if constexpr (sizeof...(Ts) == RANK)
             {
                 return *base; // return const T&
             }

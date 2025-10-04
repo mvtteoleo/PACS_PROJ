@@ -40,10 +40,8 @@ int main(int argc, char* argv[])
     Real                    h  = Lx / (nx - 1);
     Real                    Ly = h * (ny - 1), Lz = h * (nz - 1);
     numPDE::Constants<Real> csts;
-    csts.dx = h;
-    csts.dy = h;
-    csts.dz = h;
-    //
+    csts.h= h;
+      
     // Fixed seed so all MPI ranks generate the same spheres
     std::mt19937                         gen(12345); // fixed seed
     std::uniform_real_distribution<Real> dist_xyz(0.0, Lx);
