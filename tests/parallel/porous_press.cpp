@@ -64,7 +64,7 @@ int main(int argc, char* argv[])
 
     if (!decomposer.rank()) std::cout << "Finished to generate the random numbers\n";
 
-    numPDE::FastPoissonSolver pSolver(decomposer, bc, csts);
+    numPDE::FastLaplaceSolver pSolver(decomposer, bc, csts);
 
     auto exact = P;
     auto f     = P;
@@ -75,29 +75,29 @@ int main(int argc, char* argv[])
 
     auto sqr = [](Real x) { return x * x; };
 
-                                // Hard-sphere indicator
-auto eta = [](double x, double y, double z, double x0, double y0, double z0, double r)
-{
-    double dx = x - x0;
-    double dy = y - y0;
-    double dz = z - z0;
-    double r2 = dx*dx + dy*dy + dz*dz;
-
-    return (r2 <= r*r) ? 0.0 : 1.0;  // 0 inside sphere, 1 outside
-};
-
-// Efficient mask for N_s spheres
-auto mask = [&](double x, double y, double z)
-{
-    // Early exit: if inside any sphere, mask = 0
-    for (size_t i = 0; i < N_s; ++i)
+    // Hard-sphere indicator
+    auto eta = [](double x, double y, double z, double x0, double y0, double z0, double r)
     {
-        if (eta(x, y, z, x0s[i], y0s[i], z0s[i], rs[i]) == 0.0)
-            return 0.0;  // inside at least one sphere
-    }
+        double dx = x - x0;
+        double dy = y - y0;
+        double dz = z - z0;
+        double r2 = dx * dx + dy * dy + dz * dz;
 
-    return 1.0;  // outside all spheres
-};
+        return (r2 <= r * r) ? 0.0 : 1.0; // 0 inside sphere, 1 outside
+    };
+
+    // Efficient mask for N_s spheres
+    auto mask = [&](double x, double y, double z)
+    {
+        // Early exit: if inside any sphere, mask = 0
+        for (size_t i = 0; i < N_s; ++i)
+        {
+            if (eta(x, y, z, x0s[i], y0s[i], z0s[i], rs[i]) == 0.0)
+                return 0.0; // inside at least one sphere
+        }
+
+        return 1.0; // outside all spheres
+    };
 
     // Multi-harmonic version of Tilde with boundary condition handling
     auto Tilde = [=](double x, double y, double z)
@@ -108,39 +108,22 @@ auto mask = [&](double x, double y, double z)
             // Add more as needed
         };
 
-        Real                u_sum = 0.0;
-        std::array<Real, 3> grad_sum{0.0, 0.0, 0.0};
-        Real                lap_sum = 0.0;
+        Real u_sum   = 0.0;
+        Real lap_sum = 0.0;
 
         for (auto [wx, wy, wz] : harmonics)
         {
             // --- x direction ---
-            auto fx  = (bc.BC_x == numPDE::DirHomo) ? std::sin(wx * M_PI * x / Lx)
-                                                    : std::cos(wx * M_PI * x / Lx);
-            auto dfx = (bc.BC_x == numPDE::DirHomo)
-                           ? (wx * M_PI / Lx) * std::cos(wx * M_PI * x / Lx)
-                           : -(wx * M_PI / Lx) * std::sin(wx * M_PI * x / Lx);
-
+            auto fx = (bc.BC_x == numPDE::DirHomo) ? std::sin(wx * M_PI * x / Lx)
+                                                   : std::cos(wx * M_PI * x / Lx);
             // --- y direction ---
-            auto fy  = (bc.BC_y == numPDE::DirHomo) ? std::sin(wy * M_PI * y / Ly)
-                                                    : std::cos(wy * M_PI * y / Ly);
-            auto dfy = (bc.BC_y == numPDE::DirHomo)
-                           ? (wy * M_PI / Ly) * std::cos(wy * M_PI * y / Ly)
-                           : -(wy * M_PI / Ly) * std::sin(wy * M_PI * y / Ly);
-
+            auto fy = (bc.BC_y == numPDE::DirHomo) ? std::sin(wy * M_PI * y / Ly)
+                                                   : std::cos(wy * M_PI * y / Ly);
             // --- z direction ---
-            auto fz  = (bc.BC_z == numPDE::DirHomo) ? std::sin(wz * M_PI * z / Lz)
-                                                    : std::cos(wz * M_PI * z / Lz);
-            auto dfz = (bc.BC_z == numPDE::DirHomo)
-                           ? (wz * M_PI / Lz) * std::cos(wz * M_PI * z / Lz)
-                           : -(wz * M_PI / Lz) * std::sin(wz * M_PI * z / Lz);
-
+            auto fz = (bc.BC_z == numPDE::DirHomo) ? std::sin(wz * M_PI * z / Lz)
+                                                   : std::cos(wz * M_PI * z / Lz);
             // Value
             auto u = scale * fx * fy * fz;
-
-            // Gradient
-            std::array<Real, 3> grad{scale * dfx * fy * fz, scale * fx * dfy * fz,
-                                     scale * fx * fy * dfz};
 
             // Laplacian (eigenvalue formula)
             double coeff = -M_PI * M_PI *
@@ -149,13 +132,10 @@ auto mask = [&](double x, double y, double z)
 
             // Accumulate
             u_sum += u;
-            grad_sum[0] += grad[0];
-            grad_sum[1] += grad[1];
-            grad_sum[2] += grad[2];
             lap_sum += lap_u;
         }
 
-        return std::make_tuple(u_sum, grad_sum, lap_sum);
+        return std::make_tuple(u_sum, lap_sum);
     };
     // Polynomial bubble: u = x(Lx-x) * y(Ly-y) * z(Lz-z)
     auto Bubble = [=](double x, double y, double z)
@@ -163,10 +143,6 @@ auto mask = [&](double x, double y, double z)
         auto fx = x * (Lx - x);
         auto fy = y * (Ly - y);
         auto fz = z * (Lz - z);
-
-        auto dfx = (Lx - 2 * x);
-        auto dfy = (Ly - 2 * y);
-        auto dfz = (Lz - 2 * z);
 
         auto ddx = -2.0;
         auto ddy = -2.0;
@@ -176,18 +152,16 @@ auto mask = [&](double x, double y, double z)
         Real u = fx * fy * fz;
 
         // Gradient
-        std::array<Real, 3> grad{dfx * fy * fz, fx * dfy * fz, fx * fy * dfz};
-
         // Laplacian: sum of 2nd partials
         Real lap = ddx * fy * fz + fx * ddy * fz + fx * fy * ddz;
 
-        return std::make_tuple(u, grad, lap);
+        return std::make_tuple(u, lap);
     };
 
     auto test_sol = [=](double x, double y, double z)
     {
-        auto [pTilde, gradTilde, lapPTilde] = Tilde(x, y, z);
-        auto m                              = mask(x, y, z);
+        auto [pTilde, lapPTilde] = Tilde(x, y, z);
+        auto m                   = mask(x, y, z);
 
         Real forcing = lapPTilde * m;
         Real p_ex    = pTilde;
@@ -207,7 +181,7 @@ auto mask = [&](double x, double y, double z)
         double y               = h * static_cast<Real>(jglob);
         double z               = h * static_cast<Real>(kglob);
         auto [val, forc, mask] = test_sol(x, y, z);
-        // auto [val, _, forc] = Bubble(x, y, z);
+        // auto [val, forc] = Bubble(x, y, z);
         null1[ii] = mask;
         exact[ii] = val;
         f[ii]     = forc;

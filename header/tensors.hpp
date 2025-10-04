@@ -436,7 +436,7 @@ namespace numPDE
         // -----------------------------//
         // *****      GETTER       **** //
         // -----------------------------//
-        size_t      get_rank() const noexcept { return N_DIMS; }
+        size_t      get_n_dims() const noexcept { return N_DIMS; }
         size_t      size() const noexcept { return m_Datas.size(); }
         const auto& raw_datas() const noexcept { return m_Datas; }
         const auto  get_slices() const noexcept { return m_Slices_size; }
@@ -471,6 +471,21 @@ namespace numPDE
 
         return Tensor<T, DIM, DIM, TYPE>(dims);
     }
+
+    template<typename T, std::size_t RANK, std::size_t DIM, TypeIndex TYPE = ROW_MAJOR>
+    auto make_scalar_field(numPDE::Tensor<T, RANK, DIM, TYPE> &F)
+        -> Tensor<T, DIM, DIM, TYPE>
+    {
+
+        auto sizes_vecField = F.get_sizes();
+        std::vector<std::size_t> sizes = {0,0,0};
+        for(std::size_t i=0; i<F.get_n_dims(); ++i)
+            sizes[i] = sizes_vecField[i];
+
+        return Tensor<T, DIM, DIM, TYPE>(sizes);
+    }
+    
+
 
     // ---- Vector field factory ----
     template <typename T, std::size_t DIM, TypeIndex TYPE = ROW_MAJOR, typename Range>

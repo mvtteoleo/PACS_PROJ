@@ -43,7 +43,7 @@ int main(int argc, char* argv[])
     csts.dy = h;
     csts.dz = h;
 
-    numPDE::FastPoissonSolver pSolver(decomposer, bc, csts);
+    numPDE::FastLaplaceSolver pSolver(decomposer, bc, csts);
 
     auto exact = P;
     auto f     = P;
