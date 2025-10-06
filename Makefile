@@ -1,9 +1,9 @@
 # ==============================
 # Compiler and Flags
-CXX       := mpic++
+CXX       := g++
 MPICXX    := mpic++
 CPPFLAGS  := -Iheader -Isrc -I. 
-LDLIBS   := -lfftw3 -lm #-lfftw3_mpi 
+LDLIBS   := -lfftw3 -lm -lboost_iostreams -lboost_system #-lfftw3_mpi 
 
 NIX_CPPFLAGS := -I$(EIGEN_INCLUDE_DIR) -I$(FFTW_INCLUDE_DIR) -I$(PETSC_DIR)/include
 NIX_LDFLAGS  := -L$(patsubst %/include,%/lib,$(FFTW_INCLUDE_DIR)) -L$(PETSC_DIR)/lib
@@ -12,7 +12,7 @@ NIX_LDLIBS   := -lpetsc
 # Append Nix flags to the project's default flags
 CPPFLAGS += $(NIX_CPPFLAGS)
 LDFLAGS  += $(NIX_LDFLAGS)
-LDLIBS   += $(NIX_LDLIBS)
+LDLIBS   += $(NIX_LDLIBS) 
 
 
 # Optimization flags

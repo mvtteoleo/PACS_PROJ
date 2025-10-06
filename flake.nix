@@ -46,6 +46,8 @@
             pkgs.fftw
             pkgs.eigen
             pkgs.petsc
+            pkgs.boost
+            pkgs.gnuplot
 
             # Debugging
             pkgs.heaptrack
@@ -65,7 +67,12 @@
             export PETSC_DIR="${pkgs.petsc}"
             export PETSC_ARCH=""
 
-            echo "✅ Pacs environment activated"
+            if [ -n "$LD_LIBRARY_PATH" ]; then
+            echo "⚠️  Warning: LD_LIBRARY_PATH is set ($LD_LIBRARY_PATH)"
+            echo "🔒 This shell expects a pure environment."
+            exit 1
+            fi
+            echo "✅ Thesis environment activated"
           '';
         };
       }
