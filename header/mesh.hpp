@@ -12,6 +12,7 @@
 #include <numeric>
 #include <span>
 #include <stdexcept>
+#include <tuple>
 #include <type_traits>
 #include <vector>
 
@@ -81,6 +82,16 @@ namespace numPDE
             }
             return pos;
         }
+
+        template <typename Ts>
+            requires std::is_integral_v<Ts>
+        auto pos_tuple(Ts i, Ts j, Ts k)
+    {
+        auto x = H*static_cast<T>(i + X0[0]); 
+        auto y = H*static_cast<T>(j + X0[1]); 
+        auto z = H*static_cast<T>(k + X0[2]); 
+        return std::make_tuple(x, y, z);
+    }
 
         template <typename... Ts>
             requires UnsignedInt<Ts...>

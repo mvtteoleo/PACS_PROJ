@@ -35,30 +35,30 @@ namespace numPDE
             const auto& Top = h_U(i, j, k + 1); // top
             const auto& B   = h_U(i, j, k - 1); // bottom
 
-            const auto& NW = h_U(i - 1, j + 1, k);
-            const auto& SE = h_U(i + 1, j - 1, k);
+            const auto& NW = h_U.at(i - 1, j + 1, k, 0);
+            const auto& SE = h_U.at(i + 1, j - 1, k, 1);
 
-            const auto& WT = h_U(i - 1, j, k + 1);
-            const auto& EB = h_U(i + 1, j, k - 1);
+            const auto& WT = h_U.at(i - 1, j, k + 1, 0);
+            const auto& EB = h_U.at(i + 1, j, k - 1, 2);
 
-            const auto& NB = h_U(i, j + 1, k - 1);
-            const auto& ST = h_U(i, j - 1, k + 1);
+            const auto& NB = h_U.at(i, j + 1, k - 1, 2);
+            const auto& ST = h_U.at(i, j - 1, k + 1, 1);
 
             // --- Laplacian (if still needed) ---
             lap = (E + W + N + S + Top + B - 6.0 * C) / (h * h * Re);
 
             // Approximate U on x
             U_x[0] = C[0];
-            U_x[1] = 0.25 * (C[1] + S[1] + E[1] + SE[1]);
-            U_x[2] = 0.25 * (C[2] + B[2] + E[2] + EB[2]);
+            U_x[1] = 0.25 * (C[1] + S[1] + E[1] + SE);
+            U_x[2] = 0.25 * (C[2] + B[2] + E[2] + EB);
 
             // Approximate U on y
-            U_y[0] = 0.25 * (C[0] + W[0] + N[0] + NW[0]);
+            U_y[0] = 0.25 * (C[0] + W[0] + N[0] + NW);
             U_y[1] = C[1];
-            U_y[2] = 0.25 * (C[2] + B[2] + N[2] + NB[2]);
+            U_y[2] = 0.25 * (C[2] + B[2] + N[2] + NB);
             // Approximate U on z
-            U_z[0] = 0.25 * (C[0] + W[0] + Top[0] + WT[0]);
-            U_z[1] = 0.25 * (C[1] + S[1] + Top[1] + ST[1]);
+            U_z[0] = 0.25 * (C[0] + W[0] + Top[0] + WT);
+            U_z[1] = 0.25 * (C[1] + S[1] + Top[1] + ST);
             U_z[2] = C[2];
 
             dU_dx = (E - W) / (2 * h);
