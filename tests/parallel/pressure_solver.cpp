@@ -38,7 +38,7 @@ int main(int argc, char* argv[])
     Real                    h  = Lx / (nx - 1);
     Real                    Ly = h * (ny - 1), Lz = h * (nz - 1);
     numPDE::Constants<Real> csts;
-    csts.h= h;
+    csts.h = h;
 
     numPDE::FastLaplaceSolver pSolver(decomposer, bc, csts);
 
