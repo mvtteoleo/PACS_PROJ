@@ -16,7 +16,7 @@ LDLIBS   += $(NIX_LDLIBS)
 
 
 # Optimization flags
-OPT_O3   := -O3  -Wall -Wextra -pedantic -fopenmp -std=c++23
+OPT_O3   := -O0 -g   -Wall -Wextra -pedantic -fopenmp -std=c++23
 OPT_O0   := -O0 -g -Wall -Wextra -pedantic -fopenmp  -std=c++23
 
 # Directories

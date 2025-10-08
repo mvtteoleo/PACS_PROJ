@@ -2,11 +2,13 @@
 #include "compiler_directives.hpp"
 #include "mesh.hpp"
 #include "tensorExpressionTemplates.hpp"
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <fstream>
 #include <iostream>
@@ -435,6 +437,13 @@ namespace numPDE
             std::cout << "Wrote field values to " << file_path << "\n";
         }
 
+    /* 
+    * Set ALL the values to val
+    */ 
+    void fill_val(T val)
+    {
+        std::fill(m_Datas.begin(), m_Datas.end(), val);
+    }
         // -----------------------------//
         // *****      GETTER       **** //
         // -----------------------------//

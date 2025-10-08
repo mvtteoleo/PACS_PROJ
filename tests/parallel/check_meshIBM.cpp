@@ -17,6 +17,7 @@ enum mask_v : int
 };
 
 #include "../../header/MY_LIB.hpp"
+#include "../../deps/gnuplot-iostream.h"
 #include "../../header/laplace_solver.hpp"
 #include <climits>
 #include <cmath>
@@ -51,8 +52,6 @@ int main(int argc, char* argv[])
     Real Ly = h * (ny - 1), Lz = h * (nz - 1);
 
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
-    auto V = numPDE::make_scalar_field<Real, N_DIMS>(dec.xSize());
-
     std::array<std::size_t, N_DIMS> n_nodes;
     std::array<Real, N_DIMS>        x0;
 
@@ -69,28 +68,26 @@ int main(int argc, char* argv[])
 
     numPDE::Mesh<Real, N_DIMS> mesh(x0, n_nodes, h);
 
-    if (!dec.rank()) std::cout << "Finished to generate the random numbers\n";
+    std::vector<int> check_pos_size{iMax, jMax, kMax, 4};
+    numPDE::Tensor<int, 4, N_DIMS> check_pos(check_pos_size);
+    auto is_scal_blocked = check_pos;
 
-    Real                     r = h * 3*1.2;
+    Real                     r = 0.2;
     std::array<Real, N_DIMS> x_c{{0.5, 0.5, 0.5}};
     auto                     R2 = r * r;
 
-    auto eta = [&](double dist_2) { return (dist_2 <= R2) ? mask_v::inside : mask_v::outside; };
+    auto eta = [&R2](double dist_2) { return (dist_2 < R2) ? mask_v::inside : mask_v::outside; };
 
     auto sqr = [](Real x) { return x * x; };
 
-    std::vector<int> check_pos_size{iMax, jMax, kMax, 4};
 
-    // 0 blocked, 1 fluid, 2 blocked_at_int
-    auto is_box_blocked = numPDE::make_scalar_field<int, N_DIMS>(dec.xSize());
-    numPDE::Tensor<int, 4, N_DIMS> check_pos(check_pos_size);
 
-    auto is_scal_blocked = check_pos;
-
+    // UNDERSTANDING WHETHER THE SPECIFIC POSITION IS BLOCKED OR NOT
+    //
+    // JUST MEMSET ALL THE VALUES AS OUTSIDE AND LOOP OVER THE CUBE CIRCUMBSCRIBED TO THE SPHERE
+    check_pos.fill_val(mask_v::outside);
     for (int k = 0; k < kMax; ++k)
-    {
         for (int j = 0; j < jMax; ++j)
-        {
             for (int i = 0; i < iMax; ++i)
             {
                 auto [x, y, z] = mesh.pos_tuple(i, j, k);
@@ -109,38 +106,22 @@ int main(int argc, char* argv[])
                 check_pos.at(i, j, k, 2) = eta(dist_v2);
                 check_pos.at(i, j, k, 3) = eta(dist_w2);
 
-                // BLOCK BOXES
-                is_box_blocked(i, j, k) = status::interf;
-                if (check_pos.at(i, j, k, 0) == mask_v::inside and
-                    check_pos.at(i, j, k, 1) == mask_v::inside and
-                    check_pos.at(i, j, k, 2) == mask_v::inside and
-                    check_pos.at(i, j, k, 3) == mask_v::inside)
+                auto check_single_elem = [&h, &r](int  elem_to_check, auto dist2)
                 {
-                    is_box_blocked(i, j, k) = status::blocked;
-                }
-                else if (check_pos.at(i, j, k, 0) == mask_v::outside and
-                         check_pos.at(i, j, k, 1) == mask_v::outside and
-                         check_pos.at(i, j, k, 2) == mask_v::outside and
-                         check_pos.at(i, j, k, 3) == mask_v::outside)
-                {
-                    is_box_blocked(i, j, k) = status::fluid_free;
-                }
-
-                auto check_single_elem = [&h](auto elem_to_check, auto dist2)
-                {
-                    if (mask_v::outside == elem_to_check)
+                    auto dist = std::sqrt(dist2);
+                    if (static_cast<int>(mask_v::outside) == elem_to_check)
                     {
-                        if (dist2 <= h * h)
-                            return status::interf;
-                        else
+                        if (dist - r >= h)
                             return status::fluid_free;
+                        else
+                            return status::interf;
                     }
                     else
                         return status::blocked;
                 };
                 // SCALAR BOXES
-                is_scal_blocked.at(i, j, k, 0) =
-                    check_single_elem(check_pos.at(i, j, k, 0), dist_p2);
+                is_scal_blocked.at(i, j, k, 0) = (check_pos.at(i, j, k, 0)== mask_v::inside) ? status::blocked : status::fluid_free;
+                    // check_single_elem(check_pos.at(i, j, k, 0), dist_p2);
                 
                 is_scal_blocked.at(i, j, k, 1) =
                     check_single_elem(check_pos.at(i, j, k, 1), dist_u2);
@@ -151,54 +132,13 @@ int main(int argc, char* argv[])
                 is_scal_blocked.at(i, j, k, 3) =
                     check_single_elem(check_pos.at(i, j, k, 3), dist_w2);
             }
-        }
-    }
 
-    auto comp_mol_ok = is_box_blocked;
-
-    /*
-    // CHECK CONSISTENCY OF THE GRID IN THE BLOCK-BOXED CASE
-    bool check_boxed = true;
-    for (auto [i, j, k] : is_box_blocked.int_elems())
-    {
-        int E  = is_box_blocked(i + 1, j, k); // east
-        int W  = is_box_blocked(i - 1, j, k); // west
-        int N  = is_box_blocked(i, j + 1, k); // north
-        int S  = is_box_blocked(i, j - 1, k); // south
-        int T  = is_box_blocked(i, j, k + 1); // top
-        int B  = is_box_blocked(i, j, k - 1); // bottom
-        int NW = is_box_blocked(i - 1, j + 1, k);
-        int SE = is_box_blocked(i + 1, j - 1, k);
-        int WT = is_box_blocked(i - 1, j, k + 1);
-        int EB = is_box_blocked(i + 1, j, k - 1);
-        int NB = is_box_blocked(i, j + 1, k - 1);
-        int ST = is_box_blocked(i, j - 1, k + 1);
-
-        std::vector<int> comp_mol{E, W, N, S, T, B, NW, SE, WT, EB, NB, ST};
-
-        if (is_box_blocked(i, j, k) ==  status::fluid_free )
-        {
-            // If any of the elems fail this condition then returns true
-            if (std::any_of(comp_mol.begin(), comp_mol.end(),
-                            [](int s) { return s == status::blocked; }))
-            {
-                check_boxed = false;
-                std::cout << "Problems for the box " << i << " " << j << " " << k << "\n";
-            }
-        }
-    }
-
-    if (check_boxed == true)
-        std::cout << "Success the BOXED method is OK\n";
-    else
-        std::cout << "Fail the BOXED method is NOT OK\n";
-     */
 
     // Check the "availability" of the computational molecule in the block-scalar case
     bool check_scalars = true;
-    for (int k = 0; k < kMax; ++k)
-        for (int j = 0; j < jMax; ++j)
-            for (int i = 0; i < iMax; ++i)
+    for (int k = 1; k < kMax-1; ++k)
+        for (int j = 1; j < jMax-1; ++j)
+            for (int i = 1; i < iMax-1; ++i)
             {
                 // available (ie free or interface)
                 auto NW = check_pos.at(i - 1, j + 1, k, 1);
@@ -213,7 +153,7 @@ int main(int argc, char* argv[])
                 // If the point is an internal node I check that the points in its comp_mol are
                 for (int l = 1; l < 4; ++l)
                 {
-                    if (check_pos.at(i, j, k, l) == status::fluid_free)
+                    if (is_scal_blocked.at(i, j, k, l) == status::fluid_free)
                     {
                         auto E    = check_pos.at(i + 1, j, k, l); // east
                         auto W    = check_pos.at(i - 1, j, k, l); // west
@@ -247,6 +187,8 @@ int main(int argc, char* argv[])
                             p_prev = check_pos.at(i, j, k-1, 0);
                             p_next = check_pos.at(i, j, k+1, 0);
                         }
+                        p_prev = static_cast<int>(status::fluid_free);
+                        p_next = static_cast<int>(status::fluid_free);
                         std::vector<int> comp_mol{E, W, N, S, B, T, HEL1, HEL2, p_prev, p_next};
                         if (std::any_of(comp_mol.begin(), comp_mol.end(),
                                         [](int s) { return s == status::blocked; }))
@@ -262,6 +204,85 @@ int main(int argc, char* argv[])
         std::cout << "Success the SCALAR method is OK\n";
     else
         std::cout << "Fail the SCALAR method is NOT OK\n";
+
+
+// --- Prepare the points ---
+std::vector<std::tuple<double, double, double>> p_pts;
+std::vector<std::tuple<double, double, double>> u_pts;
+std::vector<std::tuple<double, double, double>> v_pts;
+
+size_t k = kMax/3 ;
+
+
+Real r_p = std::sqrt( R2 - sqr( h*k - x_c[2]));
+
+for (size_t i = 0; i < iMax; ++i)
+    for (size_t j = 0; j < jMax; ++j)
+    {
+        auto [x, y, z] = mesh.pos_tuple(i, j, k);
+        // PLOT THE INSIDE-OUTSIDE
+ //     auto vp = check_pos.at(i, j, k, 0);
+ //     auto vu = check_pos.at(i, j, k, 1);
+ //     auto vv = check_pos.at(i, j, k, 2);
+        // PLOT BLOCK/INT/FLUID
+        auto vp = is_scal_blocked.at(i, j, k, 0);
+        auto vu = is_scal_blocked.at(i, j, k, 1);
+        auto vv = is_scal_blocked.at(i, j, k, 2);
+
+        p_pts.emplace_back(x, y, vp);
+        u_pts.emplace_back(x + h/2, y, vu);
+        v_pts.emplace_back(x, y + h/2, vv);
+    }
+
+    Gnuplot gp;
+
+       // --- Gnuplot setup ---
+    gp << "set terminal x11 size 800,600\n";
+    gp << "set xlabel 'X'\n";
+    gp << "set ylabel 'Y'\n";
+    gp << "set xrange [0:" << Lx << "]\n";
+gp << "set yrange [0:" << Ly << "]\n";
+
+// Tics at regular spacing:
+gp << "set xtics " << h << "\n";
+gp << "set ytics " << h << "\n";
+
+// Make grid lines visible at each tic:
+gp << "set grid xtics ytics\n";
+    gp << "set key top right\n";
+    gp << "set title 'Mid-plane slice at " << k << " '\n";
+    gp << "set size square\n";
+
+    // Define color palette (status mapping)
+    gp << "set palette defined ("
+       << "0 'red', "      // blocked
+       << "1 'green', "    // interface
+       << "2 'blue'"       // fluid_free
+       << ")\n";
+    gp << "set cbrange [0:2]\n";
+    gp << "unset colorbox\n";
+
+    // Define parametric circle
+    gp << "set parametric\n";                                                       
+    gp << "set trange [0:2*pi]\n";
+
+    // --- Plot everything ---
+    gp << "plot "
+       // Circle (smooth parametric line)
+       << x_c[0] << " + " << r_p << "*cos(t), "
+       << x_c[1] << " + " << r_p << "*sin(t) "
+       << "with lines lw 2 lc rgb 'blue' title 'Circle', "
+       // Three datasets (p,u,v)
+       << "'-' using 1:2:3 with points pt 7 ps 1.0 palette title 'p_pts', "
+       << "'-' using 1:2:3 with points pt 9 ps 1.2 palette title 'u_pts', "
+       << "'-' using 1:2:3 with points pt 11 ps 1.2 palette title 'v_pts'\n";
+
+    gp.send1d(p_pts);
+    gp.send1d(u_pts);
+    gp.send1d(v_pts);
+
+    std::cout << "Press Enter to close...\n";
+    std::cin.get();
 
     return 0;
 }
