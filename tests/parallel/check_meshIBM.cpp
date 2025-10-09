@@ -82,13 +82,10 @@ int main(int argc, char* argv[])
     auto                           is_scal_blocked   = mask_in_out;
     auto                           is_in_out_blocked = mask_in_out;
 
-#if 0
     std::mt19937                         gen(12345); // fixed seed
-    Real r_min = 0.3;
-    Real r_max = 0.9;
-    std::uniform_real_distribution<Real> dist_r(r_min, r_max); // radii range
-    std::uniform_real_distribution<Real> dist_xyz(1, 9);
+    std::uniform_real_distribution<Real> rand_corr(1.2, 1.5);
 
+#if 0
     size_t     N_s = 109;
     SphereInfo spheres_info(N_s);
     Real       r_mean = 0;
@@ -101,8 +98,8 @@ int main(int argc, char* argv[])
         r_mean += r;
     }
     r_mean /= N_s;
-#endif
-    Real min_spacing = 0.3; //10.0 * h;       // exact center-to-center distance
+#else
+    Real min_spacing = 0.8; //10.0 * h;       // exact center-to-center distance
 Real r_base      = 0.5 * min_spacing * 0.6; // slightly smaller so they don’t touch exactly
 Real start       = min_spacing;
 Real end_x       = Lx - min_spacing;
@@ -126,7 +123,7 @@ for (int ix = 0; ix < nx_sph; ++ix)
             Real z = start + iz * min_spacing;
 
             // Simple smooth radius variation (optional)
-            Real r = r_base; // * (1.0 + 0.1 * std::sin(0.3 * (ix + iy + iz)));
+            Real r = r_base * rand_corr(gen);
 
             spheres_info.emplace_back(x, y, z, r);
         }
@@ -138,6 +135,7 @@ r_mean /= spheres_info.size();
 
 std::cout << "Perfect cubic packing: "
           << spheres_info.size() << " spheres, mean r = " << r_mean << "\n";
+#endif
 
 
     // UNDERSTANDING WHETHER THE SPECIFIC POSITION IS BLOCKED OR NOT
