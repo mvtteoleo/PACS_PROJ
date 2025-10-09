@@ -57,7 +57,7 @@ int main(int argc, char* argv[])
     std::size_t nx = N, ny = N, nz = N;
     dec.initialize_decomp(nx, ny, nz);
 
-    Real Lx = 1;
+    Real Lx = 10;
     Real h  = Lx / (nx - 1);
     Real Ly = h * (ny - 1), Lz = h * (nz - 1);
 
@@ -83,18 +83,20 @@ int main(int argc, char* argv[])
     auto                           is_in_out_blocked = mask_in_out;
 
     std::mt19937                         gen(12345); // fixed seed
-    std::uniform_real_distribution<Real> dist_xyz(0.2, 0.7);
-    std::uniform_real_distribution<Real> dist_r(0.1, 0.3); // radii range
+    Real r_min = 0.3;
+    Real r_max = 0.9;
+    std::uniform_real_distribution<Real> dist_r(r_min, r_max); // radii range
+    std::uniform_real_distribution<Real> dist_xyz(1, 9);
 
-    size_t     N_s = 1;
+    size_t     N_s = 109;
     SphereInfo spheres_info(N_s);
     Real       r_mean = 0;
     for (auto& [x, y, z, r] : spheres_info)
     {
-        x = 0.5; //dist_xyz(gen);
-        y = 0.5; //dist_xyz(gen);
-        z = 0.5; //dist_xyz(gen);
-        r = 0.2; //dist_r(gen);
+        x =  dist_xyz(gen);//0.5;
+        y =  dist_xyz(gen);//0.5;
+        z =  dist_xyz(gen);//0.5;
+        r =  dist_r(gen);  //0.2;
         r_mean += r;
     }
     r_mean /= N_s;
@@ -231,6 +233,8 @@ int main(int argc, char* argv[])
     size_t err_pt = 0;
     size_t n_interf =0;
 
+    std::vector<std::vector<size_t>> problematic_idx;
+
     for (int k = 1; k < kMax - 1; ++k)
         for (int j = 1; j < jMax - 1; ++j)
             for (int i = 1; i < iMax - 1; ++i)
@@ -297,8 +301,9 @@ int main(int argc, char* argv[])
                         // 3. Check if interpolation possible
                         if (std::all_of(n_dir.begin(), n_dir.end(), [](int n){ return n == 0; }))
                          {
-                            std::cout << "ziopera, No interp possible here " << i << " " << j << " " << k << " \n";
+                            std::cout << "ziopera, No interp possible here " << i << " " << j << " " << k << " " << l << " \n";
                                 ++err_pt; // skip this element
+                            problematic_idx.push_back({i, j, k, l});
                         }
 
                         // 4. Optional: select best directions
@@ -312,8 +317,8 @@ int main(int argc, char* argv[])
     std::cout << " ERR in " << err_pt << " of " << n_interf << " points \n";
 
 // --- Prepare the points ---
+#if 1
 // auto& to_plot = mask_in_out;
-#if 0
     auto&                                           to_plot = is_in_out_blocked;
     std::vector<std::tuple<double, double, double>> p_pts;
     std::vector<std::tuple<double, double, double>> u_pts;
