@@ -73,15 +73,14 @@ int main(int argc, char* argv[])
     auto                           is_in_out_blocked = mask_in_out;
 
     std::mt19937                         gen(12345); // fixed seed
-    std::uniform_real_distribution<Real> dist_xyz(0.0, Lx);
-    std::uniform_real_distribution<Real> dist_r(0.1, 0.4); // radii range
+    std::uniform_real_distribution<Real> dist_xyz(0.2, 0.7);
+    std::uniform_real_distribution<Real> dist_r(0.1, 0.3); // radii range
 
-    size_t            N_s = 9;
+    size_t            N_s = 5;
     SphereInfo spheres_info(N_s) ;
     Real              r_mean = 0;
-    for (auto& sphere : spheres_info)
+    for (auto& [x, y, z, r]: spheres_info)
     {
-        auto&  [x, y, z, r] = sphere;
         x= dist_xyz(gen);
         y= dist_xyz(gen);
         z= dist_xyz(gen);
@@ -90,55 +89,57 @@ int main(int argc, char* argv[])
     }
     r_mean /= N_s;
 
-    auto sqr = [](Real x) { return x * x; };
 
     // UNDERSTANDING WHETHER THE SPECIFIC POSITION IS BLOCKED OR NOT
     //
     // JUST MEMSET ALL THE VALUES AS OUTSIDE AND LOOP OVER THE CUBE CIRCUMBSCRIBED TO THE SPHERE
-    mask_in_out.fill_val(mask_v::outside);
+mask_in_out.fill_val(mask_v::outside);
 
-    for (auto& sphere : spheres_info)
-    {
-        const auto& [xc, yc, zc, rc] = sphere;
+auto sqr = [](Real x) { return x * x; };
 
-        auto R2  = sqr(rc);
-        auto eta = [&R2](double dist_2)
-        { return (dist_2 <= R2) ? mask_v::inside : mask_v::outside; };
+for (const auto& [xc, yc, zc, rc] : spheres_info)
+{
+    const Real R2 = sqr(rc);
+    auto eta = [&R2](Real dist2) { return (dist2 <= R2) ? mask_v::inside : mask_v::outside; };
 
-        auto ic = static_cast<size_t>(std::ceil(xc / h));
-        auto jc = static_cast<size_t>(std::ceil(yc / h));
-        auto kc = static_cast<size_t>(std::ceil(zc / h));
-        auto rh = static_cast<size_t>(std::floor(rc / h));
+    // Convert to index space
+    int ic = static_cast<int>(std::floor(xc / h));
+    int jc = static_cast<int>(std::floor(yc / h));
+    int kc = static_cast<int>(std::floor(zc / h));
+    int rh = static_cast<int>(std::ceil(rc / h));
 
-        size_t              i_min = (ic - rh >= 0) ? ic - rh -2 : 0;
-        size_t              j_min = (jc - rh >= 0) ? jc - rh -2 : 0;
-        size_t              k_min = (kc - rh >= 0) ? kc - rh -2 : 0;
-         size_t i_max =  (i_min + 2 * rh + 4 >= iMax) ? iMax :  i_min + 2 * rh + 4 ;
-         size_t j_max =  (j_min + 2 * rh + 4 >= jMax) ? jMax :  j_min + 2 * rh + 4 ;
-         size_t k_max =  (k_min + 2 * rh + 4 >= kMax) ? kMax :  k_min + 2 * rh + 4 ;
-        std::array<Real, 4> dists;
-        for (size_t i = i_min; i < i_max; ++i)
-            for (size_t j = j_min; j < j_min + 2 * rh + 4; ++j)
-                for (size_t k = k_min; k < k_min + 2 * rh + 4; ++k)
-                {
-                    auto [x, y, z] = mesh.pos_tuple(i, j, k);
+    // Clamp cube range
+    auto clamp_low  = [](int a) { return std::max(a, 0); };
+    auto clamp_high = [](int a, int max) { return std::min(a, max - 1); };
 
-                    auto dx = x - xc;
-                    auto dy = y - yc;
-                    auto dz = z - zc;
+    int i_min = clamp_low(ic - rh - 2);
+    int j_min = clamp_low(jc - rh - 2);
+    int k_min = clamp_low(kc - rh - 2);
+    int i_max = clamp_high(ic + rh + 2, iMax);
+    int j_max = clamp_high(jc + rh + 2, jMax);
+    int k_max = clamp_high(kc + rh + 2, kMax);
 
-                    dists[0] = sqr(dx) + sqr(dy) + sqr(dz);
-                    dists[1] = sqr(dx + h * 0.5) + sqr(dy) + sqr(dz);
-                    dists[2] = sqr(dx) + sqr(dy + h * 0.5) + sqr(dz);
-                    dists[3] = sqr(dx) + sqr(dy) + sqr(dz + h * 0.5);
-                    // check
-                    for (int l = 0; l < 4; ++l)
-                        if (mask_in_out.at(i, j, k, l) == mask_v::outside)
-                            mask_in_out.at(i, j, k, l) = eta(dists[l]);
-                        else
-                            continue;
-                }
-    }
+    std::array<Real, 4> dists;
+
+    for (int i = i_min; i <= i_max; ++i)
+        for (int j = j_min; j <= j_max; ++j)
+            for (int k = k_min; k <= k_max; ++k)
+            {
+                auto [x, y, z] = mesh.pos_tuple(i, j, k);
+                auto dx = x - xc;
+                auto dy = y - yc;
+                auto dz = z - zc;
+
+                dists[0] = sqr(dx) + sqr(dy) + sqr(dz);
+                dists[1] = sqr(dx + 0.5 * h) + sqr(dy) + sqr(dz);
+                dists[2] = sqr(dx) + sqr(dy + 0.5 * h) + sqr(dz);
+                dists[3] = sqr(dx) + sqr(dy) + sqr(dz + 0.5 * h);
+
+                for (int l = 0; l < 4; ++l)
+                    if (mask_in_out.at(i, j, k, l) == mask_v::outside)
+                        mask_in_out.at(i, j, k, l) = eta(dists[l]);
+            }
+}
 
     for (int k = 1; k < kMax - 1; ++k)
         for (int j = 1; j < jMax - 1; ++j)
