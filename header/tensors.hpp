@@ -110,19 +110,39 @@ namespace numPDE
         // -----------------------------//
         // ***** GET LINEAR INDEX ***** //
         // -----------------------------//
-        template <std::size_t... Is, typename... Ts>
-        inline size_t get_linear_index_impl(std::index_sequence<Is...>, Ts... idxs) const noexcept
-        {
-            // compile-time unrolled: (idx0*slice0) + (idx1*slice1) + ...
-            return ((static_cast<size_t>(idxs) * m_Slices_size[Is]) + ...);
-        }
+    template <std::size_t... Is, typename... Ts>
+inline size_t get_linear_index_impl(std::index_sequence<Is...>, Ts... idxs) const noexcept
+{
+#ifdef PEDANTIC
+    if ((... || (static_cast<size_t>(idxs) >= m_Sizes[Is])))
+    {
+        std::cerr << "Index out of bounds: ";
+        ((std::cerr << "dim " << Is << ": " << static_cast<size_t>(idxs)
+                    << " (max " << m_Sizes[Is] - 1 << ")  "), ...);
+        std::cerr << "\n";
+    }
+#endif
+    return ((static_cast<size_t>(idxs) * m_Slices_size[Is]) + ...);
+}
 
-        template <std::size_t... Is>
-        inline size_t get_linear_index_array_impl(const std::array<size_t, sizeof...(Is)>& indices,
-                                                  std::index_sequence<Is...>) const noexcept
-        {
-            return ((indices[Is] * m_Slices_size[Is]) + ...);
-        }
+template <std::size_t... Is>
+inline size_t get_linear_index_array_impl(
+    const std::array<size_t, sizeof...(Is)>& indices,
+    std::index_sequence<Is...>) const noexcept
+{
+#ifdef PEDANTIC
+    if ((... || (indices[Is] >= m_Sizes[Is])))
+    {
+        std::cerr << "Index out of bounds: ";
+        ((std::cerr << "dim " << Is << ": " << indices[Is]
+                    << " (max " << m_Sizes[Is] - 1 << ")  "), ...);
+        std::cerr << "\n";
+    }
+#endif
+    return ((indices[Is] * m_Slices_size[Is]) + ...);
+}
+
+
 
         template <std::size_t N>
         inline size_t get_linear_index(const std::array<size_t, N>& indices) const noexcept
@@ -163,7 +183,7 @@ namespace numPDE
         T& operator()(std::span<Ts> indices)
         {
             // if (indices.size() != N_DIMS) throw std::out_of_range("Dimensions not matching");
-#if PEDANTIC
+#ifdef PEDANTIC
             [[unlikely]] if (indices.size() > N_DIMS)
                 indices = indices.first(N_DIMS);
 
@@ -260,7 +280,7 @@ namespace numPDE
             requires UnsignedInt<Ts...>
         T& at(Ts... idxs) noexcept
         {
-#if PEDANTIC
+#ifdef PEDANTIC
             static_assert(sizeof...(Ts) == RANK, "Index arity mismatch");
 #endif
             return m_Datas[get_linear_index(idxs...)];
@@ -270,7 +290,7 @@ namespace numPDE
             requires UnsignedInt<Ts...>
         const T& at(Ts... idxs) const noexcept
         {
-#if PEDANTIC
+#ifdef PEDANTIC
             static_assert(sizeof...(Ts) == RANK, "Index arity mismatch");
 #endif
             return m_Datas[get_linear_index(idxs...)];
