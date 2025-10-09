@@ -83,18 +83,21 @@ int main(int argc, char* argv[])
     auto                           is_in_out_blocked = mask_in_out;
 
     std::mt19937                         gen(12345); // fixed seed
-    std::uniform_real_distribution<Real> rand_corr(1.2, 1.5);
+    std::uniform_real_distribution<Real> dist_xyz(2, 8);
+    std::uniform_real_distribution<Real> rand_corr(1.1, 1.8);
 
-#if 0
-    size_t     N_s = 109;
+#if 1
+    size_t     N_s = 9;
     SphereInfo spheres_info(N_s);
     Real       r_mean = 0;
+
+
     for (auto& [x, y, z, r] : spheres_info)
     {
-        x =  dist_xyz(gen);//0.5;
-        y =  dist_xyz(gen);//0.5;
-        z =  dist_xyz(gen);//0.5;
-        r =  dist_r(gen);  //0.2;
+        x =  dist_xyz(gen);//
+        y =  5 + 0.4*dist_xyz(gen);//
+        z =  5 + 0.2*dist_xyz(gen);//
+        r =  rand_corr(gen);//dist_r(gen);  
         r_mean += r;
     }
     r_mean /= N_s;
@@ -172,8 +175,8 @@ std::cout << "Perfect cubic packing: "
                 {
                     const Real R2 = sqr(rc);
 
-                    auto eta = [&R2](Real dist2)
-                    { return (dist2 < R2) ? mask_v::inside : mask_v::outside; };
+                    auto eta = [&R2, &h](Real dist2)
+                    { return (dist2 < R2 +h) ? mask_v::inside : mask_v::outside; };
                     auto [x, y, z] = mesh.pos_tuple(i, j, k);
                     auto dx        = x - xc;
                     auto dy        = y - yc;
@@ -262,8 +265,8 @@ std::cout << "Perfect cubic packing: "
 
     // Check neighbours to handle interpolation
 
-    size_t appr_ord     = 5;
-    size_t n_pts_needed = appr_ord - 1;
+    size_t appr_ord     = 3;
+    size_t n_pts_needed = 8; //appr_ord - 1;
     size_t appr_ord_min = 9;
     size_t appr_ord_max = 0;
 
