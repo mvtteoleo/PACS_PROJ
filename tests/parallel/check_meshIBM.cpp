@@ -82,6 +82,7 @@ int main(int argc, char* argv[])
     auto                           is_scal_blocked   = mask_in_out;
     auto                           is_in_out_blocked = mask_in_out;
 
+#if 0
     std::mt19937                         gen(12345); // fixed seed
     Real r_min = 0.3;
     Real r_max = 0.9;
@@ -100,6 +101,44 @@ int main(int argc, char* argv[])
         r_mean += r;
     }
     r_mean /= N_s;
+#endif
+    Real min_spacing = 0.3; //10.0 * h;       // exact center-to-center distance
+Real r_base      = 0.5 * min_spacing * 0.6; // slightly smaller so they don’t touch exactly
+Real start       = min_spacing;
+Real end_x       = Lx - min_spacing;
+Real end_y       = Ly - min_spacing;
+Real end_z       = Lz - min_spacing;
+
+// number of spheres per direction
+int nx_sph = static_cast<int>((end_x - start) / min_spacing) + 1;
+int ny_sph = static_cast<int>((end_y - start) / min_spacing) + 1;
+int nz_sph = static_cast<int>((end_z - start) / min_spacing) + 1;
+
+SphereInfo spheres_info;
+spheres_info.reserve(nx_sph * ny_sph * nz_sph);
+
+for (int ix = 0; ix < nx_sph; ++ix)
+    for (int iy = 0; iy < ny_sph; ++iy)
+        for (int iz = 0; iz < nz_sph; ++iz)
+        {
+            Real x = start + ix * min_spacing;
+            Real y = start + iy * min_spacing;
+            Real z = start + iz * min_spacing;
+
+            // Simple smooth radius variation (optional)
+            Real r = r_base; // * (1.0 + 0.1 * std::sin(0.3 * (ix + iy + iz)));
+
+            spheres_info.emplace_back(x, y, z, r);
+        }
+
+Real r_mean = 0.0;
+for (auto& [x, y, z, r] : spheres_info)
+    r_mean += r;
+r_mean /= spheres_info.size();
+
+std::cout << "Perfect cubic packing: "
+          << spheres_info.size() << " spheres, mean r = " << r_mean << "\n";
+
 
     // UNDERSTANDING WHETHER THE SPECIFIC POSITION IS BLOCKED OR NOT
     //
@@ -120,12 +159,12 @@ int main(int argc, char* argv[])
         auto clamp_low  = [](int a) { return std::max(a, 0); };
         auto clamp_high = [](int a, int max) { return std::min(a, max - 1); };
 
-        int i_min = 0;    // clamp_low(ic - rh - 1);
-        int j_min = 0;    // clamp_low(jc - rh - 1);
-        int k_min = 0;    // clamp_low(kc - rh - 1);
-        int i_max = iMax; // clamp_high(ic + rh + 2, iMax);
-        int j_max = jMax; // clamp_high(jc + rh + 2, jMax);
-        int k_max = kMax; // clamp_high(kc + rh + 2, kMax);
+        int i_min = clamp_low(ic - rh - 3);        // 0;    // 
+        int j_min = clamp_low(jc - rh - 3);        // 0;    // 
+        int k_min = clamp_low(kc - rh - 3);        // 0;    // 
+        int i_max = clamp_high(ic + rh + 4, iMax); // iMax; // 
+        int j_max = clamp_high(jc + rh + 4, jMax); // jMax; // 
+        int k_max = clamp_high(kc + rh + 4, kMax); // kMax; // 
 
         std::array<Real, 4> dists;
 
@@ -392,8 +431,7 @@ int main(int argc, char* argv[])
     size_t n_plots = all_circles.size() + 3;
     for (size_t i = 0; i < all_circles.size(); ++i)
     {
-        gp << "'-' with lines lw 2 lc rgb " << colors[i % colors.size()] << " title 'Sphere@"
-           << std::fixed << std::setprecision(2) << std::get<2>(spheres_info[i]) << "'";
+        gp << "'-' with lines lw 2 lc rgb " << colors[i % colors.size()] ;
         gp << ", ";
     }
 
