@@ -16,8 +16,13 @@ LDLIBS   += $(NIX_LDLIBS)
 
 
 # Optimization flags
-OPT_O3   := -O3 -Wall -Wextra -pedantic -fopenmp -std=c++23
-OPT_O0   := -O0 -g -Wall -Wextra -pedantic -fopenmp  -std=c++23
+DEBUG_FLAGS := -O0 -g  -Wall -Wextra -pedantic -fopenmp -std=c++23
+OPT_FLAGS := -O3 -Wall -Wextra -pedantic -fopenmp  -std=c++23
+
+GEN_FLAGS   := $(OPT_FLAGS)
+C2DEC_FLAGS := $(OPT_FLAGS)
+
+
 
 # Directories
 SRC_DIR      := src
@@ -63,27 +68,27 @@ parallel: $(PARALLEL_TESTS)
 # ==============================
 # Compile main program (everything O3)
 $(EXEC): $(OBJS)
-	$(CXX) $(OPT_O3) $(CPPFLAGS) $^ -o $@ $(LDLIBS)
+	$(CXX) $(GEN_FLAGS) $(CPPFLAGS) $^ -o $@ $(LDLIBS)
 
 # Compile src files (O3)
 $(BUILD_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	$(CXX) $(OPT_O3) $(CPPFLAGS) -c $< -o $@
+	$(CXX) $(GEN_FLAGS) $(CPPFLAGS) -c $< -o $@
 
 # Compile 2Decomp_C library (O0 with MPI compiler)
 $(BUILD_DIR)/2Decomp_C/%.o: $(C2DECOMP_DIR)/%.cpp
 	@mkdir -p $(dir $@)
-	$(MPICXX) $(OPT_O0) $(CPPFLAGS) -I$(C2DECOMP_DIR) -c $< -o $@
+	$(MPICXX) $(C2DEC_FLAGS) $(CPPFLAGS) -I$(C2DECOMP_DIR) -c $< -o $@
 
 # Link parallel test executables (use mpicxx and include O0 objects)
 $(BUILD_DIR)/parallel/%: $(BUILD_DIR)/tests/parallel/%.o $(OBJS) $(C2DECOMP_OBJS)
 	@mkdir -p $(dir $@)
-	$(MPICXX) $(OPT_O3) $(CPPFLAGS) -I$(C2DECOMP_DIR) $^ -o $@ $(LDLIBS)
+	$(MPICXX) $(GEN_FLAGS) $(CPPFLAGS) -I$(C2DECOMP_DIR) $^ -o $@ $(LDLIBS)
 
 # Link serial test executables (O3)
 $(BUILD_DIR)/serial/%: $(BUILD_DIR)/tests/serial/%.o $(OBJS)
 	@mkdir -p $(dir $@)
-	$(CXX) $(OPT_O3) $(CPPFLAGS) $^ -o $@ $(LDLIBS)
+	$(CXX) $(GEN_FLAGS) $(CPPFLAGS) $^ -o $@ $(LDLIBS)
 
 # ==============================
 # Cleaning

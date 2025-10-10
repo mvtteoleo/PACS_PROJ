@@ -86,28 +86,29 @@ int main(int argc, char* argv[])
     std::uniform_real_distribution<Real> dist_xyz(2, 8);
     std::uniform_real_distribution<Real> rand_corr(1.1, 1.8);
 
-#if 1
-    size_t     N_s = 9;
+#if 0
+    size_t     N_s = 10;
     SphereInfo spheres_info(N_s);
     Real       r_mean = 0;
 
-
     for (auto& [x, y, z, r] : spheres_info)
     {
-        x =  dist_xyz(gen);//
-        y =  5 + 0.4*dist_xyz(gen);//
-        z =  5 + 0.2*dist_xyz(gen);//
-        r =  rand_corr(gen);//dist_r(gen);  
+        x = dist_xyz(gen);  //
+        y = dist_xyz(gen);  //
+        z = dist_xyz(gen);  //
+        r = rand_corr(gen); // dist_r(gen);
         r_mean += r;
     }
     r_mean /= N_s;
 #else
-    Real min_spacing = 0.8; //10.0 * h;       // exact center-to-center distance
-Real r_base      = 0.5 * min_spacing * 0.6; // slightly smaller so they don’t touch exactly
-Real start       = min_spacing;
-Real end_x       = Lx - min_spacing;
-Real end_y       = Ly - min_spacing;
-Real end_z       = Lz - min_spacing;
+Real r_base = 1;           // <-- define radius directly
+Real spacing_factor = 2;   // factor controlling gap between spheres (2*radius*1.1 in your original)
+Real min_spacing = spacing_factor * r_base;  // center-to-center spacing
+
+Real start = r_base;          // start at one radius away from domain boundary
+Real end_x = Lx - r_base;
+Real end_y = Ly - r_base;
+Real end_z = Lz - r_base;
 
 // number of spheres per direction
 int nx_sph = static_cast<int>((end_x - start) / min_spacing) + 1;
@@ -125,26 +126,28 @@ for (int ix = 0; ix < nx_sph; ++ix)
             Real y = start + iy * min_spacing;
             Real z = start + iz * min_spacing;
 
-            // Simple smooth radius variation (optional)
-            Real r = r_base * rand_corr(gen);
+            // Optionally vary radius (if needed)
+            Real r = r_base;
 
             spheres_info.emplace_back(x, y, z, r);
         }
 
+// compute mean radius
 Real r_mean = 0.0;
 for (auto& [x, y, z, r] : spheres_info)
     r_mean += r;
 r_mean /= spheres_info.size();
 
-std::cout << "Perfect cubic packing: "
-          << spheres_info.size() << " spheres, mean r = " << r_mean << "\n";
+std::cout << "Perfect cubic packing: " << spheres_info.size()
+          << " spheres, mean r = " << r_mean
+          << ", spacing = " << min_spacing << "\n";
 #endif
-
 
     // UNDERSTANDING WHETHER THE SPECIFIC POSITION IS BLOCKED OR NOT
     //
     // JUST MEMSET ALL THE VALUES AS OUTSIDE AND LOOP OVER THE CUBE CIRCUMBSCRIBED TO THE SPHERE
     mask_in_out.fill_val(mask_v::outside);
+    is_in_out_blocked.fill_val(status::fluid_free);
 
     auto sqr = [](Real x) { return x * x; };
 
@@ -160,12 +163,12 @@ std::cout << "Perfect cubic packing: "
         auto clamp_low  = [](int a) { return std::max(a, 0); };
         auto clamp_high = [](int a, int max) { return std::min(a, max - 1); };
 
-        int i_min = clamp_low(ic - rh - 3);        // 0;    // 
-        int j_min = clamp_low(jc - rh - 3);        // 0;    // 
-        int k_min = clamp_low(kc - rh - 3);        // 0;    // 
-        int i_max = clamp_high(ic + rh + 4, iMax); // iMax; // 
-        int j_max = clamp_high(jc + rh + 4, jMax); // jMax; // 
-        int k_max = clamp_high(kc + rh + 4, kMax); // kMax; // 
+        int i_min = clamp_low(ic - rh - 1);        // 0;    //
+        int j_min = clamp_low(jc - rh - 1);        // 0;    //
+        int k_min = 0;                             // clamp_low(kc - rh - 1);        // 0;    //
+        int i_max = clamp_high(ic + rh + 3, iMax); // iMax; //
+        int j_max = clamp_high(jc + rh + 3, jMax); // jMax; //
+        int k_max = kMax;                          // clamp_high(kc + rh + 3, kMax); // kMax; //
 
         std::array<Real, 4> dists;
 
@@ -176,11 +179,14 @@ std::cout << "Perfect cubic packing: "
                     const Real R2 = sqr(rc);
 
                     auto eta = [&R2, &h](Real dist2)
-                    { return (dist2 < R2 +h) ? mask_v::inside : mask_v::outside; };
+                    { return (dist2 < R2) ? mask_v::inside : mask_v::outside; };
                     auto [x, y, z] = mesh.pos_tuple(i, j, k);
                     auto dx        = x - xc;
                     auto dy        = y - yc;
                     auto dz        = z - zc;
+
+                    auto dist = [&sqr](Real dx, Real dy, Real dz)
+                    { return sqr(dx) + sqr(dy) + sqr(dz); };
 
                     dists[0] = sqr(dx) + sqr(dy) + sqr(dz);
                     dists[1] = sqr(dx + 0.5 * h) + sqr(dy) + sqr(dz);
@@ -198,14 +204,6 @@ std::cout << "Perfect cubic packing: "
             for (int i = 1; i < iMax - 1; ++i)
                 for (int l = 0; l < 4; ++l)
                 {
-                    auto NW = mask_in_out.at(i - 1, j + 1, k, 1);
-                    auto SE = mask_in_out.at(i + 1, j - 1, k, 2);
-
-                    auto WT = mask_in_out.at(i - 1, j, k + 1, 1);
-                    auto EB = mask_in_out.at(i + 1, j, k - 1, 3);
-
-                    auto NB = mask_in_out.at(i, j + 1, k - 1, 3);
-                    auto ST = mask_in_out.at(i, j - 1, k + 1, 2);
                     if (mask_in_out.at(i, j, k, l) == mask_v::outside)
                     {
                         auto E = mask_in_out.at(i + 1, j, k, l); // east
@@ -214,11 +212,6 @@ std::cout << "Perfect cubic packing: "
                         auto S = mask_in_out.at(i, j - 1, k, l); // south
                         auto T = mask_in_out.at(i, j, k + 1, l); // top
                         auto B = mask_in_out.at(i, j, k - 1, l); // bottom
-
-                        auto p_prev = mask_in_out.at(i, j, k, 0);
-                        auto HEL1   = static_cast<int>(mask_v::inside);
-                        auto HEL2   = static_cast<int>(mask_v::inside);
-                        auto p_next = static_cast<int>(mask_v::inside);
 
                         if (l == 0)
                         {
@@ -229,30 +222,10 @@ std::cout << "Perfect cubic packing: "
                             auto S = mask_in_out.at(i, j - 1, k, l); // south
                             auto T = mask_in_out.at(i, j, k + 1, l); // top
                             auto B = mask_in_out.at(i, j, k - 1, l); // bottom
-                            HEL1   = mask_v::outside;
-                            HEL2   = mask_v::outside;
-                            p_prev = mask_v::outside;
-                            p_next = mask_v::outside;
                         }
-                        if (l == 1)
-                        {
-                            HEL1   = SE;
-                            HEL2   = EB;
-                            p_next = mask_in_out.at(i + 1, j, k, 0);
-                        }
-                        if (l == 2)
-                        {
-                            HEL1   = NW;
-                            HEL2   = NB;
-                            p_next = mask_in_out.at(i, j + 1, k, 0);
-                        }
-                        if (l == 3)
-                        {
-                            HEL1   = WT;
-                            HEL2   = ST;
-                            p_next = mask_in_out.at(i, j, k + 1, 0);
-                        }
-                        std::vector<int> comp_mol{E, W, N, S, B, T, HEL1, HEL2, p_prev, p_next};
+
+                        std::vector<int> comp_mol{E, W, N, S, B, T};
+
                         if (std::any_of(comp_mol.begin(), comp_mol.end(),
                                         [](int s) { return s == mask_v::inside; }))
                             is_in_out_blocked.at(i, j, k, l) = status::interf;
@@ -265,13 +238,14 @@ std::cout << "Perfect cubic packing: "
 
     // Check neighbours to handle interpolation
 
-    size_t appr_ord     = 3;
-    size_t n_pts_needed = 8; //appr_ord - 1;
+    size_t appr_ord     = 2;
+    size_t n_pts_needed = 1; // appr_ord - 1;
+    size_t max_pts_from = 6;
     size_t appr_ord_min = 9;
     size_t appr_ord_max = 0;
 
-    size_t err_pt = 0;
-    size_t n_interf =0;
+    size_t err_pt   = 0;
+    size_t n_interf = 0;
 
     std::vector<std::vector<size_t>> problematic_idx;
 
@@ -282,13 +256,29 @@ std::cout << "Perfect cubic packing: "
                     // Loop over interface elements
                     if (is_in_out_blocked.at(i, j, k, l) == status::interf)
                     {
+                        // TODO errore sta qui in mezzo nella logica!!
                         ++n_interf;
                         auto count_fluid_free = [&](const std::vector<int>& vals) -> int
                         {
                             // If any blocked, stencil invalid
                             if (std::any_of(vals.begin(), vals.end(),
                                             [&](int s) { return s == status::blocked; }))
-                                return 0;
+                            {
+                                // Identify position
+                                int first_blocked =
+                                    std::distance(vals.begin(), std::find(vals.begin(), vals.end(),
+                                                                          status::blocked));
+
+                                // Check whether all elements are interf => I have to interp them
+                                // already
+                                if (all_of(vals.begin(), vals.begin() + first_blocked,
+                                           [&](int s) { return s == status::interf; }))
+                                    return 0;
+                                else
+                                    return std::count_if(vals.begin(), vals.begin() + first_blocked,
+                                                         [&](int s)
+                                                         { return s == status::fluid_free; });
+                            }
 
                             // Count how many are "fluid/free"
                             int n_fluid_free =
@@ -298,9 +288,9 @@ std::cout << "Perfect cubic packing: "
                             return n_fluid_free;
                         };
                         auto fill_stencil = [&](int i0, int j0, int k0, int l0, int di, int dj,
-                                                int dk, int n_points, std::vector<int>& stencil)
+                                                int dk, int n_points)
                         {
-                            stencil.clear();
+                            std::vector<int> stencil;
                             for (int d = 1; d <= n_points; ++d)
                             {
                                 int ii = i0 + d * di;
@@ -314,35 +304,35 @@ std::cout << "Perfect cubic packing: "
 
                                 stencil.push_back(is_in_out_blocked.at(ii, jj, kk, l0));
                             }
+                            return stencil;
                         };
 
-                        std::vector<int> stencil;
+                        auto stencil_1 = fill_stencil(i, j, k, l, +1, 0, 0, max_pts_from);
+                        int  n_xp      = count_fluid_free(stencil_1);
 
-                        fill_stencil(i, j, k, l, +1, 0, 0, n_pts_needed, stencil);
-                        int n_xp = count_fluid_free(stencil);
+                        auto stencil_2 = fill_stencil(i, j, k, l, -1, 0, 0, max_pts_from);
+                        int  n_xm      = count_fluid_free(stencil_2);
 
-                        fill_stencil(i, j, k, l, -1, 0, 0, n_pts_needed, stencil);
-                        int n_xm = count_fluid_free(stencil);
+                        auto stencil_3 = fill_stencil(i, j, k, l, 0, +1, 0, max_pts_from);
+                        int  n_yp      = count_fluid_free(stencil_3);
 
-                        fill_stencil(i, j, k, l, 0, +1, 0, n_pts_needed, stencil);
-                        int n_yp = count_fluid_free(stencil);
+                        auto stencil_4 = fill_stencil(i, j, k, l, 0, -1, 0, max_pts_from);
+                        int  n_ym      = count_fluid_free(stencil_4);
 
-                        fill_stencil(i, j, k, l, 0, -1, 0, n_pts_needed, stencil);
-                        int n_ym = count_fluid_free(stencil);
+                        auto stencil_5 = fill_stencil(i, j, k, l, 0, 0, +1, max_pts_from);
+                        int  n_zp      = count_fluid_free(stencil_5);
 
-                        fill_stencil(i, j, k, l, 0, 0, +1, n_pts_needed, stencil);
-                        int n_zp = count_fluid_free(stencil);
-
-                        fill_stencil(i, j, k, l, 0, 0, -1, n_pts_needed, stencil);
-                        int n_zm = count_fluid_free(stencil);
+                        auto stencil_6 = fill_stencil(i, j, k, l, 0, 0, -1, max_pts_from);
+                        int  n_zm      = count_fluid_free(stencil_6);
 
                         std::array<int, 6> n_dir = {n_xp, n_xm, n_yp, n_ym, n_zp, n_zm};
 
                         // 3. Check if interpolation possible
-                        if (std::all_of(n_dir.begin(), n_dir.end(), [](int n){ return n == 0; }))
-                         {
-                            std::cout << "ziopera, No interp possible here " << i << " " << j << " " << k << " " << l << " \n";
-                                ++err_pt; // skip this element
+                        if (std::all_of(n_dir.begin(), n_dir.end(), [](int n) { return n == 0; }))
+                        {
+                            std::cout << "ziopera, No interp possible here " << i << " " << j << " "
+                                      << k << " " << l << " \n";
+                            ++err_pt; // skip this element
                             problematic_idx.push_back({i, j, k, l});
                         }
 
@@ -358,96 +348,107 @@ std::cout << "Perfect cubic packing: "
 
 // --- Prepare the points ---
 #if 1
-// auto& to_plot = mask_in_out;
+    // auto& to_plot = mask_in_out;
     auto&                                           to_plot = is_in_out_blocked;
     std::vector<std::tuple<double, double, double>> p_pts;
     std::vector<std::tuple<double, double, double>> u_pts;
     std::vector<std::tuple<double, double, double>> v_pts;
+    std::vector<std::tuple<double, double, double>> w_pts;
 
     Gnuplot gp;
 
-    size_t k_slice = kMax / 2;
-    if (argc > 2) k_slice = std::stoul(argv[2]);
-    std::cout << "Slice: " << k_slice << "\n";
+    do
+    {
 
-    Real z_slice = h * k_slice;
+        size_t k_slice = kMax / 2;
+        // if (argc > 2) k_slice = std::stoul(argv[2]);
+        std::cout << "Insert slice value : ";
+        std::cin >> k_slice;
+        std::cout << "Slice: " << k_slice << "\n";
 
-    // --- Collect field points ---
-    for (size_t i = 0; i < iMax; ++i)
-        for (size_t j = 0; j < jMax; ++j)
+        Real z_slice = h * k_slice;
+
+        // --- Collect field points ---
+        for (size_t i = 0; i < iMax; ++i)
+            for (size_t j = 0; j < jMax; ++j)
+            {
+                auto [x, y, z] = mesh.pos_tuple(i, j, k_slice);
+                auto vp        = to_plot.at(i, j, k_slice, 0);
+                auto vu        = to_plot.at(i, j, k_slice, 1);
+                auto vv        = to_plot.at(i, j, k_slice, 2);
+                auto vw        = to_plot.at(i, j, k_slice, 3);
+
+
+                p_pts.emplace_back(x, y, vp);
+                u_pts.emplace_back(x + h / 2, y, vu);
+                v_pts.emplace_back(x, y + h / 2, vv);
+                w_pts.emplace_back(x, y + h / 2, vv);
+            }
+
+        // --- Gnuplot setup (must be before data is sent) ---
+        gp << "set terminal x11 size 1000,800\n";
+        gp << "set xlabel 'X'\n";
+        gp << "set ylabel 'Y'\n";
+        gp << "set size ratio -1\n"; // preserve aspect ratio
+        gp << "set grid\n";
+        gp << "set xrange [0:" << Lx << "]\n";
+        gp << "set yrange [0:" << Ly << "]\n";
+        gp << "set title 'Mid-plane slice at k=" << k_slice << " (z=" << z_slice << ")'\n";
+        gp << "set palette defined (0 'red', 1 'green', 2 'blue')\n";
+        gp << "set cbrange [0:2]\n";
+        gp << "unset colorbox\n";
+
+        // --- Prepare circles ---
+        std::vector<std::vector<std::tuple<double, double>>> all_circles;
+        std::vector<std::string>                             colors    = {"'orange'", "'violet'"};
+        size_t                                               color_idx = 0;
+
+        for (const auto& [xc, yc, zc, rc] : spheres_info)
         {
-            auto [x, y, z] = mesh.pos_tuple(i, j, k_slice);
-            auto vp        = to_plot.at(i, j, k_slice, 0);
-            auto vu        = to_plot.at(i, j, k_slice, 1);
-            auto vv        = to_plot.at(i, j, k_slice, 2);
+            Real dz  = z_slice - zc;
+            Real arg = rc * rc - dz * dz;
+            if (arg <= 0.0) continue; // no intersection with plane
 
-            p_pts.emplace_back(x, y, vp);
-            u_pts.emplace_back(x + h / 2, y, vu);
-            v_pts.emplace_back(x, y + h / 2, vv);
+            Real r_p = std::sqrt(arg);
+
+            // Precompute circle points in C++
+            const int                               N = 7200;
+            std::vector<std::tuple<double, double>> circle_points;
+            circle_points.reserve(N + 1);
+            for (int n = 0; n < N; ++n)
+            {
+                double t = 2.0 * M_PI * n / N;
+                double x = xc + r_p * std::cos(t);
+                double y = yc + r_p * std::sin(t);
+                circle_points.emplace_back(x, y);
+            }
+            all_circles.push_back(circle_points);
         }
 
-    // --- Gnuplot setup (must be before data is sent) ---
-    gp << "set terminal x11 size 1000,800\n";
-    gp << "set xlabel 'X'\n";
-    gp << "set ylabel 'Y'\n";
-    gp << "set size ratio -1\n"; // preserve aspect ratio
-    gp << "set grid\n";
-    gp << "set xrange [0:" << Lx << "]\n";
-    gp << "set yrange [0:" << Ly << "]\n";
-    gp << "set title 'Mid-plane slice at k=" << k_slice << " (z=" << z_slice << ")'\n";
-    gp << "set palette defined (0 'red', 1 'green', 2 'blue')\n";
-    gp << "set cbrange [0:2]\n";
-    gp << "unset colorbox\n";
+        // --- Build the plot command ---
+        gp << "plot ";
 
-    // --- Prepare circles ---
-    std::vector<std::vector<std::tuple<double, double>>> all_circles;
-    std::vector<std::string>                             colors    = {"'orange'", "'violet'"};
-    size_t                                               color_idx = 0;
-
-    for (const auto& [xc, yc, zc, rc] : spheres_info)
-    {
-        Real dz  = z_slice - zc;
-        Real arg = rc * rc - dz * dz;
-        if (arg <= 0.0) continue; // no intersection with plane
-
-        Real r_p = std::sqrt(arg);
-
-        // Precompute circle points in C++
-        const int                               N = 7200;
-        std::vector<std::tuple<double, double>> circle_points;
-        circle_points.reserve(N + 1);
-        for (int n = 0; n < N; ++n)
+        size_t n_plots = all_circles.size() + 3;
+        for (size_t i = 0; i < all_circles.size(); ++i)
         {
-            double t = 2.0 * M_PI * n / N;
-            double x = xc + r_p * std::cos(t);
-            double y = yc + r_p * std::sin(t);
-            circle_points.emplace_back(x, y);
+            gp << "'-' with lines lw 2 lc rgb " << colors[i % colors.size()];
+            gp << ", ";
         }
-        all_circles.push_back(circle_points);
-    }
 
-    // --- Build the plot command ---
-    gp << "plot ";
+        // add datasets (p, u, v)
+        gp << "'-' using 1:2:3 with points pt 7 ps 1.1 palette title 'p_pts', "
+           << "'-' using 1:2:3 with points pt 11 ps 1.1 palette title 'u_pts', "
+           << "'-' using 1:2:3 with points pt 9 ps 1.1 palette title 'v_pts'\n";
 
-    size_t n_plots = all_circles.size() + 3;
-    for (size_t i = 0; i < all_circles.size(); ++i)
-    {
-        gp << "'-' with lines lw 2 lc rgb " << colors[i % colors.size()] ;
-        gp << ", ";
-    }
+        // --- Send all data ---
+        for (auto& circ : all_circles)
+            gp.send1d(circ);
 
-    // add datasets (p, u, v)
-    gp << "'-' using 1:2:3 with points pt 7 ps 1.1 palette title 'p_pts', "
-       << "'-' using 1:2:3 with points pt 11 ps 1.1 palette title 'u_pts', "
-       << "'-' using 1:2:3 with points pt 9 ps 1.1 palette title 'v_pts'\n";
+        gp.send1d(p_pts);
+        gp.send1d(u_pts);
+        gp.send1d(v_pts);
 
-    // --- Send all data ---
-    for (auto& circ : all_circles)
-        gp.send1d(circ);
-
-    gp.send1d(p_pts);
-    gp.send1d(u_pts);
-    gp.send1d(v_pts);
+    } while (true);
 
     std::cout << "Press Enter to close...\n";
     std::cin.get();
