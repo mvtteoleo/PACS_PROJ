@@ -7,8 +7,8 @@
 #endif // DIMS
 
 #ifndef PEDANTIC
-#define PEDANTIC  // true, you dumb
-#endif             // PEDANTIC
+#define PEDANTIC // true, you dumb
+#endif           // PEDANTIC
 
 namespace numPDE
 {

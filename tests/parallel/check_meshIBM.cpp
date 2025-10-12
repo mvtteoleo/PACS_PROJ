@@ -101,46 +101,46 @@ int main(int argc, char* argv[])
     }
     r_mean /= N_s;
 #else
-Real r_base = 1;           // <-- define radius directly
-Real spacing_factor = 2;   // factor controlling gap between spheres (2*radius*1.1 in your original)
-Real min_spacing = spacing_factor * r_base;  // center-to-center spacing
+    Real r_base = 1; // <-- define radius directly
+    Real spacing_factor =
+        2; // factor controlling gap between spheres (2*radius*1.1 in your original)
+    Real min_spacing = spacing_factor * r_base; // center-to-center spacing
 
-Real start = r_base;          // start at one radius away from domain boundary
-Real end_x = Lx - r_base;
-Real end_y = Ly - r_base;
-Real end_z = Lz - r_base;
+    Real start = r_base; // start at one radius away from domain boundary
+    Real end_x = Lx - r_base;
+    Real end_y = Ly - r_base;
+    Real end_z = Lz - r_base;
 
-// number of spheres per direction
-int nx_sph = static_cast<int>((end_x - start) / min_spacing) + 1;
-int ny_sph = static_cast<int>((end_y - start) / min_spacing) + 1;
-int nz_sph = static_cast<int>((end_z - start) / min_spacing) + 1;
+    // number of spheres per direction
+    int nx_sph = static_cast<int>((end_x - start) / min_spacing) + 1;
+    int ny_sph = static_cast<int>((end_y - start) / min_spacing) + 1;
+    int nz_sph = static_cast<int>((end_z - start) / min_spacing) + 1;
 
-SphereInfo spheres_info;
-spheres_info.reserve(nx_sph * ny_sph * nz_sph);
+    SphereInfo spheres_info;
+    spheres_info.reserve(nx_sph * ny_sph * nz_sph);
 
-for (int ix = 0; ix < nx_sph; ++ix)
-    for (int iy = 0; iy < ny_sph; ++iy)
-        for (int iz = 0; iz < nz_sph; ++iz)
-        {
-            Real x = start + ix * min_spacing;
-            Real y = start + iy * min_spacing;
-            Real z = start + iz * min_spacing;
+    for (int ix = 0; ix < nx_sph; ++ix)
+        for (int iy = 0; iy < ny_sph; ++iy)
+            for (int iz = 0; iz < nz_sph; ++iz)
+            {
+                Real x = start + ix * min_spacing;
+                Real y = start + iy * min_spacing;
+                Real z = start + iz * min_spacing;
 
-            // Optionally vary radius (if needed)
-            Real r = r_base;
+                // Optionally vary radius (if needed)
+                Real r = r_base;
 
-            spheres_info.emplace_back(x, y, z, r);
-        }
+                spheres_info.emplace_back(x, y, z, r);
+            }
 
-// compute mean radius
-Real r_mean = 0.0;
-for (auto& [x, y, z, r] : spheres_info)
-    r_mean += r;
-r_mean /= spheres_info.size();
+    // compute mean radius
+    Real r_mean = 0.0;
+    for (auto& [x, y, z, r] : spheres_info)
+        r_mean += r;
+    r_mean /= spheres_info.size();
 
-std::cout << "Perfect cubic packing: " << spheres_info.size()
-          << " spheres, mean r = " << r_mean
-          << ", spacing = " << min_spacing << "\n";
+    std::cout << "Perfect cubic packing: " << spheres_info.size() << " spheres, mean r = " << r_mean
+              << ", spacing = " << min_spacing << "\n";
 #endif
 
     // UNDERSTANDING WHETHER THE SPECIFIC POSITION IS BLOCKED OR NOT
@@ -165,10 +165,10 @@ std::cout << "Perfect cubic packing: " << spheres_info.size()
 
         int i_min = clamp_low(ic - rh - 1);        // 0;    //
         int j_min = clamp_low(jc - rh - 1);        // 0;    //
-        int k_min = 0;                             // clamp_low(kc - rh - 1);        // 0;    //
+        int k_min = clamp_low(kc - rh - 1);        // 0;    //
         int i_max = clamp_high(ic + rh + 3, iMax); // iMax; //
         int j_max = clamp_high(jc + rh + 3, jMax); // jMax; //
-        int k_max = kMax;                          // clamp_high(kc + rh + 3, kMax); // kMax; //
+        int k_max = clamp_high(kc + rh + 3, kMax); // kMax; //
 
         std::array<Real, 4> dists;
 
@@ -199,6 +199,9 @@ std::cout << "Perfect cubic packing: " << spheres_info.size()
                 }
     }
 
+    // Check if the OUTSIDE element has any neighbours that touch inside.
+    //
+    // In that case the value is at the interface.
     for (int k = 1; k < kMax - 1; ++k)
         for (int j = 1; j < jMax - 1; ++j)
             for (int i = 1; i < iMax - 1; ++i)
@@ -213,17 +216,6 @@ std::cout << "Perfect cubic packing: " << spheres_info.size()
                         auto T = mask_in_out.at(i, j, k + 1, l); // top
                         auto B = mask_in_out.at(i, j, k - 1, l); // bottom
 
-                        if (l == 0)
-                        {
-                            // Just need the 6pt stencil for the laplacian
-                            auto E = mask_in_out.at(i + 1, j, k, l); // east
-                            auto W = mask_in_out.at(i - 1, j, k, l); // west
-                            auto N = mask_in_out.at(i, j + 1, k, l); // north
-                            auto S = mask_in_out.at(i, j - 1, k, l); // south
-                            auto T = mask_in_out.at(i, j, k + 1, l); // top
-                            auto B = mask_in_out.at(i, j, k - 1, l); // bottom
-                        }
-
                         std::vector<int> comp_mol{E, W, N, S, B, T};
 
                         if (std::any_of(comp_mol.begin(), comp_mol.end(),
@@ -235,6 +227,38 @@ std::cout << "Perfect cubic packing: " << spheres_info.size()
                     else if (mask_in_out.at(i, j, k, l) == mask_v::inside)
                         is_in_out_blocked.at(i, j, k, l) = status::blocked;
                 }
+
+    // Check that the data belonging to the computational molecule are
+    //  - for the fluid_free that are all either fluid_free or interf 
+    //      => In that case the comp_mol is OK else ERR 
+    //
+    //  - for the interf check what element needs to be interpolated
+    //
+
+    // Check for the pressure 
+    for (int k = 1; k < kMax - 1; ++k)
+        for (int j = 1; j < jMax - 1; ++j)
+            for (int i = 1; i < iMax - 1; ++i)
+                    if (is_in_out_blocked.at(i, j, k, l) == status::fluid_free)
+                    {
+                        std::vector<int> comp_mol;
+                        if (l == 0)
+                        {
+                            auto u_p = is_in_out_blocked.at(i, j, k, 1);
+                            auto v_p = is_in_out_blocked.at(i, j, k, 2);
+                            auto w_p = is_in_out_blocked.at(i, j, k, 3);
+                            auto u_n = is_in_out_blocked.at(i + 1, j, k, 1);
+                            auto v_n = is_in_out_blocked.at(i, j + 1, k, 2);
+                            auto w_n = is_in_out_blocked.at(i, j, k + 1, 3);
+                            comp_mol = {u_p, v_p, w_p, u_n, v_n, w_n};
+                        }
+
+                        if (std::any_of(comp_mol.begin(), comp_mol.end(),
+                                        [](int s) { return s == status::blocked; }))
+                            .at(i, j, k, l) = status::interf;
+                        else
+                            is_in_out_blocked.at(i, j, k, l) = status::fluid_free;
+                    }
 
     // Check neighbours to handle interpolation
 
@@ -271,13 +295,7 @@ std::cout << "Perfect cubic packing: " << spheres_info.size()
 
                                 // Check whether all elements are interf => I have to interp them
                                 // already
-                                if (all_of(vals.begin(), vals.begin() + first_blocked,
-                                           [&](int s) { return s == status::interf; }))
-                                    return 0;
-                                else
-                                    return std::count_if(vals.begin(), vals.begin() + first_blocked,
-                                                         [&](int s)
-                                                         { return s == status::fluid_free; });
+                                    return first_blocked;
                             }
 
                             // Count how many are "fluid/free"
@@ -377,7 +395,6 @@ std::cout << "Perfect cubic packing: " << spheres_info.size()
                 auto vu        = to_plot.at(i, j, k_slice, 1);
                 auto vv        = to_plot.at(i, j, k_slice, 2);
                 auto vw        = to_plot.at(i, j, k_slice, 3);
-
 
                 p_pts.emplace_back(x, y, vp);
                 u_pts.emplace_back(x + h / 2, y, vu);
