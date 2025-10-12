@@ -86,8 +86,8 @@ int main(int argc, char* argv[])
     std::uniform_real_distribution<Real> dist_xyz(2, 8);
     std::uniform_real_distribution<Real> rand_corr(1.1, 1.8);
 
-#if 0
-    size_t     N_s = 10;
+#if 1
+    size_t     N_s = 1;
     SphereInfo spheres_info(N_s);
     Real       r_mean = 0;
 
@@ -199,7 +199,7 @@ int main(int argc, char* argv[])
                 }
     }
 
-    // Check if the OUTSIDE element has any neighbours that touch inside.
+    // Check if the OUTSIDE elements have any neighbours that touch inside.
     //
     // In that case the value is at the interface.
     for (int k = 1; k < kMax - 1; ++k)
@@ -234,31 +234,88 @@ int main(int argc, char* argv[])
     //
     //  - for the interf check what element needs to be interpolated
     //
-
-    // Check for the pressure
+    // Check that each fluid_free elements is actually fluid_free
     for (int k = 1; k < kMax - 1; ++k)
         for (int j = 1; j < jMax - 1; ++j)
             for (int i = 1; i < iMax - 1; ++i)
-                if (is_in_out_blocked.at(i, j, k, l) == status::fluid_free)
-                {
-                    std::vector<int> comp_mol;
-                    if (l == 0)
+                for (int l = 0; l < 4; ++l)
+                    if (is_in_out_blocked.at(i, j, k, l) == status::fluid_free)
                     {
-                        auto u_p = is_in_out_blocked.at(i, j, k, 1);
-                        auto v_p = is_in_out_blocked.at(i, j, k, 2);
-                        auto w_p = is_in_out_blocked.at(i, j, k, 3);
-                        auto u_n = is_in_out_blocked.at(i + 1, j, k, 1);
-                        auto v_n = is_in_out_blocked.at(i, j + 1, k, 2);
-                        auto w_n = is_in_out_blocked.at(i, j, k + 1, 3);
-                        comp_mol = {u_p, v_p, w_p, u_n, v_n, w_n};
-                    }
+                        std::vector<int> comp_mol;
+                        if (l == 0)
+                        {
+                            auto u_p = is_in_out_blocked.at(i, j, k, 1);
+                            auto v_p = is_in_out_blocked.at(i, j, k, 2);
+                            auto w_p = is_in_out_blocked.at(i, j, k, 3);
+                            auto u_n = is_in_out_blocked.at(i + 1, j, k, 1);
+                            auto v_n = is_in_out_blocked.at(i, j + 1, k, 2);
+                            auto w_n = is_in_out_blocked.at(i, j, k + 1, 3);
+                            comp_mol = {u_p, v_p, w_p, u_n, v_n, w_n};
+                        }
+                        if (l == 1)
+                        {
+                            auto p   = is_in_out_blocked.at(i, j, k, 0);
+                            auto p_n = is_in_out_blocked.at(i + 1, j, k, 0);
 
-                    if (std::any_of(comp_mol.begin(), comp_mol.end(),
-                                    [](int s) { return s == status::blocked; }))
-                        .at(i, j, k, l) = status::interf;
-                    else
-                        is_in_out_blocked.at(i, j, k, l) = status::fluid_free;
-                }
+                            // v on x
+                            auto v_1 = is_in_out_blocked.at(i, j, k, 2);
+                            auto v_2 = is_in_out_blocked.at(i, j - 1, k, 2);
+                            auto v_3 = is_in_out_blocked.at(i + 1, j, k, 2);
+                            auto SE  = is_in_out_blocked.at(i + 1, j - 1, k, 2);
+
+                            // w on x
+                            auto w_1 = is_in_out_blocked.at(i, j, k, 3);
+                            auto w_2 = is_in_out_blocked.at(i, j, k - 1, 3);
+                            auto w_3 = is_in_out_blocked.at(i + 1, j, k, 3);
+                            auto EB  = is_in_out_blocked.at(i + 1, j, k - 1, 2);
+
+                            comp_mol = {p, p_n, v_1, v_2, v_3, SE, w_1, w_2, w_3, EB};
+                        }
+                        if (l == 2)
+                        {
+                            auto p   = is_in_out_blocked.at(i, j, k, 0);
+                            auto p_n = is_in_out_blocked.at(i, j + 1, k, 0);
+
+                            // u on y
+                            auto u_1 = is_in_out_blocked.at(i, j, k, 1);
+                            auto u_2 = is_in_out_blocked.at(i - 1, j, k, 1);
+                            auto u_3 = is_in_out_blocked.at(i, j + 1, k, 1);
+                            auto NW  = is_in_out_blocked.at(i - 1, j + 1, k, 1);
+
+                            // w on y
+                            auto w_1 = is_in_out_blocked.at(i, j, k, 2);
+                            auto w_2 = is_in_out_blocked.at(i, j, k - 1, 2);
+                            auto w_3 = is_in_out_blocked.at(i, j + 1, k, 2);
+                            auto NB  = is_in_out_blocked.at(i, j + 1, k - 1, 3);
+
+                            comp_mol = {p, p_n, u_1, u_2, u_3, NW, w_1, w_2, w_3, NB};
+                        }
+                        if (l == 3)
+                        {
+                            auto p   = is_in_out_blocked.at(i, j, k, 0);
+                            auto p_n = is_in_out_blocked.at(i, j, k + 1, 0);
+
+                            // u on z
+                            auto u_1 = is_in_out_blocked.at(i, j, k, 1);
+                            auto u_2 = is_in_out_blocked.at(i - 1, j, k, 1);
+                            auto u_3 = is_in_out_blocked.at(i, j, k + 1, 1);
+                            auto WT  = is_in_out_blocked.at(i - 1, j, k + 1, 1);
+
+                            // v on z
+                            auto v_1 = is_in_out_blocked.at(i, j, k, 2);
+                            auto v_2 = is_in_out_blocked.at(i, j - 1, k, 2);
+                            auto v_3 = is_in_out_blocked.at(i, j, k + 1, 2);
+                            auto ST  = is_in_out_blocked.at(i, j - 1, k + 1, 1);
+
+                            comp_mol = {p, p_n, u_1, u_2, u_3, WT, v_1, v_2, v_3, ST};
+                        }
+
+                        if (std::any_of(comp_mol.begin(), comp_mol.end(),
+                                        [](int s) { return s == status::blocked; }))
+                            is_in_out_blocked.at(i, j, k, l) = status::interf;
+                        else
+                            is_in_out_blocked.at(i, j, k, l) = status::fluid_free;
+                    }
 
     // Check neighbours to handle interpolation
 
@@ -280,11 +337,9 @@ int main(int argc, char* argv[])
                     // Loop over interface elements
                     if (is_in_out_blocked.at(i, j, k, l) == status::interf)
                     {
-                        // TODO errore sta qui in mezzo nella logica!!
                         ++n_interf;
                         auto count_fluid_free = [&](const std::vector<int>& vals) -> int
                         {
-                            // If any blocked, stencil invalid
                             if (std::any_of(vals.begin(), vals.end(),
                                             [&](int s) { return s == status::blocked; }))
                             {
@@ -301,7 +356,7 @@ int main(int argc, char* argv[])
                             // Count how many are "fluid/free"
                             int n_fluid_free =
                                 std::count_if(vals.begin(), vals.end(),
-                                              [&](int s) { return s == status::fluid_free; });
+                                              [&](int s) { return s != status::fluid_free; });
 
                             return n_fluid_free;
                         };
@@ -342,6 +397,21 @@ int main(int argc, char* argv[])
 
                         auto stencil_6 = fill_stencil(i, j, k, l, 0, 0, -1, max_pts_from);
                         int  n_zm      = count_fluid_free(stencil_6);
+
+                        /*
+                         * TODO :
+                         *
+                         *  - Identify the direction of interpolation (X_i +/-)
+                         *  - Identify the distance from the object (dx, dy, dz)
+                         *  - Obtain the gamma values for the interpolation
+                         *  - Obtain the Lagrange coefficients for the polynomial interpolation
+                         *  - Store the values in a separete struct with:
+                         *
+                         *    - i, j, k of the interf element
+                         *    - gammas
+                         *    - a link to the interpolating values (phis) 
+                         *    - the Lagrange coefficients
+                         */
 
                         std::array<int, 6> n_dir = {n_xp, n_xm, n_yp, n_ym, n_zp, n_zm};
 

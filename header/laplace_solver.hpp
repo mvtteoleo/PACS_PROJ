@@ -41,14 +41,18 @@ namespace numPDE
         BOTTOM // --k
     };
 
-                struct PressureBC
+    struct PressureBC
     {
-        BC BC_NORTH = NeuHomo;
-        BC BC_SOUTH = NeuHomo;
-        BC BC_EAST  = NeuHomo;
-        BC BC_WEST  = NeuHomo;
-        BC BC_TOP   = NeuHomo;
-        BC BC_BOTTOM= NeuHomo;
+        BC BC_NORTH  = NeuHomo;
+        BC BC_SOUTH  = NeuHomo;
+        BC BC_EAST   = NeuHomo;
+        BC BC_WEST   = NeuHomo;
+        BC BC_TOP    = NeuHomo;
+        BC BC_BOTTOM = NeuHomo;
+
+        BC BC_x = NeuHomo;
+        BC BC_y = NeuHomo;
+        BC BC_z = NeuHomo;
     };
     template <typename T = double>
     struct Constants
@@ -66,9 +70,9 @@ namespace numPDE
         FastLaplaceSolver(NewDecomp<T>& decomp, PressureBC Bcs, Constants<T>& constants)
             : r_dec{decomp}, m_BCs{Bcs}, r_const{constants}
         {
-        // TODO add the check to confirm that the BC along each direction are compatible
-        // TODO add that if the pressure BC is Dir and not Dir homo an exception is thrown
-          
+            // TODO add the check to confirm that the BC along each direction are compatible
+            // TODO add that if the pressure BC is Dir and not Dir homo an exception is thrown
+
             const auto& xSizeArr = r_dec.xSize();
             const auto& ySizeArr = r_dec.ySize();
             const auto& zSizeArr = r_dec.zSize();
@@ -316,10 +320,10 @@ namespace numPDE
         }
 
       private:
-        NewDecomp<T>&     r_dec;
-        PressureBC m_BCs;
-        Constants<T>&     r_const;
-        std::vector<T>    data2, data3;
+        NewDecomp<T>&  r_dec;
+        PressureBC     m_BCs;
+        Constants<T>&  r_const;
+        std::vector<T> data2, data3;
 
         int Lx, Ly, Lz;
 

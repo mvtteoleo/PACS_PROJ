@@ -1,4 +1,5 @@
 // The only supperted type as of now due to 2Decomp's limitations
+#include <functional>
 #include <utility>
 using Real = double;
 #include "../../header/MY_LIB.hpp"
@@ -14,12 +15,13 @@ using Real = double;
 using ScalF = numPDE::Tensor<Real, 3, 3, numPDE::ROW_MAJOR>;
 using VecF  = numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>;
 
+/*
 namespace numPDE
 {
     struct VelocityBC
     {
         // Function wrapper
-    // TODO fix it so that the BCs get apply also as function of time
+        // TODO fix it so that the BCs get apply also as function of time
         using Function = std::function<numPDE::Vec<Real, N_DIMS>(numPDE::Vec<Real, N_DIMS>)>;
 
         Function f{nullptr};    // forcing term
@@ -50,8 +52,8 @@ namespace numPDE
     template <typename TYPE = double>
     struct NS_input
     {
-        PressureBC  p_BC;
-        VelocityBC  v_BC;
+        PressureBC      p_BC;
+        VelocityBC      v_BC;
         Constants<TYPE> constants;
     };
 
@@ -59,7 +61,8 @@ namespace numPDE
     struct NS_problem
     {
         NS_problem(NS_input<TYPE>& inputs, NewDecomp<TYPE>& decomp)
-            : r_inps(inputs), r_cstns(inputs.constants), r_dec(decomp), fastLapSolver(decomp, BCs, csts){};
+            : r_inps(inputs), r_cstns(inputs.constants), r_dec(decomp),
+              fastLapSolver(decomp, BCs, csts){};
 
         numPDE::Vec<Real> predictor_f(VecF& h_U, size_t i, size_t j, size_t k)
         {
@@ -168,18 +171,12 @@ namespace numPDE
             // Return the updated solution
         }
 
-        auto pressure_solve(ScalF& F, ScalF& chi)
-        {
-        pSolver.solve(F, chi); 
-        }
+        auto pressure_solve(ScalF& F, ScalF& chi) { pSolver.solve(F, chi); }
 
-    auto apply_BC()
-    {
-        std::cout << "Boundary conditions apply still needs to be implemented";
-    }
+        auto apply_BC() { std::cout << "Boundary conditions apply still needs to be implemented"; }
 
       private:
-        NS_input<TYPE>& r_inps;
+        NS_input<TYPE>&  r_inps;
         Constants<TYPE>& r_cstns;
         Real &           m_h = r_cstns.h, dt = r_cstns.dt;
         const Real       a21 = 64.0 / 120.0, a31 = 0.25, a32 = 5.0 / 12.0;
@@ -189,9 +186,11 @@ namespace numPDE
         FastLaplaceSolver<TYPE> fastLapSolver;
     };
 }; // namespace numPDE
+*/
 
 int main(int argc, char* argv[])
 {
+#if 0
     // MPI AND DOMAIN DECOMPOSITION LOGIC
     NewDecomp<Real> decomposer(argc, argv);
 
@@ -269,4 +268,5 @@ int main(int argc, char* argv[])
     }
 
     return 0;
+#endif
 }

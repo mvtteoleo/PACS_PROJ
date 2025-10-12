@@ -32,7 +32,7 @@ int main(int argc, char* argv[])
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
     auto P = numPDE::make_scalar_field<Real, N_DIMS>(decomposer.xSize());
 
-    numPDE::BoudaryConditions bc;
+    numPDE::PressureBC bc;
     bc.BC_x                    = numPDE::DirHomo;
     bc.BC_y                    = numPDE::DirHomo;
     bc.BC_z                    = numPDE::DirHomo;
