@@ -16,10 +16,51 @@ using VecF  = numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>;
 
 namespace numPDE
 {
+    struct VelocityBC
+    {
+        // Function wrapper
+    // TODO fix it so that the BCs get apply also as function of time
+        using Function = std::function<numPDE::Vec<Real, N_DIMS>(numPDE::Vec<Real, N_DIMS>)>;
+
+        Function f{nullptr};    // forcing term
+        Function u_ex{nullptr}; // exact solution
+
+        Function g_north = 0;
+
+        Function g_south = 0;
+
+        Function g_east = 0;
+
+        Function g_west = 0;
+
+        Function g_top = 0;
+
+        Function g_bottom = 0;
+
+        BC BC_NORTH  = Dirichlet; // Boundary condition type, x=1, i.e. north boundary
+        BC BC_SOUTH  = Dirichlet; // Boundary condition type, x=0, i.e. south boundary
+        BC BC_EAST   = Dirichlet; // Boundary condition type, y=0, i.e. east boundary
+        BC BC_WEST   = Dirichlet; // Boundary condition type, y=1, i.e. west boundary
+        BC BC_TOP    = Dirichlet; // Boundary condition type, z=1, i.e. top boundary
+        BC BC_BOTTOM = Dirichlet; // Boundary condition type, z=0, i.e. top boundary
+
+        numPDE::Vec<Real, N_DIMS> def_val = {0, 0, 0}; // default value to initialize the field
+    };
+
+    template <typename TYPE = double>
+    struct NS_input
+    {
+        PressureBC  p_BC;
+        VelocityBC  v_BC;
+        Constants<TYPE> constants;
+    };
+
     template <typename TYPE = double>
     struct NS_problem
     {
-        NS_problem(Constants<TYPE>& csts, NewDecomp<TYPE>& decomp) : r_cstns(csts), r_dec(decomp){};
+        NS_problem(NS_input<TYPE>& inputs, NewDecomp<TYPE>& decomp)
+            : r_inps(inputs), r_cstns(inputs.constants), r_dec(decomp), fastLapSolver(decomp, BCs, csts){};
+
         numPDE::Vec<Real> predictor_f(VecF& h_U, size_t i, size_t j, size_t k)
         {
 
@@ -74,102 +115,78 @@ namespace numPDE
             return ris;
         }
 
-        auto forcing(VecF& U)
+        numPDE::Vec<Real> grad(ScalF& p, size_t i, size_t j, size_t k)
         {
-            auto u_new = U;
-            for (auto [kp, jp, ip] : U.int_elems())
-                u_new(ip, jp, kp) = predictor_f(U, ip, jp, kp);
-
-            return u_new;
+            Real dp_dx = (p(i + 1, j, k) - p(i, j, k)) / r_cstns.h;
+            Real dp_dy = (p(i, j + 1, k) - p(i, j, k)) / r_cstns.h;
+            Real dp_dz = (p(i, j, k + 1) - p(i, j, k)) / r_cstns.h;
+            return {dp_dx, dp_dy, dp_dz};
         }
-        auto grad(ScalF& F)
+
+        auto pseudo_timestep(VecF& buff, VecF& u_old, ScalF& p_old, Real RK_a_coeff,
+                             Real RK_dc_coeff)
         {
-            auto gF = numPDE::make_vector_field<Real, 3>(F.get_sizes());
+            auto u_new = u_old;
+            auto p_new = p_old;
 
-            for (auto [kp, jp, ip] : F.int_elems())
-            {
-                Real dF_dx           = (F.at(kp, jp, ip + 1) - F.at(kp, jp, ip - 1)) / (2 * m_h);
-                Real dF_dy           = (F.at(kp, jp + 1, ip) - F.at(kp, jp - 1, ip)) / (2 * m_h);
-                Real dF_dz           = (F.at(kp + 1, jp, ip) - F.at(kp - 1, jp, ip)) / (2 * m_h);
-                gF.at(ip, jp, kp, 0) = dF_dx;
-                gF.at(ip, jp, kp, 1) = dF_dy;
-                gF.at(ip, jp, kp, 2) = dF_dz;
-            }
+            // PREDICTOR STEP
+            for (auto [k, j, i] : u_old.int_elems())
+                u_new(i, j, k) = buff + RK_a_coeff * dt * predictor_f(u_old, i, j, k) -
+                                 dt * RK_dc_coeff * grad(p_old, i, j, k);
 
-            return gF;
-        };
+            // Exchange boundaries
+            r_dec.exchange_BC(u_new);
 
-        auto divergence(VecF& F)
-        {
-            auto gF = numPDE::make_scalar_field(F);
+            // PRESSURE SOLVE
+            for (auto [k, j, i] : p_old.int_elems())
+                p_new(i, j, k) = div(u_star, i, j, k) / (RK_dc_coeff * dt);
 
-            for (auto [kp, jp, ip] : F.int_elems())
-            {
-                Real grad_x = (F.at(kp, jp, ip + 1, 0) - F.at(kp, jp, ip - 1, 0)) / (2 * m_h);
-                Real grad_y = (F.at(kp, jp + 1, ip, 1) - F.at(kp, jp - 1, ip, 1)) / (2 * m_h);
-                Real grad_z = (F.at(kp + 1, jp, ip, 2) - F.at(kp - 1, jp, ip, 2)) / (2 * m_h);
-                gF.at(ip, jp, kp, 0) = grad_x;
-                gF.at(ip, jp, kp, 1) = grad_y;
-                gF.at(ip, jp, kp, 2) = grad_z;
-            }
+            pressure_solve(p_new, p_new);
 
-            return gF;
-        };
+            // Exchange boundaries
+            r_dec.exchange_BC(p_new);
+            // UPDATE THE VELOCITY FIELD
+            for (auto [k, j, i] : u_new.int_elems())
+                u_new(i, j, k) += grad(p_new, i, j, k);
+
+            p_new = p_new + p_old;
+            // Exchange boundaries
+            r_dec.exchange_BC(u_new);
+
+            return std::make_tuple(u_new, p_new);
+        }
 
         auto solve(VecF& u_old, ScalF& p_old)
         {
-            ScalF chi    = p_old;
-            ScalF p_new  = p_old;
-            VecF  BUFFER = forcing(u_old);
-            // Exchange bounds
-            VecF y_2 = u_old + a21 * dt * BUFFER - dt * c1 * grad(p_old);
-            // Exchange bounds
-            ScalF LaplaceF = divergence(y_2) / (dt * c1);
-            pressure_solve(LaplaceF, chi);
-            // Exchange bounds
-            y_2   = y_2 - c1 * dt * grad(chi);
-            p_new = p_new + chi;
-
-            BUFFER = u_old + a31 * dt * BUFFER;
-
-            // Exchange bounds
-            VecF y_3 = BUFFER + a32 * dt * forcing(y_2) - dt * (c2 - c1) * grad(p_new);
-            // Exchange bounds
-            LaplaceF = divergence(y_3 / (dt * (c2 - c1)));
-            pressure_solve(LaplaceF, chi);
-            // Exchange bounds
-            y_3 = y_3 - (c2 - c1) * dt * grad(chi);
-
-            p_new = p_new + chi;
-
-            // Exchange bounds
-            VecF u_new = BUFFER + dt * b3 * forcing(y_3) - dt * (1 - c2) * grad(p_new);
-            // Exchange bounds
-            LaplaceF = divergence(u_new);
-            pressure_solve(LaplaceF, chi);
-            // Exchange bounds
-            p_new = p_new + chi;
-            // Exchange bounds
-            u_new = u_new - dt * (1 - c2) * grad(p_new);
-            // Exchange bounds
-            return std::make_pair(u_new, p_new);
+            // Apply BC and exchange boundaries
+            // Step 1
+            // Apply BC and exchange boundaries
+            // Step 2
+            // Apply BC and exchange boundaries
+            // Step 3
+            // Apply BC and exchange boundaries
+            // Return the updated solution
         }
 
         auto pressure_solve(ScalF& F, ScalF& chi)
         {
-            // TODO
-            // Call the correct solver
-            std::cout << "TODO \n";
+        pSolver.solve(F, chi); 
         }
 
+    auto apply_BC()
+    {
+        std::cout << "Boundary conditions apply still needs to be implemented";
+    }
+
       private:
+        NS_input<TYPE>& r_inps;
         Constants<TYPE>& r_cstns;
         Real &           m_h = r_cstns.h, dt = r_cstns.dt;
         const Real       a21 = 64.0 / 120.0, a31 = 0.25, a32 = 5.0 / 12.0;
         const Real       c1 = a21, c2 = 2.0 / 3.0, b3 = 0.75;
 
-        NewDecomp<TYPE>& r_dec;
-        // FastLaplaceSolver<TYPE> fastLapSolver;
+        NewDecomp<TYPE>&        r_dec;
+        FastLaplaceSolver<TYPE> fastLapSolver;
     };
 }; // namespace numPDE
 

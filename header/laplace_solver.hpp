@@ -25,6 +25,7 @@ namespace numPDE
     enum BC
     {
         NeuHomo,
+        Dirichlet,
         DirHomo
         // No support for periodic for the moment
         // Periodic
@@ -40,13 +41,15 @@ namespace numPDE
         BOTTOM // --k
     };
 
-    struct BoudaryConditions
+                struct PressureBC
     {
-        BC BC_x = NeuHomo;
-        BC BC_y = NeuHomo;
-        BC BC_z = NeuHomo;
+        BC BC_NORTH = NeuHomo;
+        BC BC_SOUTH = NeuHomo;
+        BC BC_EAST  = NeuHomo;
+        BC BC_WEST  = NeuHomo;
+        BC BC_TOP   = NeuHomo;
+        BC BC_BOTTOM= NeuHomo;
     };
-
     template <typename T = double>
     struct Constants
     {
@@ -60,9 +63,12 @@ namespace numPDE
     {
       public:
         using type_value = T;
-        FastLaplaceSolver(NewDecomp<T>& decomp, BoudaryConditions Bcs, Constants<T>& constants)
+        FastLaplaceSolver(NewDecomp<T>& decomp, PressureBC Bcs, Constants<T>& constants)
             : r_dec{decomp}, m_BCs{Bcs}, r_const{constants}
         {
+        // TODO add the check to confirm that the BC along each direction are compatible
+        // TODO add that if the pressure BC is Dir and not Dir homo an exception is thrown
+          
             const auto& xSizeArr = r_dec.xSize();
             const auto& ySizeArr = r_dec.ySize();
             const auto& zSizeArr = r_dec.zSize();
@@ -311,7 +317,7 @@ namespace numPDE
 
       private:
         NewDecomp<T>&     r_dec;
-        BoudaryConditions m_BCs;
+        PressureBC m_BCs;
         Constants<T>&     r_const;
         std::vector<T>    data2, data3;
 

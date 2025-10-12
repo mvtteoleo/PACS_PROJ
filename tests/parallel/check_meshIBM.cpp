@@ -229,36 +229,36 @@ int main(int argc, char* argv[])
                 }
 
     // Check that the data belonging to the computational molecule are
-    //  - for the fluid_free that are all either fluid_free or interf 
-    //      => In that case the comp_mol is OK else ERR 
+    //  - for the fluid_free that are all either fluid_free or interf
+    //      => In that case the comp_mol is OK else ERR
     //
     //  - for the interf check what element needs to be interpolated
     //
 
-    // Check for the pressure 
+    // Check for the pressure
     for (int k = 1; k < kMax - 1; ++k)
         for (int j = 1; j < jMax - 1; ++j)
             for (int i = 1; i < iMax - 1; ++i)
-                    if (is_in_out_blocked.at(i, j, k, l) == status::fluid_free)
+                if (is_in_out_blocked.at(i, j, k, l) == status::fluid_free)
+                {
+                    std::vector<int> comp_mol;
+                    if (l == 0)
                     {
-                        std::vector<int> comp_mol;
-                        if (l == 0)
-                        {
-                            auto u_p = is_in_out_blocked.at(i, j, k, 1);
-                            auto v_p = is_in_out_blocked.at(i, j, k, 2);
-                            auto w_p = is_in_out_blocked.at(i, j, k, 3);
-                            auto u_n = is_in_out_blocked.at(i + 1, j, k, 1);
-                            auto v_n = is_in_out_blocked.at(i, j + 1, k, 2);
-                            auto w_n = is_in_out_blocked.at(i, j, k + 1, 3);
-                            comp_mol = {u_p, v_p, w_p, u_n, v_n, w_n};
-                        }
-
-                        if (std::any_of(comp_mol.begin(), comp_mol.end(),
-                                        [](int s) { return s == status::blocked; }))
-                            .at(i, j, k, l) = status::interf;
-                        else
-                            is_in_out_blocked.at(i, j, k, l) = status::fluid_free;
+                        auto u_p = is_in_out_blocked.at(i, j, k, 1);
+                        auto v_p = is_in_out_blocked.at(i, j, k, 2);
+                        auto w_p = is_in_out_blocked.at(i, j, k, 3);
+                        auto u_n = is_in_out_blocked.at(i + 1, j, k, 1);
+                        auto v_n = is_in_out_blocked.at(i, j + 1, k, 2);
+                        auto w_n = is_in_out_blocked.at(i, j, k + 1, 3);
+                        comp_mol = {u_p, v_p, w_p, u_n, v_n, w_n};
                     }
+
+                    if (std::any_of(comp_mol.begin(), comp_mol.end(),
+                                    [](int s) { return s == status::blocked; }))
+                        .at(i, j, k, l) = status::interf;
+                    else
+                        is_in_out_blocked.at(i, j, k, l) = status::fluid_free;
+                }
 
     // Check neighbours to handle interpolation
 
@@ -295,7 +295,7 @@ int main(int argc, char* argv[])
 
                                 // Check whether all elements are interf => I have to interp them
                                 // already
-                                    return first_blocked;
+                                return first_blocked;
                             }
 
                             // Count how many are "fluid/free"
