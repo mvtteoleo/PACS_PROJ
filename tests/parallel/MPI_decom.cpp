@@ -1,4 +1,4 @@
-#define TEST 1
+#define TEST 0
 #include "../../header/MY_LIB.hpp"
 #include <algorithm>
 #include <array>

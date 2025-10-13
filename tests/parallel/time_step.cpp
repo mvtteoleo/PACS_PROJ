@@ -16,45 +16,16 @@ using ScalF = numPDE::Tensor<Real, 3, 3, numPDE::ROW_MAJOR>;
 using VecF  = numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>;
 
 /*
+ */
 namespace numPDE
 {
-    struct VelocityBC
-    {
-        // Function wrapper
-        // TODO fix it so that the BCs get apply also as function of time
-        using Function = std::function<numPDE::Vec<Real, N_DIMS>(numPDE::Vec<Real, N_DIMS>)>;
-
-        Function f{nullptr};    // forcing term
-        Function u_ex{nullptr}; // exact solution
-
-        Function g_north = 0;
-
-        Function g_south = 0;
-
-        Function g_east = 0;
-
-        Function g_west = 0;
-
-        Function g_top = 0;
-
-        Function g_bottom = 0;
-
-        BC BC_NORTH  = Dirichlet; // Boundary condition type, x=1, i.e. north boundary
-        BC BC_SOUTH  = Dirichlet; // Boundary condition type, x=0, i.e. south boundary
-        BC BC_EAST   = Dirichlet; // Boundary condition type, y=0, i.e. east boundary
-        BC BC_WEST   = Dirichlet; // Boundary condition type, y=1, i.e. west boundary
-        BC BC_TOP    = Dirichlet; // Boundary condition type, z=1, i.e. top boundary
-        BC BC_BOTTOM = Dirichlet; // Boundary condition type, z=0, i.e. top boundary
-
-        numPDE::Vec<Real, N_DIMS> def_val = {0, 0, 0}; // default value to initialize the field
-    };
 
     template <typename TYPE = double>
     struct NS_input
     {
-        PressureBC      p_BC;
-        VelocityBC      v_BC;
-        Constants<TYPE> constants;
+        PressureBC<TYPE> p_BC;
+        VelocityBC<TYPE> v_BC;
+        Constants<TYPE>  constants;
     };
 
     template <typename TYPE = double>
@@ -62,7 +33,7 @@ namespace numPDE
     {
         NS_problem(NS_input<TYPE>& inputs, NewDecomp<TYPE>& decomp)
             : r_inps(inputs), r_cstns(inputs.constants), r_dec(decomp),
-              fastLapSolver(decomp, BCs, csts){};
+              fastLapSolver(decomp, inputs.p_BC, inputs.constants){};
 
         numPDE::Vec<Real> predictor_f(VecF& h_U, size_t i, size_t j, size_t k)
         {
@@ -118,6 +89,13 @@ namespace numPDE
             return ris;
         }
 
+        auto div(VecF& u, size_t i, size_t j, size_t k)
+        {
+            Real du_dx = (u.at(i + 1, j, k, 0) - u.at(i, j, k, 0)) / r_cstns.h;
+            Real dv_dy = (u.at(i, j + 1, k, 1) - u.at(i, j, k, 1)) / r_cstns.h;
+            Real dw_dz = (u.at(i, j, k + 1, 2) - u.at(i, j, k, 2)) / r_cstns.h;
+            return du_dx + dv_dy + dw_dz;
+        }
         numPDE::Vec<Real> grad(ScalF& p, size_t i, size_t j, size_t k)
         {
             Real dp_dx = (p(i + 1, j, k) - p(i, j, k)) / r_cstns.h;
@@ -142,7 +120,7 @@ namespace numPDE
 
             // PRESSURE SOLVE
             for (auto [k, j, i] : p_old.int_elems())
-                p_new(i, j, k) = div(u_star, i, j, k) / (RK_dc_coeff * dt);
+                p_new(i, j, k) = div(u_new, i, j, k) / (RK_dc_coeff * dt);
 
             pressure_solve(p_new, p_new);
 
@@ -171,7 +149,7 @@ namespace numPDE
             // Return the updated solution
         }
 
-        auto pressure_solve(ScalF& F, ScalF& chi) { pSolver.solve(F, chi); }
+        auto pressure_solve(ScalF& F, ScalF& chi) { fastLapSolver.solve(F, chi); }
 
         auto apply_BC() { std::cout << "Boundary conditions apply still needs to be implemented"; }
 
@@ -186,11 +164,9 @@ namespace numPDE
         FastLaplaceSolver<TYPE> fastLapSolver;
     };
 }; // namespace numPDE
-*/
 
 int main(int argc, char* argv[])
 {
-#if 0
     // MPI AND DOMAIN DECOMPOSITION LOGIC
     NewDecomp<Real> decomposer(argc, argv);
 
@@ -213,11 +189,6 @@ int main(int argc, char* argv[])
     auto V = numPDE::make_vector_field<Real, N_DIMS>(n_nodes);
     auto P = numPDE::make_scalar_field<Real, N_DIMS>(decomposer.xSize());
 
-    numPDE::BoudaryConditions bc;
-    numPDE::Constants<Real>   csts;
-    csts.h = h;
-    numPDE::FastLaplaceSolver<Real> pSolver(decomposer, bc, csts);
-
     auto exact = P;
     auto P_h   = P;
 
@@ -233,7 +204,9 @@ int main(int argc, char* argv[])
         P[ii]        = 3.0 * val;
     }
 
-    numPDE::NS_problem<Real> ns(csts, decomposer);
+    numPDE::NS_input<Real> inputs;
+
+    numPDE::NS_problem<Real> ns(inputs, decomposer);
 
     auto u_old = V;
 
@@ -250,9 +223,6 @@ int main(int argc, char* argv[])
         t += dt;
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    pSolver.solve(P, P_h);
-
     std::cout << "P0 : " << P[0] << "\n";
     std::cout << "exact0 : " << exact[0] << "\n";
 
@@ -268,5 +238,4 @@ int main(int argc, char* argv[])
     }
 
     return 0;
-#endif
 }

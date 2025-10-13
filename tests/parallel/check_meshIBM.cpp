@@ -409,7 +409,7 @@ int main(int argc, char* argv[])
                          *
                          *    - i, j, k of the interf element
                          *    - gammas
-                         *    - a link to the interpolating values (phis) 
+                         *    - a link to the interpolating values (phis)
                          *    - the Lagrange coefficients
                          */
 

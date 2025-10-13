@@ -30,10 +30,7 @@ int main(int argc, char* argv[])
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
     auto P = numPDE::make_scalar_field<Real, N_DIMS>(decomposer.xSize());
 
-    numPDE::PressureBC bc;
-    bc.BC_x                    = numPDE::DirHomo;
-    bc.BC_y                    = numPDE::DirHomo;
-    bc.BC_z                    = numPDE::DirHomo;
+    numPDE::PressureBC<> bc;
     Real                    Lx = M_PI;
     Real                    h  = Lx / (nx - 1);
     Real                    Ly = h * (ny - 1), Lz = h * (nz - 1);
