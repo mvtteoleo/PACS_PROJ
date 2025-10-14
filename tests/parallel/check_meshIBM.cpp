@@ -41,6 +41,17 @@ enum mask_v : int
 #include <tuple>
 #include <vector>
 
+template <typename T = double>
+struct Inter_datas
+{
+    size_t             i, j, k, l;
+    std::array<int, 6> dir_interp;
+    T                  dx{}, dy{}, dz{};
+    T                  gamma_x, gamma_y, gamma_z;
+    // Lagrange coeffs
+    std::vector<size_t> sphere_index = {0, 0, 0};
+};
+
 // The only supported type as of now due to 2Decomp's limitations
 using Real       = double;
 using SphereInfo = std::vector<std::tuple<Real, Real, Real, Real>>;
@@ -87,7 +98,7 @@ int main(int argc, char* argv[])
     std::uniform_real_distribution<Real> rand_corr(1.1, 1.8);
 
 #if 1
-    size_t     N_s = 1;
+    size_t     N_s = 10;
     SphereInfo spheres_info(N_s);
     Real       r_mean = 0;
 
@@ -95,7 +106,7 @@ int main(int argc, char* argv[])
     {
         x = dist_xyz(gen);  //
         y = dist_xyz(gen);  //
-        z = dist_xyz(gen);  //
+        z = 5;              // dist_xyz(gen);  //
         r = rand_corr(gen); // dist_r(gen);
         r_mean += r;
     }
@@ -329,6 +340,7 @@ int main(int argc, char* argv[])
     size_t n_interf = 0;
 
     std::vector<std::vector<size_t>> problematic_idx;
+    std::vector<Inter_datas>         inter_elems;
 
     for (int k = 1; k < kMax - 1; ++k)
         for (int j = 1; j < jMax - 1; ++j)
@@ -352,13 +364,8 @@ int main(int argc, char* argv[])
                                 // already
                                 return first_blocked;
                             }
-
-                            // Count how many are "fluid/free"
-                            int n_fluid_free =
-                                std::count_if(vals.begin(), vals.end(),
-                                              [&](int s) { return s != status::fluid_free; });
-
-                            return n_fluid_free;
+                            else
+                                return vals.size();
                         };
                         auto fill_stencil = [&](int i0, int j0, int k0, int l0, int di, int dj,
                                                 int dk, int n_points)
@@ -398,21 +405,6 @@ int main(int argc, char* argv[])
                         auto stencil_6 = fill_stencil(i, j, k, l, 0, 0, -1, max_pts_from);
                         int  n_zm      = count_fluid_free(stencil_6);
 
-                        /*
-                         * TODO :
-                         *
-                         *  - Identify the direction of interpolation (X_i +/-)
-                         *  - Identify the distance from the object (dx, dy, dz)
-                         *  - Obtain the gamma values for the interpolation
-                         *  - Obtain the Lagrange coefficients for the polynomial interpolation
-                         *  - Store the values in a separete struct with:
-                         *
-                         *    - i, j, k of the interf element
-                         *    - gammas
-                         *    - a link to the interpolating values (phis)
-                         *    - the Lagrange coefficients
-                         */
-
                         std::array<int, 6> n_dir = {n_xp, n_xm, n_yp, n_ym, n_zp, n_zm};
 
                         // 3. Check if interpolation possible
@@ -424,15 +416,82 @@ int main(int argc, char* argv[])
                             problematic_idx.push_back({i, j, k, l});
                         }
 
-                        // 4. Optional: select best directions
-                        int max_n = *std::max_element(n_dir.begin(), n_dir.end());
-                        std::vector<Direction> best_dirs;
-                        for (size_t d = 0; d < n_dir.size(); ++d)
-                            if (n_dir[d] == max_n && n_dir[d] > 0)
-                                best_dirs.push_back(static_cast<Direction>(d));
+                        Inter_datas elem;
+                        elem.i          = i;
+                        elem.j          = j;
+                        elem.k          = k;
+                        elem.l          = l;
+                        elem.dir_interp = dir_interp;
+                        inter_elems.push_back(elem);
                     }
 
     std::cout << " ERR in " << err_pt << " of " << n_interf << " points \n";
+
+    for (const auto& [xc, yc, zc, rc] : spheres_info)
+    {
+        // Convert to index space
+        int ic = static_cast<int>(std::floor(xc / h));
+        int jc = static_cast<int>(std::floor(yc / h));
+        int kc = static_cast<int>(std::floor(zc / h));
+        int rh = static_cast<int>(std::ceil(rc / h));
+
+        // Clamp cube range
+        auto clamp_low  = [](int a) { return std::max(a, 0); };
+        auto clamp_high = [](int a, int max) { return std::min(a, max - 1); };
+
+        int i_min = clamp_low(ic - rh - 1);
+        int j_min = clamp_low(jc - rh - 1);
+        int k_min = clamp_low(kc - rh - 1);
+        int i_max = clamp_high(ic + rh + 3, iMax);
+        int j_max = clamp_high(jc + rh + 3, jMax);
+        int k_max = clamp_high(kc + rh + 3, kMax);
+
+        std::array<Real, 4> dists;
+
+        size_t sph_idx = 0;
+        for (auto& elem : inter_elems)
+        {
+            auto& i = elem.i;
+            auto& j = elem.j;
+            auto& k = elem.k;
+            auto& l = elem.l;
+            sph_idx += 1;
+            if (i >= i_min and i <= i_max)
+                if (j >= j_min and j <= j_max)
+                    if (k >= k_min and k <= k_max)
+                    {
+                        // Calculate position of the interface point
+                        x = h * i + (l==1) ? h/2 : 0; 
+                        y = h * j + (l==2) ? h/2 : 0; 
+                        z = h * l + (l==3) ? h/2 : 0; 
+
+                        // Check if any distance is smaller than one of the elem dx
+    
+                        // Do stuff
+                    }
+        }
+    }
+    /*
+     * TODO :
+     *
+     *  - Identify the direction of interpolation (X_i +/-)
+     *      -ie the min of the n_i
+     *
+     *  - Identify the distance from the object (dx, dy, dz)
+     *      - This is not trivial for multiple spheres
+     *
+     *  - Obtain the gamma values for the interpolation
+     *      - Matter of doing some products here
+     *
+     *  - Obtain the Lagrange coefficients for the polynomial interpolation
+     *      - Again once there  is the distance is quite trivial
+     *
+     *  - Store the values in a separete struct with:
+     *    - i, j, k of the interf element
+     *    - gammas
+     *    - a link to the interpolating values (phis)
+     *    - the Lagrange coefficients
+     */
 
 // --- Prepare the points ---
 #if 1
