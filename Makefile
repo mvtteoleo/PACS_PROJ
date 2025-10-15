@@ -19,8 +19,8 @@ LDLIBS   += $(NIX_LDLIBS)
 DEBUG_FLAGS := -O0 -g  -Wall -Wextra -pedantic -fopenmp -std=c++23
 OPT_FLAGS := -O3 -Wall -Wextra -pedantic -fopenmp  -std=c++23
 
-GEN_FLAGS   := $(OPT_FLAGS)
-C2DEC_FLAGS := $(OPT_FLAGS)
+GEN_FLAGS   := $(DEBUG_FLAGS)
+C2DEC_FLAGS := $(DEBUG_FLAGS)
 
 
 

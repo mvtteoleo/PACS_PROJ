@@ -517,8 +517,8 @@ namespace numPDE
     {
         // Build new shape: (elems_for_dir..., elems_for_dir.size())
         std::array<std::size_t, DIM + 1> new_dims{};
-        std::copy(elems_for_dir.begin(), elems_for_dir.end(), new_dims.begin());
-        new_dims.back() = elems_for_dir.size();
+        std::copy(elems_for_dir.begin(), elems_for_dir.end(), new_dims.begin()+1);
+        new_dims[0] = elems_for_dir.size();
 
         return Tensor<T, DIM + 1, DIM, TYPE>(new_dims);
     }
@@ -532,8 +532,8 @@ namespace numPDE
             throw std::runtime_error("Initializer list size must match DIM");
 
         std::array<std::size_t, DIM + 1> new_dims{};
-        std::copy(elems_for_dir.begin(), elems_for_dir.end(), new_dims.begin());
-        new_dims.back() = elems_for_dir.size();
+        std::copy(elems_for_dir.begin(), elems_for_dir.end(), new_dims.begin() + 1);
+        new_dims[0] = elems_for_dir.size();
 
         return Tensor<T, DIM + 1, DIM, TYPE>(new_dims);
     }

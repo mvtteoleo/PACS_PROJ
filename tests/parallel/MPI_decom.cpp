@@ -185,7 +185,21 @@ int main(int argc, char* argv[])
     MPI_Comm     cart_comm = MPI_COMM_WORLD;
 
     // Each slice is one z-layer (ny × nx elements)
-    const int slice = (ny - 2) * nx;
+    const int slice = (ny - 2) * nx ;
+    const int vec_slice = slice * N_DIMS;
+    /*
+    for(int i=1; i<V.size(); ++i)
+        V[i] = V[i-1] +1;
+
+    for(int k=0; k<nz; ++k)
+        for(int j=0; j<ny; ++j)
+            for(int i=0; i<nx; ++i)
+                for(int l=0; l<3; ++l)
+        {
+                    std::cout << *V.ptr_at(l, i, j, k) << " " ;
+                    std::cout << V.at(l, i, j, k) << " " ;
+                }
+    */
 
     if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
     {
@@ -201,6 +215,27 @@ int main(int argc, char* argv[])
                      101, P.ptr_at(0, 1, 0), slice, mpi_type,
                      neighbors[neighbour_directions::BOTTOM], 100, cart_comm, MPI_STATUS_IGNORE);
     }
+        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
+    
+    if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
+    {
+        MPI_Sendrecv(V.ptr_at(0, 0, 1, nz - 2), vec_slice, mpi_type, neighbors[neighbour_directions::TOP],
+                     200, V.ptr_at(0,0, 1, nz - 1), vec_slice, mpi_type,
+                     neighbors[neighbour_directions::TOP], 201, cart_comm, MPI_STATUS_IGNORE);
+    }
+
+    // Send first physical layer (bottom) directly, receive into bottom ghost layer
+    if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
+    {
+        MPI_Sendrecv(V.ptr_at(0, 0, 1, 1), vec_slice, mpi_type, neighbors[neighbour_directions::BOTTOM],
+                     201, V.ptr_at(0, 0, 1, 0), vec_slice, mpi_type,
+                     neighbors[neighbour_directions::BOTTOM], 200, cart_comm, MPI_STATUS_IGNORE);
+    }
+        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
+    /*
+*/
 
     //  // ---------------------- PACK DATA ----------------------
     //  // Vector with received data
@@ -293,17 +328,37 @@ int main(int argc, char* argv[])
         MPI_Barrier(MPI_COMM_WORLD);
         if (decomp.rank() == r)
         {
+        MPI_Barrier(MPI_COMM_WORLD);
             std::cout << "Rank " << r << ":\n";
             for (int k = nz - 1; k >= 0; --k)
             {
                 for (int j = 0; j < ny; ++j)
-                    std::cout << static_cast<int>(P(3, j, k)) << " ";
+                    std::cout << static_cast<int>(V.at(0, 0, j, k)) << " ";
                 std::cout << "\n";
             }
-            std::cout << std::endl;
+        MPI_Barrier(MPI_COMM_WORLD);
         }
     }
-
+        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
+    for (int r = 0; r < decomp.totRank(); ++r)
+    {
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (decomp.rank() == r)
+        {
+            std::cout << "Rank " << r << ":\n";
+            for (int k = nz - 1; k >= 0; --k)
+            {
+                for (int j = 0; j < ny; ++j)
+                    std::cout << static_cast<int>(P(0, j, k)) << " ";
+                std::cout << "\n";
+            }
+        MPI_Barrier(MPI_COMM_WORLD);
+            std::cout << std::endl;
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+  
 #endif
 
     return 0;
