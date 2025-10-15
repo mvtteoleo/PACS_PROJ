@@ -28,7 +28,7 @@ namespace numPDE
         Constants<TYPE>  constants;
     };
 
-//TODO WARNING FIXA IN MODO DA AVERE (l, i, j, k)!!!//
+    // TODO WARNING FIXA IN MODO DA AVERE (l, i, j, k)!!!//
     template <typename TYPE = double>
     struct NS_problem
     {

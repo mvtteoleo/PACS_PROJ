@@ -1,6 +1,6 @@
 # ==============================
 # Compiler and Flags
-CXX       := g++
+CXX       := mpic++
 MPICXX    := mpic++
 CPPFLAGS  := -Iheader -Isrc -I. 
 LDLIBS   := -lfftw3 -lm -lboost_iostreams -lboost_system #-lfftw3_mpi 

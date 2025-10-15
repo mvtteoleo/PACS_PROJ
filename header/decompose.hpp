@@ -37,7 +37,7 @@ enum neighbour_directions
 template <typename value_type = double>
 class NewDecomp
 {
-private:
+  private:
     // Need to be int in order to speak with MPI
     int                tot_rank{1};
     int                mpi_rank{0};
@@ -47,7 +47,7 @@ private:
 
     std::unique_ptr<C2Decomp> c2d;
 
-public:
+  public:
     NewDecomp(int argc, char** argv)
     {
         MPI_Init(&argc, &argv);
@@ -75,7 +75,7 @@ public:
                         std::vector<T>& left_to_receive, std::vector<T>& right_to_send) const
     {
         static_assert(std::is_trivially_copyable_v<T>,
-        "exchange_edges requires trivially copyable types");
+                      "exchange_edges requires trivially copyable types");
         MPI_Datatype mpi_type = mpi_get_type<T>();
 
         // Exchange top <-> bottom
@@ -104,17 +104,18 @@ public:
 
         if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
         {
-            MPI_Sendrecv(P.ptr_at(0, 1, nz - 2), slice, mpi_type, neighbors[neighbour_directions::TOP],
-                         100, P.ptr_at(0, 1, nz - 1), slice, mpi_type,
+            MPI_Sendrecv(P.ptr_at(0, 1, nz - 2), slice, mpi_type,
+    neighbors[neighbour_directions::TOP], 100, P.ptr_at(0, 1, nz - 1), slice, mpi_type,
                          neighbors[neighbour_directions::TOP], 101, cart_comm, MPI_STATUS_IGNORE);
         }
 
         // Send first physical layer (bottom) directly, receive into bottom ghost layer
         if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
         {
-            MPI_Sendrecv(P.ptr_at(0, 1, 1), slice, mpi_type, neighbors[neighbour_directions::BOTTOM],
-                         101, P.ptr_at(0, 1, 0), slice, mpi_type,
-                         neighbors[neighbour_directions::BOTTOM], 100, cart_comm, MPI_STATUS_IGNORE);
+            MPI_Sendrecv(P.ptr_at(0, 1, 1), slice, mpi_type,
+    neighbors[neighbour_directions::BOTTOM], 101, P.ptr_at(0, 1, 0), slice, mpi_type,
+                         neighbors[neighbour_directions::BOTTOM], 100, cart_comm,
+    MPI_STATUS_IGNORE);
         }
 
     }

@@ -114,7 +114,7 @@ namespace numPDE
         inline size_t get_linear_index_impl(std::index_sequence<Is...>, Ts... idxs) const noexcept
         {
 #ifdef PEDANTIC
-            if ((... || (static_cast<size_t>(idxs) >= m_Sizes[Is])))
+            if (((static_cast<size_t>(idxs) >= m_Sizes[Is]) || ...))
             {
                 std::cerr << "Index out of bounds: ";
                 ((std::cerr << "dim " << Is << ": " << static_cast<size_t>(idxs) << " (max "
@@ -131,7 +131,7 @@ namespace numPDE
                                                   std::index_sequence<Is...>) const noexcept
         {
 #ifdef PEDANTIC
-            if ((... || (indices[Is] >= m_Sizes[Is])))
+            if (((indices[Is] >= m_Sizes[Is]) || ...))
             {
                 std::cerr << "Index out of bounds: ";
                 ((std::cerr << "dim " << Is << ": " << indices[Is] << " (max " << m_Sizes[Is] - 1
@@ -204,16 +204,18 @@ namespace numPDE
                           "Number of indices must match tensor dimensionality");
 
             // compute linear index directly with fold expression
-            size_t lin  = get_linear_index(idxs...);
-            T*     base = &m_Datas[lin];
 
             // if constexpr (N_DIMS == RANK)
             if constexpr (sizeof...(Ts) == RANK)
             {
+                size_t lin  = get_linear_index(idxs...);
+                T*     base = &m_Datas[lin];
                 return *base; // return T&
             }
             else
             {
+                size_t lin  = get_linear_index(0, idxs...);
+                T*     base = &m_Datas[lin];
                 return ElementProxy<T, N_DIMS>(base, N_DIMS);
             }
         }
@@ -226,16 +228,17 @@ namespace numPDE
             static_assert(sizeof...(Ts) == N_DIMS,
                           "Number of indices must match tensor dimensionality");
 
-            size_t   lin  = get_linear_index(idxs...);
-            const T* base = &m_Datas[lin];
-
             // if constexpr (N_DIMS == RANK)
             if constexpr (sizeof...(Ts) == RANK)
             {
+                size_t   lin  = get_linear_index(idxs...);
+                const T* base = &m_Datas[lin];
                 return *base; // return const T&
             }
             else
             {
+                size_t   lin  = get_linear_index(0, idxs...);
+                const T* base = &m_Datas[lin];
                 return ElementProxy<T, N_DIMS, true>{base, N_DIMS};
             }
         }
@@ -517,7 +520,7 @@ namespace numPDE
     {
         // Build new shape: (elems_for_dir..., elems_for_dir.size())
         std::array<std::size_t, DIM + 1> new_dims{};
-        std::copy(elems_for_dir.begin(), elems_for_dir.end(), new_dims.begin()+1);
+        std::copy(elems_for_dir.begin(), elems_for_dir.end(), new_dims.begin() + 1);
         new_dims[0] = elems_for_dir.size();
 
         return Tensor<T, DIM + 1, DIM, TYPE>(new_dims);
