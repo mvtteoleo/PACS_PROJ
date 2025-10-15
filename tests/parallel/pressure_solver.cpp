@@ -62,8 +62,7 @@ int main(int argc, char* argv[])
 
     // List of wave numbers for each harmonic (could be different in x,y,z)
     std::vector<std::tuple<int, int, int>> harmonics = {
-        {1, 1, 1}, {2, 1, 1}, {1, 2, 1}, {1, 1, 2}
-        // Add as many as you like
+        {1, 1, 1}, {2, 1, 1}, {1, 2, 1}, {1, 1, 2} // Add as many as you like
     };
 
     auto exact_sol_harm = [&](double x, double y, double z) -> Real

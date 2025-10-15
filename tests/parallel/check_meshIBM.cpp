@@ -44,10 +44,11 @@ enum mask_v : int
 template <typename T = double>
 struct Inter_datas
 {
-    size_t             i, j, k, l;
-    std::array<int, 6> dir_interp;
-    T                  dx{}, dy{}, dz{};
-    T                  gamma_x, gamma_y, gamma_z;
+    size_t                i, j, k, l;
+    std::array<size_t, 6> free_for_dir;
+    std::array<int, 3>    dir_interp;
+    T                     dx{}, dy{}, dz{};
+    T                     gamma_x, gamma_y, gamma_z;
     // Lagrange coeffs
     std::vector<size_t> sphere_index = {0, 0, 0};
 };
@@ -196,9 +197,6 @@ int main(int argc, char* argv[])
                     auto dy        = y - yc;
                     auto dz        = z - zc;
 
-                    auto dist = [&sqr](Real dx, Real dy, Real dz)
-                    { return sqr(dx) + sqr(dy) + sqr(dz); };
-
                     dists[0] = sqr(dx) + sqr(dy) + sqr(dz);
                     dists[1] = sqr(dx + 0.5 * h) + sqr(dy) + sqr(dz);
                     dists[2] = sqr(dx) + sqr(dy + 0.5 * h) + sqr(dz);
@@ -330,8 +328,8 @@ int main(int argc, char* argv[])
 
     // Check neighbours to handle interpolation
 
-    size_t appr_ord     = 2;
-    size_t n_pts_needed = 1; // appr_ord - 1;
+    size_t appr_ord     = 3;
+    size_t n_pts_needed = 2; // appr_ord - 1;
     size_t max_pts_from = 6;
     size_t appr_ord_min = 9;
     size_t appr_ord_max = 0;
@@ -340,137 +338,167 @@ int main(int argc, char* argv[])
     size_t n_interf = 0;
 
     std::vector<std::vector<size_t>> problematic_idx;
-    std::vector<Inter_datas>         inter_elems;
+    //    std::vector<Inter_datas>         inter_elems;
 
-    for (int k = 1; k < kMax - 1; ++k)
-        for (int j = 1; j < jMax - 1; ++j)
-            for (int i = 1; i < iMax - 1; ++i)
-                for (int l = 0; l < 4; ++l)
-                    // Loop over interface elements
-                    if (is_in_out_blocked.at(i, j, k, l) == status::interf)
-                    {
-                        ++n_interf;
-                        auto count_fluid_free = [&](const std::vector<int>& vals) -> int
-                        {
-                            if (std::any_of(vals.begin(), vals.end(),
-                                            [&](int s) { return s == status::blocked; }))
-                            {
-                                // Identify position
-                                int first_blocked =
-                                    std::distance(vals.begin(), std::find(vals.begin(), vals.end(),
-                                                                          status::blocked));
-
-                                // Check whether all elements are interf => I have to interp them
-                                // already
-                                return first_blocked;
-                            }
-                            else
-                                return vals.size();
-                        };
-                        auto fill_stencil = [&](int i0, int j0, int k0, int l0, int di, int dj,
-                                                int dk, int n_points)
-                        {
-                            std::vector<int> stencil;
-                            for (int d = 1; d <= n_points; ++d)
-                            {
-                                int ii = i0 + d * di;
-                                int jj = j0 + d * dj;
-                                int kk = k0 + d * dk;
-
-                                // Clamp to domain boundaries
-                                if (ii < 0 || ii >= iMax) break;
-                                if (jj < 0 || jj >= jMax) break;
-                                if (kk < 0 || kk >= kMax) break;
-
-                                stencil.push_back(is_in_out_blocked.at(ii, jj, kk, l0));
-                            }
-                            return stencil;
-                        };
-
-                        auto stencil_1 = fill_stencil(i, j, k, l, +1, 0, 0, max_pts_from);
-                        int  n_xp      = count_fluid_free(stencil_1);
-
-                        auto stencil_2 = fill_stencil(i, j, k, l, -1, 0, 0, max_pts_from);
-                        int  n_xm      = count_fluid_free(stencil_2);
-
-                        auto stencil_3 = fill_stencil(i, j, k, l, 0, +1, 0, max_pts_from);
-                        int  n_yp      = count_fluid_free(stencil_3);
-
-                        auto stencil_4 = fill_stencil(i, j, k, l, 0, -1, 0, max_pts_from);
-                        int  n_ym      = count_fluid_free(stencil_4);
-
-                        auto stencil_5 = fill_stencil(i, j, k, l, 0, 0, +1, max_pts_from);
-                        int  n_zp      = count_fluid_free(stencil_5);
-
-                        auto stencil_6 = fill_stencil(i, j, k, l, 0, 0, -1, max_pts_from);
-                        int  n_zm      = count_fluid_free(stencil_6);
-
-                        std::array<int, 6> n_dir = {n_xp, n_xm, n_yp, n_ym, n_zp, n_zm};
-
-                        // 3. Check if interpolation possible
-                        if (std::all_of(n_dir.begin(), n_dir.end(), [](int n) { return n == 0; }))
-                        {
-                            std::cout << "ziopera, No interp possible here " << i << " " << j << " "
-                                      << k << " " << l << " \n";
-                            ++err_pt; // skip this element
-                            problematic_idx.push_back({i, j, k, l});
-                        }
-
-                        Inter_datas elem;
-                        elem.i          = i;
-                        elem.j          = j;
-                        elem.k          = k;
-                        elem.l          = l;
-                        elem.dir_interp = dir_interp;
-                        inter_elems.push_back(elem);
-                    }
-
-    std::cout << " ERR in " << err_pt << " of " << n_interf << " points \n";
-
-    for (const auto& [xc, yc, zc, rc] : spheres_info)
-    {
-        // Convert to index space
-        int ic = static_cast<int>(std::floor(xc / h));
-        int jc = static_cast<int>(std::floor(yc / h));
-        int kc = static_cast<int>(std::floor(zc / h));
-        int rh = static_cast<int>(std::ceil(rc / h));
-
-        // Clamp cube range
-        auto clamp_low  = [](int a) { return std::max(a, 0); };
-        auto clamp_high = [](int a, int max) { return std::min(a, max - 1); };
-
-        int i_min = clamp_low(ic - rh - 1);
-        int j_min = clamp_low(jc - rh - 1);
-        int k_min = clamp_low(kc - rh - 1);
-        int i_max = clamp_high(ic + rh + 3, iMax);
-        int j_max = clamp_high(jc + rh + 3, jMax);
-        int k_max = clamp_high(kc + rh + 3, kMax);
-
-        std::array<Real, 4> dists;
-
-        size_t sph_idx = 0;
-        for (auto& elem : inter_elems)
-        {
-            auto& i = elem.i;
-            auto& j = elem.j;
-            auto& k = elem.k;
-            auto& l = elem.l;
-            sph_idx += 1;
-            if (i >= i_min and i <= i_max)
-                if (j >= j_min and j <= j_max)
-                    if (k >= k_min and k <= k_max)
-                    {
-                        // Calculate position of the interface point
-                        x = h * i + (l==1) ? h/2 : 0; 
-                        y = h * j + (l==2) ? h/2 : 0; 
-                        z = h * l + (l==3) ? h/2 : 0; 
-
-                        // Check if any distance is smaller than one of the elem dx
-    
-                        // Do stuff
-                    }
-        }
-    }
+    //  for (int k = 1; k < kMax - 1; ++k)
+    //      for (int j = 1; j < jMax - 1; ++j)
+    //          for (int i = 1; i < iMax - 1; ++i)
+    //              for (int l = 0; l < 4; ++l)
+    //                  // Loop over interface elements
+    //                  if (is_in_out_blocked.at(i, j, k, l) == status::interf)
+    //                  {
+    //                      ++n_interf;
+    //                      auto count_fluid_free = [&](const std::vector<int>& vals) -> int
+    //                      {
+    //                          if (std::any_of(vals.begin(), vals.end(),
+    //                                          [&](int s) { return s == status::blocked; }))
+    //                          {
+    //                              // Identify position
+    //                              int first_blocked =
+    //                                  std::distance(vals.begin(), std::find(vals.begin(),
+    //                                  vals.end(),
+    //                                                                        status::blocked));
+    //
+    //                              // Check whether all elements are interf => I have to interp
+    //                              them
+    //                              // already
+    //                              return first_blocked;
+    //                          }
+    //                          else
+    //                              return vals.size();
+    //                      };
+    //                      auto fill_stencil = [&](int i0, int j0, int k0, int l0, int di, int dj,
+    //                                              int dk, int n_points)
+    //                      {
+    //                          std::vector<int> stencil;
+    //                          for (int d = 1; d <= n_points; ++d)
+    //                          {
+    //                              int ii = i0 + d * di;
+    //                              int jj = j0 + d * dj;
+    //                              int kk = k0 + d * dk;
+    //
+    //                              // Clamp to domain boundaries
+    //                              if (ii < 0 || ii >= iMax) break;
+    //                              if (jj < 0 || jj >= jMax) break;
+    //                              if (kk < 0 || kk >= kMax) break;
+    //
+    //                              stencil.push_back(is_in_out_blocked.at(ii, jj, kk, l0));
+    //                          }
+    //                          return stencil;
+    //                      };
+    //
+    //                      auto stencil_1 = fill_stencil(i, j, k, l, +1, 0, 0, max_pts_from);
+    //                      int  n_xp      = count_fluid_free(stencil_1);
+    //
+    //                      auto stencil_2 = fill_stencil(i, j, k, l, -1, 0, 0, max_pts_from);
+    //                      int  n_xm      = count_fluid_free(stencil_2);
+    //
+    //                      auto stencil_3 = fill_stencil(i, j, k, l, 0, +1, 0, max_pts_from);
+    //                      int  n_yp      = count_fluid_free(stencil_3);
+    //
+    //                      auto stencil_4 = fill_stencil(i, j, k, l, 0, -1, 0, max_pts_from);
+    //                      int  n_ym      = count_fluid_free(stencil_4);
+    //
+    //                      auto stencil_5 = fill_stencil(i, j, k, l, 0, 0, +1, max_pts_from);
+    //                      int  n_zp      = count_fluid_free(stencil_5);
+    //
+    //                      auto stencil_6 = fill_stencil(i, j, k, l, 0, 0, -1, max_pts_from);
+    //                      int  n_zm      = count_fluid_free(stencil_6);
+    //
+    //                      std::array<int, 6> n_dir = {n_xp, n_xm, n_yp, n_ym, n_zp, n_zm};
+    //
+    //                      // 3. Check if interpolation possible
+    //                      if (std::all_of(n_dir.begin(), n_dir.end(), [](int n) { return n == 0;
+    //                      }))
+    //                      {
+    //                          std::cout << "ziopera, No interp possible here " << i << " " << j <<
+    //                          " "
+    //                                    << k << " " << l << " \n";
+    //                          ++err_pt; // skip this element
+    //                          problematic_idx.push_back({i, j, k, l});
+    //                      }
+    //
+    //                      Inter_datas elem;
+    //                      elem.i            = i;
+    //                      elem.j            = j;
+    //                      elem.k            = k;
+    //                      elem.l            = l;
+    //                      elem.free_for_dir = dir_interp;
+    //                      inter_elems.push_back(elem);
+    //                  }
+    //
+    //  std::cout << " ERR in " << err_pt << " of " << n_interf << " points \n";
+    //
+    //  size_t sph_idx = 0;
+    //  for (const auto& [xc, yc, zc, rc] : spheres_info)
+    //  {
+    //      // Convert to index space
+    //      int ic = static_cast<int>(std::floor(xc / h));
+    //      int jc = static_cast<int>(std::floor(yc / h));
+    //      int kc = static_cast<int>(std::floor(zc / h));
+    //      int rh = static_cast<int>(std::ceil(rc / h));
+    //
+    //      // Clamp cube range
+    //      auto clamp_low  = [](int a) { return std::max(a, 0); };
+    //      auto clamp_high = [](int a, int max) { return std::min(a, max - 1); };
+    //
+    //      int i_min = clamp_low(ic - rh - 1);
+    //      int j_min = clamp_low(jc - rh - 1);
+    //      int k_min = clamp_low(kc - rh - 1);
+    //      int i_max = clamp_high(ic + rh + 3, iMax);
+    //      int j_max = clamp_high(jc + rh + 3, jMax);
+    //      int k_max = clamp_high(kc + rh + 3, kMax);
+    //
+    //      sph_idx += 1;
+    //      for (auto& elem : inter_elems)
+    //      {
+    //          auto& i = elem.i;
+    //          auto& j = elem.j;
+    //          auto& k = elem.k;
+    //          auto& l = elem.l;
+    //          if (i >= i_min and i <= i_max)
+    //              if (j >= j_min and j <= j_max)
+    //                  if (k >= k_min and k <= k_max)
+    //                  {
+    //                      // Calculate position of the interface point
+    //                      x = h * i + (l == 1) ? h * 0.5 : 0;
+    //                      y = h * j + (l == 2) ? h * 0.5 : 0;
+    //                      z = h * l + (l == 3) ? h * 0.5 : 0;
+    //
+    //                      // Check if any distance is smaller than the older one,
+    //                      // if so save it, this is going to be the one needed for the
+    //                      approximation
+    //                      // of the BC
+    //                      auto find_inters = [](auto dir_1, auto dir_2)
+    //                      {
+    //                          auto inside = sqr(rc) - sqr(dir_1) - sqr(dir_2);
+    //
+    //                          if (inside < 0)
+    //                          {
+    //                              return 0;
+    //                          }
+    //
+    //                          double root = sqrt(inside);
+    //                      };
+    //
+    //                      // Point of intersection of the sphere
+    //                      auto x_int = find_inter(yc, zc);
+    //                      auto y_int = find_inter(xc, zc);
+    //                      auto z_int = find_inter(xc, yc);
+    //
+    //                      if (dx < elem.dx)
+    //                      {
+    //                          elem.dx              = dx;
+    //                          elem.sphere_index[0] = sph_idx;
+    //                          elem.dir_interp[0]   = (x - xc > 0) ?
+    //                      }
+    //
+    //                      if (dy < elem.dy) elem.dy = dy, elem.sphere_index[1] = sph_idx;
+    //
+    //                      if (dz < elem.dz) elem.dz = dz, elem.sphere_index[2] = sph_idx;
+    //                  }
+    //      }
+    //  }
     /*
      * TODO :
      *

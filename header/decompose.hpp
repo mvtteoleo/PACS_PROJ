@@ -26,11 +26,18 @@
 #include "my_2Decomp/MPI_types.hpp"
 #include "tensors.hpp"
 
+enum neighbour_directions
+{
+    BOTTOM = 0,
+    TOP    = 1,
+    RIGHT  = 2,
+    LEFT   = 3
+};
 // --- Main decomposition class ---
 template <typename value_type = double>
 class NewDecomp
 {
-  private:
+private:
     // Need to be int in order to speak with MPI
     int                tot_rank{1};
     int                mpi_rank{0};
@@ -40,7 +47,7 @@ class NewDecomp
 
     std::unique_ptr<C2Decomp> c2d;
 
-  public:
+public:
     NewDecomp(int argc, char** argv)
     {
         MPI_Init(&argc, &argv);
@@ -63,32 +70,55 @@ class NewDecomp
         MPI_Finalize();
     }
 
-    enum class neighbour_directions : uint8_t
-    {
-        TOP    = 0,
-        BOTTOM = 1,
-        LEFT   = 2,
-        RIGHT  = 3
-    };
-
     template <typename T>
-    void exchange_edges(std::vector<T>& top, std::vector<T>& bottom, std::vector<T>& left,
-                        std::vector<T>& right) const
+    void exchange_edges(std::vector<T>& top_to_send, std::vector<T>& bottom_to_receive,
+                        std::vector<T>& left_to_receive, std::vector<T>& right_to_send) const
     {
         static_assert(std::is_trivially_copyable_v<T>,
-                      "exchange_edges requires trivially copyable types");
+        "exchange_edges requires trivially copyable types");
         MPI_Datatype mpi_type = mpi_get_type<T>();
 
         // Exchange top <-> bottom
-        MPI_Sendrecv(top.data(), static_cast<int>(top.size()), mpi_type, neighbors[1], 0,
-                     bottom.data(), static_cast<int>(bottom.size()), mpi_type, neighbors[0], 0,
+        MPI_Sendrecv(top_to_send.data(), static_cast<int>(top_to_send.size()), mpi_type,
+                     neighbors[1], 0, bottom_to_receive.data(),
+                     static_cast<int>(bottom_to_receive.size()), mpi_type, neighbors[0], 0,
                      cart_comm, MPI_STATUS_IGNORE);
 
         // Exchange left <-> right
-        MPI_Sendrecv(left.data(), static_cast<int>(left.size()), mpi_type, neighbors[3], 1,
-                     right.data(), static_cast<int>(right.size()), mpi_type, neighbors[2], 1,
-                     cart_comm, MPI_STATUS_IGNORE);
+        MPI_Sendrecv(left_to_receive.data(), static_cast<int>(left_to_receive.size()), mpi_type,
+                     neighbors[3], 1, right_to_send.data(), static_cast<int>(right_to_send.size()),
+                     mpi_type, neighbors[2], 1, cart_comm, MPI_STATUS_IGNORE);
     }
+
+    /*
+    void exchange_vert_bounds(numPDE::Tensor<value_type> &P, size_t  n_dims=1)
+    {
+        auto [nx, ny, nz] = P.get_sizes();
+
+        // Exchange TOP with rank on TOP
+
+        MPI_Datatype mpi_type  = mpi_get_type<value_type>();
+
+        // Each slice is one z-layer (ny × nx elements)
+        const int slice = (ny - 2) * nx * P::N_DIMS;
+
+        if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
+        {
+            MPI_Sendrecv(P.ptr_at(0, 1, nz - 2), slice, mpi_type, neighbors[neighbour_directions::TOP],
+                         100, P.ptr_at(0, 1, nz - 1), slice, mpi_type,
+                         neighbors[neighbour_directions::TOP], 101, cart_comm, MPI_STATUS_IGNORE);
+        }
+
+        // Send first physical layer (bottom) directly, receive into bottom ghost layer
+        if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
+        {
+            MPI_Sendrecv(P.ptr_at(0, 1, 1), slice, mpi_type, neighbors[neighbour_directions::BOTTOM],
+                         101, P.ptr_at(0, 1, 0), slice, mpi_type,
+                         neighbors[neighbour_directions::BOTTOM], 100, cart_comm, MPI_STATUS_IGNORE);
+        }
+
+    }
+    */
 
     int                       rank() const { return mpi_rank; }
     int                       totRank() const { return tot_rank; }

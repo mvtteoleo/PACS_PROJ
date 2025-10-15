@@ -1,5 +1,6 @@
-#define TEST 0
+#define TEST 2
 #include "../../header/MY_LIB.hpp"
+#include "../../header/my_2Decomp/MPI_types.hpp"
 #include <algorithm>
 #include <array>
 #include <assert.h>
@@ -159,6 +160,149 @@ int main(int argc, char* argv[])
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
+
+#elif TEST == 2
+    // Test to handle the MPI communications and boundary exchange
+    constexpr std::size_t N_DIMS = 3;
+    std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
+    if (N < 2) N = 5;
+    std::size_t nx = N, ny = N, nz = N;
+    decomp.initialize_decomp(nx, ny, nz);
+
+    // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
+    auto P = numPDE::make_scalar_field<Real, N_DIMS>(decomp.xSize());
+    auto V = numPDE::make_vector_field<Real, N_DIMS>(decomp.xSize());
+    nx     = decomp.xSize()[0];
+    ny     = decomp.xSize()[1];
+    nz     = decomp.xSize()[2];
+
+    P.fill_val(decomp.rank());
+    V.fill_val(decomp.rank());
+
+    // Exchange TOP with rank on TOP
+
+    MPI_Datatype mpi_type  = mpi_get_type<Real>();
+    MPI_Comm     cart_comm = MPI_COMM_WORLD;
+
+    // Each slice is one z-layer (ny × nx elements)
+    const int slice = (ny - 2) * nx;
+
+    if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
+    {
+        MPI_Sendrecv(P.ptr_at(0, 1, nz - 2), slice, mpi_type, neighbors[neighbour_directions::TOP],
+                     100, P.ptr_at(0, 1, nz - 1), slice, mpi_type,
+                     neighbors[neighbour_directions::TOP], 101, cart_comm, MPI_STATUS_IGNORE);
+    }
+
+    // Send first physical layer (bottom) directly, receive into bottom ghost layer
+    if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
+    {
+        MPI_Sendrecv(P.ptr_at(0, 1, 1), slice, mpi_type, neighbors[neighbour_directions::BOTTOM],
+                     101, P.ptr_at(0, 1, 0), slice, mpi_type,
+                     neighbors[neighbour_directions::BOTTOM], 100, cart_comm, MPI_STATUS_IGNORE);
+    }
+
+    //  // ---------------------- PACK DATA ----------------------
+    //  // Vector with received data
+    //  std::vector<Real> top_ghosts;
+    //  std::vector<Real> bot_ghosts;
+
+    //  // Vector with sent data
+    //  std::vector<Real> top_intern;
+    //  std::vector<Real> bot_intern;
+
+    //
+    //  // Pack TOP layer
+    //  if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
+    //  {
+    //      top_intern.resize(slice);
+    //      top_ghosts.resize(slice);
+    //
+    //      int k   = nz - 2; // last physical layer
+    //      int idx = 0;
+    //      std::copy_n(P.ptr_at(0, 1, k), slice, top_intern.begin());
+    //      /*
+    //      for (int j = 1; j < ny-1; ++j)
+    //          for (int i = 0; i < nx; ++i)
+    //              top_intern[idx++] = P(i, j, k);
+    //           */
+    //  }
+    //
+    //  // Pack BOTTOM layer
+    //  if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
+    //  {
+    //      bot_intern.resize(slice);
+    //      bot_ghosts.resize(slice);
+    //
+    //      int k   = 1; // first physical layer
+    //      int idx = 0;
+    //      std::copy_n(P.ptr_at(0, 1, k), slice, bot_intern.begin());
+    //      /*
+    //      for (int j = 1; j < ny-1; ++j)
+    //          for (int i = 0; i < nx; ++i)
+    //              bot_intern[idx++] = P(i, j, k);
+    //      */
+    //  }
+    //
+    //  // ---------------------- COMMUNICATION ----------------------
+    //
+    //  // Send top_intern → TOP neighbor, receive top_ghosts from TOP neighbor
+    //  if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
+    //  {
+    //      MPI_Sendrecv(top_intern.data(), slice, mpi_type, neighbors[neighbour_directions::TOP],
+    //      100,
+    //                   top_ghosts.data(), slice, mpi_type, neighbors[neighbour_directions::TOP],
+    //                   101, cart_comm, MPI_STATUS_IGNORE);
+    //  }
+    //
+    //  // Send bot_intern → BOTTOM neighbor, receive bot_ghosts from BOTTOM neighbor
+    //  if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
+    //  {
+    //      MPI_Sendrecv(bot_intern.data(), slice, mpi_type,
+    //      neighbors[neighbour_directions::BOTTOM],
+    //                   101, bot_ghosts.data(), slice, mpi_type,
+    //                   neighbors[neighbour_directions::BOTTOM], 100, cart_comm,
+    //                   MPI_STATUS_IGNORE);
+    //  }
+    //
+    //  // ---------------------- UNPACK DATA ----------------------
+    //
+    //  // Copy received TOP ghost into top ghost layer
+    //  if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
+    //  {
+    //      int k   = nz-1; // top ghost layer index
+    //      int idx = 0;
+    //      for (int j = 1; j < ny-1; ++j)
+    //          for (int i = 0; i < nx; ++i)
+    //              P(i, j, k) = top_ghosts[idx++];
+    //  }
+    //
+    //  // Copy received BOTTOM ghost into bottom ghost layer
+    //  if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
+    //  {
+    //      int k   = 0; // bottom ghost layer index
+    //      int idx = 0;
+    //      for (int j = 1; j < ny-1; ++j)
+    //          for (int i = 0; i < nx; ++i)
+    //              P(i, j, k) = bot_ghosts[idx++];
+    //  }
+
+    // Print results rank by rank
+    for (int r = 0; r < decomp.totRank(); ++r)
+    {
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (decomp.rank() == r)
+        {
+            std::cout << "Rank " << r << ":\n";
+            for (int k = nz - 1; k >= 0; --k)
+            {
+                for (int j = 0; j < ny; ++j)
+                    std::cout << static_cast<int>(P(3, j, k)) << " ";
+                std::cout << "\n";
+            }
+            std::cout << std::endl;
+        }
+    }
 
 #endif
 
