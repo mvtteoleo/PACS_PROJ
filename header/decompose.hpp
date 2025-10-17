@@ -129,11 +129,27 @@ class NewDecomp
         // Each slice is one z-layer (ny × nx elements)
         const int slice = (ny - 2) * nx * n_scal;
 
+        std::array<size_t, RANK> v_top, v_bot;
+        std::fill(v_top.begin(), v_top.end(), 0);
+        std::fill(v_bot.begin(), v_bot.end(), 0);
+
+        v_top[RANK-2] = 1;
+        v_top[RANK-1] = nz-2;
+        const int inter_top = P.get_linear_index(v_top);
+        v_top[RANK-1] +=  1;
+        const int ghost_top = P.get_linear_index(v_top);
+
+
+        v_bot[RANK-2] = 1;
+        v_bot[RANK-1] = 1;
+        const int inter_bot = P.get_linear_index(v_bot);
+        v_bot[RANK-1] -= 1;
+        const int ghost_bot = P.get_linear_index(v_bot);
         MPI_Barrier(MPI_COMM_WORLD);
         if (this->neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
         {
-            MPI_Sendrecv(P.ptr_at(0, 1, nz - 2), slice, mpi_type,
-                         neighbors[neighbour_directions::TOP], 100, P.ptr_at(0, 1, nz - 1), slice,
+            MPI_Sendrecv(P.ptr_at(inter_top), slice, mpi_type,
+                         neighbors[neighbour_directions::TOP], 100, P.ptr_at(ghost_top), slice,
                          mpi_type, neighbors[neighbour_directions::TOP], 101, cart_comm,
                          MPI_STATUS_IGNORE);
         }
@@ -141,8 +157,8 @@ class NewDecomp
         // Send first physical layer (bottom) directly, receive into bottom ghost layer
         if (this->neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
         {
-            MPI_Sendrecv(P.ptr_at(0, 1, 1), slice, mpi_type,
-                         neighbors[neighbour_directions::BOTTOM], 101, P.ptr_at(0, 1, 0), slice,
+            MPI_Sendrecv(P.ptr_at(inter_bot), slice, mpi_type,
+                         neighbors[neighbour_directions::BOTTOM], 101, P.ptr_at(ghost_bot), slice,
                          mpi_type, neighbors[neighbour_directions::BOTTOM], 100, cart_comm,
                          MPI_STATUS_IGNORE);
         }

@@ -225,8 +225,8 @@ namespace numPDE
             requires UnsignedInt<Ts...>
         decltype(auto) access(Ts... idxs) const
         {
-            static_assert(sizeof...(Ts) == N_DIMS,
-                          "Number of indices must match tensor dimensionality");
+            static_assert(sizeof...(Ts) > RANK,
+                          "Number of indices must match tensor dimensionality or number of phisical dimension");
 
             // if constexpr (N_DIMS == RANK)
             if constexpr (sizeof...(Ts) == RANK)
@@ -301,6 +301,19 @@ namespace numPDE
         // -----------------------------//
         // *****     RAW ACCESS   ***** //
         // -----------------------------//
+        template <typename Ts>
+            requires std::is_integral_v<Ts>
+        T* ptr_at(const Ts idx) noexcept
+        {
+            return &m_Datas[idx];
+        }
+        template <typename Ts>
+            requires std::is_integral_v<Ts>
+        const T* ptr_at(const Ts idx) const noexcept
+        {
+            return &m_Datas[idx];
+        }
+
         template <typename... Ts>
             requires UnsignedInt<Ts...>
         T* ptr_at(const Ts... idxs) noexcept
