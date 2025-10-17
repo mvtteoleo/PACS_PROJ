@@ -89,11 +89,17 @@ class NewDecomp
                      neighbors[3], 1, right_to_send.data(), static_cast<int>(right_to_send.size()),
                      mpi_type, neighbors[2], 1, cart_comm, MPI_STATUS_IGNORE);
     }
+    template <typename T, size_t RANK, size_t N_DIMS>
+    void exchange_ghosts(numPDE::Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>& P)
+    {
+        exchange_late_bounds(P);
+        exchange_vert_bounds(P);
+        return;
+    }
 
     template <typename T, size_t RANK, size_t N_DIMS>
-    void exchange_vert_bounds(numPDE::Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>& P)
+    void exchange_late_bounds(numPDE::Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>& P)
     {
-
         size_t nx, ny, nz, n_scal;
         auto   sizes = P.get_sizes();
 
@@ -127,6 +133,100 @@ class NewDecomp
         MPI_Datatype mpi_type = mpi_get_type<T>();
 
         // Each slice is one z-layer (ny × nx elements)
+        const int      slice = (nz - 2) * nx * n_scal;
+        std::vector<T> ghost_left(slice, 0.), int_left(slice, 0.);
+        std::vector<T> ghost_righ(slice, 0.), int_righ(slice, 0.);
+
+        // Extract the intern
+        if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
+            for (int k = 1; k < nz - 1; ++k)
+            {
+                constexpr int j = 1;
+                std::copy_n(P.ptr_at(n_scal * nx * (k * ny + j)), nx * n_scal,
+                            &int_left[(k - 1) * nx * n_scal]);
+            }
+
+        if (neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
+            for (int k = 1; k < nz - 1; ++k)
+            {
+                const int j = ny - 2;
+                std::copy_n(P.ptr_at(n_scal * nx * (k * ny + j)), nx * n_scal,
+                            &int_righ[(k - 1) * nx * n_scal]);
+            }
+
+        // Exchange the ghost if there is a process that has sent the data
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
+        {
+            MPI_Sendrecv(int_righ.data(), slice, mpi_type, neighbors[neighbour_directions::RIGHT],
+                         200, ghost_righ.data(), slice, mpi_type,
+                         neighbors[neighbour_directions::RIGHT], 201, cart_comm, MPI_STATUS_IGNORE);
+        }
+
+        // Send first physical layer (bottom) directly, receive into bottom ghost layer
+        if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
+        {
+            MPI_Sendrecv(int_left.data(), slice, mpi_type, neighbors[neighbour_directions::LEFT],
+                         201, ghost_left.data(), slice, mpi_type,
+                         neighbors[neighbour_directions::LEFT], 200, cart_comm, MPI_STATUS_IGNORE);
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        // Copy back in the tensor
+        if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
+            for (int k = 1; k < nz - 1; ++k)
+            {
+                constexpr int j = 0;
+                std::copy_n(&ghost_left[(k - 1) * nx * n_scal], nx * n_scal,
+                            P.ptr_at(n_scal * nx * (k * ny + j)));
+            }
+
+        if (neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
+            for (int k = 1; k < nz - 1; ++k)
+            {
+                const int j = ny - 1;
+                std::copy_n(&ghost_righ[(k - 1) * nx * n_scal], nx * n_scal,
+                            P.ptr_at(n_scal * nx * (k * ny + j)));
+            }
+        return;
+    }
+    template <typename T, size_t RANK, size_t N_DIMS>
+    void exchange_vert_bounds(numPDE::Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>& P)
+    {
+
+        size_t nx, ny, nz, n_scal;
+        auto   sizes = P.get_sizes();
+
+        if constexpr (RANK == N_DIMS and N_DIMS == 3)
+        {
+            nx     = sizes[0];
+            ny     = sizes[1];
+            nz     = sizes[2];
+            n_scal = 1;
+        }
+        if constexpr (N_DIMS == 3 and RANK == 4)
+        {
+            n_scal = sizes[0];
+            nx     = sizes[1];
+            ny     = sizes[2];
+            nz     = sizes[3];
+        }
+#ifdef PEDANTIC
+        if constexpr (N_DIMS != 3)
+        {
+            if (!rank())
+                std::cerr << "Exchange boundary is not supperted yet for non-3D tensors, please "
+                             "handle the issue in decompose.hpp\n";
+            return;
+        }
+#endif // PEDANTIC
+
+        // Exchange TOP with rank on TOP
+
+        // using T = Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>::value_type;
+        MPI_Datatype mpi_type = mpi_get_type<T>();
+
+        // Each slice is one z-layer (ny × nx elements)
         const int slice = (ny - 2) * nx * n_scal;
 
         std::array<size_t, RANK> v_top, v_bot;
@@ -145,7 +245,7 @@ class NewDecomp
         v_bot[RANK - 1] -= 1;
         const int ghost_bot = P.get_linear_index(v_bot);
         MPI_Barrier(MPI_COMM_WORLD);
-        if (this->neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
+        if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
         {
             MPI_Sendrecv(P.ptr_at(inter_top), slice, mpi_type, neighbors[neighbour_directions::TOP],
                          100, P.ptr_at(ghost_top), slice, mpi_type,
@@ -153,7 +253,7 @@ class NewDecomp
         }
 
         // Send first physical layer (bottom) directly, receive into bottom ghost layer
-        if (this->neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
+        if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
         {
             MPI_Sendrecv(P.ptr_at(inter_bot), slice, mpi_type,
                          neighbors[neighbour_directions::BOTTOM], 101, P.ptr_at(ghost_bot), slice,
@@ -161,6 +261,7 @@ class NewDecomp
                          MPI_STATUS_IGNORE);
         }
         MPI_Barrier(MPI_COMM_WORLD);
+        return;
     }
 
     int                       rank() const { return mpi_rank; }

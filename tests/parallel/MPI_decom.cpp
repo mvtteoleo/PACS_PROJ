@@ -166,8 +166,31 @@ int main(int argc, char* argv[])
     constexpr std::size_t N_DIMS = 3;
     std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
-    std::size_t nx = N, ny = N, nz = N;
+    std::size_t nx = 4, ny = N, nz = N;
     decomp.initialize_decomp(nx, ny, nz);
+      
+    // Print results rank by rank
+    for (int r = 0; r < decomp.totRank(); ++r)
+    {
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (decomp.rank() == r)
+        {
+         // auto [xels, yels, zels] = decomp.globSizes();
+         // std::cout << "x elems " << xels << "y elems " << yels << "z elems " << zels
+         //           << std::endl;
+            std::cout << "Rank " << r << ":\n";
+            for (auto i : decomp.xSize())
+                std::cout << i << " ";
+
+            std::cout << std::endl;
+
+            std::cout << std::endl;
+            std::cout << std::endl;
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
 
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
     auto P = numPDE::make_scalar_field<Real, N_DIMS>(decomp.xSize());
@@ -187,57 +210,20 @@ int main(int argc, char* argv[])
     // Each slice is one z-layer (ny × nx elements)
     const int slice     = (ny - 2) * nx;
     const int vec_slice = slice * N_DIMS;
-    /*
-    for(int i=1; i<V.size(); ++i)
-        V[i] = V[i-1] +1;
-
-    for(int k=0; k<nz; ++k)
-        for(int j=0; j<ny; ++j)
-            for(int i=0; i<nx; ++i)
-                for(int l=0; l<3; ++l)
-        {
-                    std::cout << *V.ptr_at(l, i, j, k) << " " ;
-                    std::cout << V.at(l, i, j, k) << " " ;
-                }
-    */
-
-    /*
-    if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
-    {
-        MPI_Sendrecv(P.ptr_at(0, 1, nz - 2), slice, mpi_type, neighbors[neighbour_directions::TOP],
-                     100, P.ptr_at(0, 1, nz - 1), slice, mpi_type,
-                     neighbors[neighbour_directions::TOP], 101, cart_comm, MPI_STATUS_IGNORE);
-    }
-
-    // Send first physical layer (bottom) directly, receive into bottom ghost layer
-    if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
-    {
-        MPI_Sendrecv(P.ptr_at(0, 1, 1), slice, mpi_type, neighbors[neighbour_directions::BOTTOM],
-                     101, P.ptr_at(0, 1, 0), slice, mpi_type,
-                     neighbors[neighbour_directions::BOTTOM], 100, cart_comm, MPI_STATUS_IGNORE);
-    }
-    */
     decomp.exchange_vert_bounds(P);
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     decomp.exchange_vert_bounds(V);
 
-    //  if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
-    //  {
-    //      MPI_Sendrecv(V.ptr_at(0, 0, 1, nz - 2), vec_slice, mpi_type,
-    //                   neighbors[neighbour_directions::TOP], 200, V.ptr_at(0, 0, 1, nz - 1),
-    //                   vec_slice, mpi_type, neighbors[neighbour_directions::TOP], 201, cart_comm,
-    //                   MPI_STATUS_IGNORE);
-    //  }
-    //
-    //  // Send first physical layer (bottom) directly, receive into bottom ghost layer
-    //  if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
-    //  {
-    //      MPI_Sendrecv(V.ptr_at(0, 0, 1, 1), vec_slice, mpi_type,
-    //                   neighbors[neighbour_directions::BOTTOM], 201, V.ptr_at(0, 0, 1, 0),
-    //                   vec_slice, mpi_type, neighbors[neighbour_directions::BOTTOM], 200,
-    //                   cart_comm, MPI_STATUS_IGNORE);
-    //  }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+    decomp.exchange_late_bounds(P);
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+    decomp.exchange_late_bounds(V);
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -247,12 +233,38 @@ int main(int argc, char* argv[])
                 if (P(j, jp, 0) != static_cast<int>(neighbors[neighbour_directions::BOTTOM]))
                     std::cerr << "Problem in the bottom communication for " << decomp.rank()
                               << "\n";
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
 
     if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
         for (int j = 0; j < nx; ++j)
             for (int jp = 1; jp < ny - 1; ++jp)
                 if (P(j, jp, nz - 1) != static_cast<int>(neighbors[neighbour_directions::TOP]))
                     std::cerr << "Problem in the top communication for " << decomp.rank() << "\n";
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
+        for (int j = 0; j < nx; ++j)
+            for (int jp = 1; jp < nz - 1; ++jp)
+                if (P(j, 0, jp) != static_cast<int>(neighbors[neighbour_directions::LEFT]))
+                    std::cerr << "Problem in the left communication for " << decomp.rank()
+                              << "\n";
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    if (neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
+        for (int j = 0; j < nx; ++j)
+            for (int jp = 1; jp < nz - 1; ++jp)
+                if (P(j, ny - 1, jp) != static_cast<int>(neighbors[neighbour_directions::RIGHT]))
+                    std::cerr << "Problem in the right communication for " << decomp.rank()
+                              << "\n";
+
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
 
     //   Print results rank by rank
     for (int r = 0; r < decomp.totRank(); ++r)
@@ -271,6 +283,7 @@ int main(int argc, char* argv[])
             MPI_Barrier(MPI_COMM_WORLD);
         }
     }
+
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -309,20 +322,6 @@ int main(int argc, char* argv[])
     if (!decomp.rank()) std::cout << "\n";
     if (!decomp.rank()) std::cout << P(i, j, k) << " " << P.at(i, j, k);
 
-        /*
-        int idx =0;
-        if (!decomp.rank())
-        for(int k=0; k<nz; ++k)
-            for(int j=0; j<ny; ++j)
-                for(int i=0; i<nx; ++i)
-                    for(int l=0; l<3; ++l)
-                    {
-                        std::cout << *V.ptr_at(l, i, j, k) << " " ;
-                        std::cout << V.at(l, i, j, k) << " " ;
-                        std::cout << V[idx] << " " ;
-                        ++idx;
-                    }
-        */
 
 #endif
 
