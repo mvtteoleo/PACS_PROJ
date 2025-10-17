@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../compiler_directives.hpp"
 #include "MPI_types.hpp"
 #include "math.h"
 #include <cstddef>

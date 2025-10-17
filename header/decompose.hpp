@@ -281,7 +281,8 @@ class NewDecomp
         // pRow = 0;
         // pCol = 0;
         bool periodicBC[3] = {false, false, false};
-        c2d                = std::make_unique<C2Decomp>(nx, ny, nz, pRow, pCol, periodicBC);
+        // TODO add a check to round to the closest neighbour the value of nx, ny, nz global
+        c2d = std::make_unique<C2Decomp>(nx, ny, nz, pRow, pCol, periodicBC);
         if (pCol != dims[1] or pRow != dims[0])
         {
             std::cerr << "Warning: Row or column values changed!!\n";
@@ -390,6 +391,7 @@ class NewDecomp
         MPI_Barrier(MPI_COMM_WORLD);
         if (mpi_rank == 0)
         {
+            //auto [bCol, bRow] = best_rank_2D_grid(tot_rank);
             auto [bRow, bCol] = best_rank_2D_grid(tot_rank);
             dims[0]           = bRow;
             dims[1]           = bCol;
@@ -400,8 +402,12 @@ class NewDecomp
         MPI_Cart_create(MPI_COMM_WORLD, 2, dims.data(), periods, 0, &cart_comm);
 
         neighbors.fill(MPI_PROC_NULL);
-        MPI_Cart_shift(cart_comm, 0, 1, &neighbors[1], &neighbors[0]); // top, bottom
-        MPI_Cart_shift(cart_comm, 1, 1, &neighbors[3], &neighbors[2]); // left, right
+        MPI_Cart_shift(cart_comm, 0, 1, &neighbors[neighbour_directions::TOP],
+                       &neighbors[neighbour_directions::BOTTOM]); // top, bottom
+
+        MPI_Cart_shift(cart_comm, 1, 1, &neighbors[neighbour_directions::LEFT],
+                       &neighbors[neighbour_directions::RIGHT]); // left, right
+
         MPI_Barrier(MPI_COMM_WORLD);
     }
 

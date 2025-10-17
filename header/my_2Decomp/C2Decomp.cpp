@@ -238,36 +238,140 @@ void C2Decomp::getDist()
 
 void C2Decomp::distribute(int data1, int proc, int* st, int* en, int* sz)
 {
-
-    int size1, nl, nu;
-
-    size1 = data1 / proc;
-    nu    = data1 - size1 * proc;
-    nl    = proc - nu;
-
-    st[0] = 1;
-    sz[0] = size1;
-    en[0] = size1;
-
-    for (int i = 1; i < nl; ++i)
+    // Original version
+    const auto def = [&]()
     {
-        st[i] = st[i - 1] + size1;
-        sz[i] = size1;
-        en[i] = en[i - 1] + size1;
-    }
+        int size1, nl, nu;
 
-    size1 = size1 + 1;
+        size1 = data1 / proc;
+        nu    = data1 - size1 * proc;
+        nl    = proc - nu;
 
-    for (int i = nl; i < proc; ++i)
+        st[0] = 1;
+        sz[0] = size1;
+        en[0] = size1;
+
+        for (int i = 1; i < nl; i++)
+        {
+            st[i] = st[i - 1] + size1;
+            sz[i] = size1;
+            en[i] = en[i - 1] + size1;
+        }
+
+        size1 = size1 + 1;
+
+        for (int i = nl; i < proc; i++)
+        {
+            st[i] = en[i - 1] + 1;
+            sz[i] = size1;
+            en[i] = en[i - 1] + size1;
+        }
+
+        en[proc - 1] = data1;
+        sz[proc - 1] = data1 - st[proc - 1] + 1;
+    };
+
+    // Custom version
+    const auto mif = [&]()
     {
-        st[i] = en[i - 1] + 1;
-        sz[i] = size1;
-        en[i] = en[i - 1] + size1;
-    }
+        unsigned big_size = 0, small_size = 0, n_big_size = 0, n_small_size = 0, div = 0, mod = 0;
+        if (data1 % proc == 0)
+        {
+            big_size   = data1 / proc;
+            n_big_size = proc;
+        }
+        else
+        {
+            div          = data1 / proc;
+            mod          = data1 % proc;
+            n_small_size = proc - mod;
+            n_big_size   = mod;
+            small_size   = div;
+            big_size     = div + 1;
+        }
 
-    en[proc - 1] = data1;
-    sz[proc - 1] = data1 - st[proc - 1] + 1;
+        // TODO: make these only under debug mode
+#ifdef PEDANTIC
+        if (n_big_size + n_small_size != proc)
+        {
+            int         errorcode = 1;
+            std::string errorstring =
+                "n_big_size + n_small_size != proc. Received tot_size=" + std::to_string(data1) +
+                " n_big_size=" + std::to_string(n_big_size) +
+                " n_small_size=" + std::to_string(n_small_size) + " proc=" + std::to_string(proc) +
+                " div=" + std::to_string(div) + " mod=" + std::to_string(mod) + "\n";
+            decomp2DAbort(errorcode, errorstring);
+        }
+        if (n_big_size * big_size + n_small_size * small_size != data1)
+        {
+            int         errorcode = 1;
+            std::string errorstring =
+                "n_big_size * big_size + n_small_size * small_size != data1" +
+                std::to_string(data1) + " n_big_size=" + std::to_string(n_big_size) +
+                " n_small_size=" + std::to_string(n_small_size) + " proc=" + std::to_string(proc) +
+                " div=" + std::to_string(div) + " mod=" + std::to_string(mod) + "\n";
+            decomp2DAbort(errorcode, errorstring);
+        }
+#endif
+
+        st[0] = 1;
+        sz[0] = big_size;
+        en[0] = big_size;
+        for (unsigned i = 1; i < n_big_size; ++i)
+        {
+            st[i] = en[i - 1] + 1;
+            sz[i] = big_size;
+            en[i] = st[i] + big_size - 1;
+        }
+        for (unsigned i = n_big_size; i < proc; i++)
+        {
+            st[i] = en[i - 1] + 1;
+            sz[i] = small_size;
+            en[i] = st[i] + small_size - 1;
+        }
+    };
+
+    if (distributionType == Distribution::DEFAULT)
+    {
+        def();
+    }
+    else
+    {
+        mif();
+    }
 };
+//  void C2Decomp::distribute(int data1, int proc, int* st, int* en, int* sz)
+//  {
+//
+//      int size1, nl, nu;
+//
+//      size1 = data1 / proc;
+//      nu    = data1 - size1 * proc;
+//      nl    = proc - nu;
+//
+//      st[0] = 1;
+//      sz[0] = size1;
+//      en[0] = size1;
+//
+//      for (int i = 1; i < nl; ++i)
+//      {
+//          st[i] = st[i - 1] + size1;
+//          sz[i] = size1;
+//          en[i] = en[i - 1] + size1;
+//      }
+//
+//      size1 = size1 + 1;
+//
+//      for (int i = nl; i < proc; ++i)
+//      {
+//          st[i] = en[i - 1] + 1;
+//          sz[i] = size1;
+//          en[i] = en[i - 1] + size1;
+//      }
+//
+//      en[proc - 1] = data1;
+//      sz[proc - 1] = data1 - st[proc - 1] + 1;
+//  };
 
 void C2Decomp::partition(int nx, int ny, int nz, int* pdim, int* lstart, int* lend, int* lsize)
 {
