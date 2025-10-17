@@ -201,6 +201,7 @@ int main(int argc, char* argv[])
                 }
     */
 
+    /*
     if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
     {
         MPI_Sendrecv(P.ptr_at(0, 1, nz - 2), slice, mpi_type, neighbors[neighbour_directions::TOP],
@@ -215,6 +216,8 @@ int main(int argc, char* argv[])
                      101, P.ptr_at(0, 1, 0), slice, mpi_type,
                      neighbors[neighbour_directions::BOTTOM], 100, cart_comm, MPI_STATUS_IGNORE);
     }
+    */
+    decomp.exchange_vert_bounds(P);
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -238,24 +241,25 @@ int main(int argc, char* argv[])
     MPI_Barrier(MPI_COMM_WORLD);
 
     // Print results rank by rank
-    for (int r = 0; r < decomp.totRank(); ++r)
-    {
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (decomp.rank() == r)
-        {
-            MPI_Barrier(MPI_COMM_WORLD);
-            std::cout << "Rank " << r << ":\n";
-            for (int k = nz - 1; k >= 0; --k)
-            {
-                for (int j = 0; j < ny; ++j)
-                    std::cout << static_cast<int>(V.at(0, 0, j, k)) << " ";
-                std::cout << "\n";
-            }
-            MPI_Barrier(MPI_COMM_WORLD);
-        }
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD);
+    //  for (int r = 0; r < decomp.totRank(); ++r)
+    //  {
+    //      MPI_Barrier(MPI_COMM_WORLD);
+    //      if (decomp.rank() == r)
+    //      {
+    //          MPI_Barrier(MPI_COMM_WORLD);
+    //          std::cout << "Rank " << r << ":\n";
+    //          for (int k = nz - 1; k >= 0; --k)
+    //          {
+    //              for (int j = 0; j < ny; ++j)
+    //                  std::cout << static_cast<int>(V.at(0, 0, j, k)) << " ";
+    //              std::cout << "\n";
+    //          }
+    //          MPI_Barrier(MPI_COMM_WORLD);
+    //      }
+    //  }
+    //  MPI_Barrier(MPI_COMM_WORLD);
+    //  MPI_Barrier(MPI_COMM_WORLD);
+
     for (int r = 0; r < decomp.totRank(); ++r)
     {
         MPI_Barrier(MPI_COMM_WORLD);

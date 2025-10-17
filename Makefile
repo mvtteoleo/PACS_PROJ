@@ -49,6 +49,7 @@ SERIAL_TESTS := $(patsubst $(SERIAL_DIR)/%.cpp,$(BUILD_DIR)/serial/%,$(SERIAL_SR
 
 PARALLEL_SRCS  := $(wildcard $(PARALLEL_DIR)/*.cpp)
 PARALLEL_TESTS := $(patsubst $(PARALLEL_DIR)/%.cpp,$(BUILD_DIR)/parallel/%,$(PARALLEL_SRCS))
+TODAYS_TEST := $(patsubst $(PARALLEL_DIR)/MPI_decom.cpp,$(BUILD_DIR)/parallel/MPI_decom,$(PARALLEL_SRCS))
 
 # Default MPI processes
 NP ?= 4
@@ -57,13 +58,14 @@ NP ?= 4
 # Default goal
 .DEFAULT_GOAL := all
 .PHONY: all clean distclean tests serial parallel \
-        SERIAL_TESTS PARALLEL_TESTS run_tests run_serial run_parallel
+        SERIAL_TESTS PARALLEL_TESTS run_tests run_serial run_parallel todays_test
 
 all: $(EXEC)
 
 tests: serial parallel
 serial: $(SERIAL_TESTS)
 parallel: $(PARALLEL_TESTS)
+todays_test: $(TODAYS_TEST)
 
 # ==============================
 # Compile main program (everything O3)
