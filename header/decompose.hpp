@@ -133,25 +133,23 @@ class NewDecomp
         std::fill(v_top.begin(), v_top.end(), 0);
         std::fill(v_bot.begin(), v_bot.end(), 0);
 
-        v_top[RANK-2] = 1;
-        v_top[RANK-1] = nz-2;
+        v_top[RANK - 2]     = 1;
+        v_top[RANK - 1]     = nz - 2;
         const int inter_top = P.get_linear_index(v_top);
-        v_top[RANK-1] +=  1;
+        v_top[RANK - 1] += 1;
         const int ghost_top = P.get_linear_index(v_top);
 
-
-        v_bot[RANK-2] = 1;
-        v_bot[RANK-1] = 1;
+        v_bot[RANK - 2]     = 1;
+        v_bot[RANK - 1]     = 1;
         const int inter_bot = P.get_linear_index(v_bot);
-        v_bot[RANK-1] -= 1;
+        v_bot[RANK - 1] -= 1;
         const int ghost_bot = P.get_linear_index(v_bot);
         MPI_Barrier(MPI_COMM_WORLD);
         if (this->neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
         {
-            MPI_Sendrecv(P.ptr_at(inter_top), slice, mpi_type,
-                         neighbors[neighbour_directions::TOP], 100, P.ptr_at(ghost_top), slice,
-                         mpi_type, neighbors[neighbour_directions::TOP], 101, cart_comm,
-                         MPI_STATUS_IGNORE);
+            MPI_Sendrecv(P.ptr_at(inter_top), slice, mpi_type, neighbors[neighbour_directions::TOP],
+                         100, P.ptr_at(ghost_top), slice, mpi_type,
+                         neighbors[neighbour_directions::TOP], 101, cart_comm, MPI_STATUS_IGNORE);
         }
 
         // Send first physical layer (bottom) directly, receive into bottom ghost layer
