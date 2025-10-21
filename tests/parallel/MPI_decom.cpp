@@ -24,60 +24,7 @@ int main(int argc, char* argv[])
 
     const auto& neighbors = decomp.get_neighbors();
     //
-#if TEST == 0
-    // Domain dimensions
-    int  nx = 3, ny = 3;
-    auto mesh = numPDE::make_scalar_field<Real, 2>({nx + 1, ny + 1});
-
-    for (auto i : mesh.all_linear_elements())
-        mesh[i] = decomp.rank();
-
-    // Prepare edges
-    std::vector<Real> top(nx), bottom(nx), left(ny), right(ny);
-    for (int i = 0; i < nx; i++)
-    {
-        top[i]    = mesh(i, 0);
-        bottom[i] = mesh(i, ny);
-    }
-    for (int j = 0; j < ny; j++)
-    {
-        left[j]  = mesh(0, j);
-        right[j] = mesh(nx, j);
-    }
-
-    decomp.exchange_edges(top, bottom, left, right);
-
-    // Optionally overwrite mesh edges with received data
-    if (neighbors[0] != MPI_PROC_NULL)
-        for (int i = 0; i < nx; i++)
-            mesh(i, ny) = bottom[i];
-    if (neighbors[1] != MPI_PROC_NULL)
-        for (int i = 0; i < nx; i++)
-            mesh(i, 0) = top[i];
-    if (neighbors[2] != MPI_PROC_NULL)
-        for (int j = 0; j < ny; j++)
-            mesh(nx, j) = right[j];
-    if (neighbors[3] != MPI_PROC_NULL)
-        for (int j = 0; j < ny; j++)
-            mesh(0, j) = left[j];
-
-    // Print results rank by rank
-    for (int r = 0; r < decomp.totRank(); ++r)
-    {
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (decomp.rank() == r)
-        {
-            std::cout << "Rank " << r << ":\n";
-            for (int j = 0; j <= ny; ++j)
-            {
-                for (int i = 0; i <= nx; ++i)
-                    std::cout << static_cast<int>(mesh(i, j)) << " ";
-                std::cout << "\n";
-            }
-            std::cout << std::endl;
-        }
-    }
-#elif TEST == 1
+#if TEST == 1
     size_t nx, ny, nz;
 
     std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
@@ -94,6 +41,9 @@ int main(int argc, char* argv[])
         std::cout << "N values : " << nx << " " << ny << " " << nz << "\n";
     }
 
+    nx = 10;
+    ny = 10;
+    nz = 10;
     // Broadcast to all ranks (convert to an array for simplicity)
     size_t sizes[3] = {nx, ny, nz};
     MPI_Bcast(sizes, 3, MPI_UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
@@ -125,34 +75,41 @@ int main(int argc, char* argv[])
         MPI_Barrier(MPI_COMM_WORLD);
         if (decomp.rank() == r)
         {
-            auto [xels, yels, zels] = decomp.globSizes();
-            std::cout << "x elems " << xels << "y elems " << yels << "z elems " << zels
-                      << std::endl;
+            //  auto [xels, yels, zels] = decomp.globSizes();
+            //  std::cout << "x elems " << xels << "y elems " << yels << "z elems " << zels
+            //            << std::endl;
             std::cout << "Rank " << r << ":\n";
-            /*
-            for (auto i : decomp.xSize())
-                std::cout << i << " ";
-
-            std::cout << std::endl;
-
-            for (auto i : decomp.ySize())
-                std::cout << i << " ";
-            std::cout << std::endl;
-            for (auto i : decomp.zSize())
-                std::cout << i << " ";
-            std::cout << std::endl;
-         */
-
+            //  for (auto i : decomp.xSize())
+            //      std::cout << i << " ";
+            //
+            //  std::cout << std::endl;
+            //
+            //  for (auto i : decomp.ySize())
+            //      std::cout << i << " ";
+            //  std::cout << std::endl;
+            //  for (auto i : decomp.zSize())
+            //      std::cout << i << " ";
+            //  std::cout << std::endl;
+            //
             for (auto i : decomp.xStart())
                 std::cout << i << " ";
 
-            std::cout << std::endl;
+            auto top = neighbors[neighbour_directions::TOP];
+            std::cout << "\nTop    : " << top;
+            auto bot = neighbors[neighbour_directions::BOTTOM];
+            std::cout << "\nBottom : " << bot;
+            auto right = neighbors[neighbour_directions::RIGHT];
+            std::cout << "\nRight  : " << right;
+            auto left = neighbors[neighbour_directions::LEFT];
+            std::cout << "\nLeft   : " << left;
 
-            for (auto i : decomp.yStart())
-                std::cout << i << " ";
             std::cout << std::endl;
-            for (auto i : decomp.zStart())
-                std::cout << i << " ";
+            //
+            //  for (auto i : decomp.yStart())
+            //      std::cout << i << " ";
+            //  std::cout << std::endl;
+            //  for (auto i : decomp.zStart())
+            //      std::cout << i << " ";
             std::cout << std::endl;
             std::cout << std::endl;
         }
@@ -166,25 +123,27 @@ int main(int argc, char* argv[])
     constexpr std::size_t N_DIMS = 3;
     std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
-    std::size_t nx = 4, ny = N, nz = 3*N;
+    std::size_t nx = 4, ny = N, nz = N;
     decomp.initialize_decomp(nx, ny, nz);
-      
+
     // Print results rank by rank
     for (int r = 0; r < decomp.totRank(); ++r)
     {
         MPI_Barrier(MPI_COMM_WORLD);
         if (decomp.rank() == r)
         {
-         // auto [xels, yels, zels] = decomp.globSizes();
-         // std::cout << "x elems " << xels << "y elems " << yels << "z elems " << zels
-         //           << std::endl;
-            std::cout << "Rank " << r << ":\n";
-            for (auto i : decomp.xSize())
+            for (auto i : decomp.xStart())
                 std::cout << i << " ";
 
-            std::cout << std::endl;
+            auto top = neighbors[neighbour_directions::TOP];
+            std::cout << "\nTop    : " << top;
+            auto bot = neighbors[neighbour_directions::BOTTOM];
+            std::cout << "\nBottom : " << bot;
+            auto right = neighbors[neighbour_directions::RIGHT];
+            std::cout << "\nRight  : " << right;
+            auto left = neighbors[neighbour_directions::LEFT];
+            std::cout << "\nLeft   : " << left;
 
-            std::cout << std::endl;
             std::cout << std::endl;
         }
         MPI_Barrier(MPI_COMM_WORLD);
@@ -210,20 +169,12 @@ int main(int argc, char* argv[])
     // Each slice is one z-layer (ny × nx elements)
     const int slice     = (ny - 2) * nx;
     const int vec_slice = slice * N_DIMS;
-    decomp.exchange_vert_bounds(P);
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
-    decomp.exchange_vert_bounds(V);
-
-
+    decomp.exchange_ghosts(V);
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
-    decomp.exchange_late_bounds(P);
-    MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD);
-    decomp.exchange_late_bounds(V);
-    MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD);
+    decomp.exchange_ghosts(P);
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -248,9 +199,8 @@ int main(int argc, char* argv[])
     if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
         for (int j = 0; j < nx; ++j)
             for (int jp = 1; jp < nz - 1; ++jp)
-                if (P(j, 0, jp) != static_cast<int>(neighbors[neighbour_directions::LEFT]))
-                    std::cerr << "Problem in the left communication for " << decomp.rank()
-                              << "\n";
+                if (P(j, ny - 1, jp) != static_cast<int>(neighbors[neighbour_directions::LEFT]))
+                    std::cerr << "Problem in the left communication for " << decomp.rank() << "\n";
 
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
@@ -258,10 +208,8 @@ int main(int argc, char* argv[])
     if (neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
         for (int j = 0; j < nx; ++j)
             for (int jp = 1; jp < nz - 1; ++jp)
-                if (P(j, ny - 1, jp) != static_cast<int>(neighbors[neighbour_directions::RIGHT]))
-                    std::cerr << "Problem in the right communication for " << decomp.rank()
-                              << "\n";
-
+                if (P(j, 0, jp) != static_cast<int>(neighbors[neighbour_directions::RIGHT]))
+                    std::cerr << "Problem in the right communication for " << decomp.rank() << "\n";
 
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
@@ -307,7 +255,7 @@ int main(int argc, char* argv[])
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
-    int i = 0, j = 4, k = 0;
+    int i = 0, j = 2, k = 0;
     if (!decomp.rank()) std::cout << " TEST \n";
     auto C = V(i, j, k);
     if (!decomp.rank())
@@ -321,7 +269,6 @@ int main(int argc, char* argv[])
 
     if (!decomp.rank()) std::cout << "\n";
     if (!decomp.rank()) std::cout << P(i, j, k) << " " << P.at(i, j, k);
-
 
 #endif
 

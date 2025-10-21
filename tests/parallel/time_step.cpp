@@ -105,11 +105,93 @@ namespace numPDE
             return {dp_dx, dp_dy, dp_dz};
         }
 
+        void update_bc(VecF& U)
+        {
+            const auto& neigh = r_dec.get_neighbors();
+            size_t      nx, ny, nz, n_scal;
+            auto        sizes = U.get_sizes();
+
+            nx     = sizes[0];
+            ny     = sizes[1];
+            nz     = sizes[2];
+            n_scal = 1;
+
+            // TODO
+            // Split in:
+            //      - apply_z, x, y that takes as input the BC type
+            //      - Specialize for each direction and leverage the BC type
+
+            {
+                constexpr int i = 0;
+                for (int k = 1; k < nz - 1; ++k)
+                    for (int j = 0; j < ny; ++j)
+                        for (int l = 0; l < 3; ++l)
+                        {
+                            std::array<int, 4> ijks = {l, i, j, k};
+
+                            U.at(l, i, j, k) = r_inps.v_BC.f(r_dec.pos(ijks, r_cstns.h));
+                        }
+            }
+
+            if (MPI_PROC_NULL == neigh[neighbour_directions::LEFT])
+            {
+                constexpr int j = 0;
+                for (int k = 1; k < nz - 1; ++k)
+                    for (int i = 0; i < nx; ++i)
+                        for (int l = 0; l < 3; ++l)
+                        {
+                            std::array<int, 4> ijks = {l, i, j, k};
+
+                            U.at(l, i, j, k) = r_inps.v_BC.f(r_dec.pos(ijks, r_cstns.h));
+                        }
+            }
+
+            if (MPI_PROC_NULL == neigh[neighbour_directions::RIGHT])
+            {
+                const int j = ny - 2;
+                for (int k = 1; k < nz - 1; ++k)
+                    for (int i = 0; i < nx; ++i)
+                        for (int l = 0; l < 3; ++l)
+                        {
+                            std::array<int, 4> ijks = {l, i, j, k};
+
+                            U.at(l, i, j, k) = r_inps.v_BC.f(r_dec.pos(ijks, r_cstns.h));
+                        }
+            }
+
+            if (MPI_PROC_NULL == neigh[neighbour_directions::BOTTOM])
+            {
+                constexpr int k = 0;
+                for (int j = 0; j < ny; ++j)
+                    for (int i = 0; i < nx; ++i)
+                        for (int l = 0; l < 3; ++l)
+                        {
+                            std::array<int, 4> ijks = {l, i, j, k};
+
+                            U.at(l, i, j, k) = r_inps.v_BC.f(r_dec.pos(ijks, r_cstns.h));
+                        }
+            }
+            if (MPI_PROC_NULL == neigh[neighbour_directions::TOP])
+            {
+                const int k = nz - 1;
+                for (int j = 0; j < ny; ++j)
+                    for (int i = 0; i < nx; ++i)
+                        for (int l = 0; l < 3; ++l)
+                        {
+                            std::array<int, 4> ijks = {l, i, j, k};
+
+                            U.at(l, i, j, k) = r_inps.v_BC.f(r_dec.pos(ijks, r_cstns.h));
+                        }
+            }
+        }
+
         auto pseudo_timestep(VecF& buff, VecF& u_old, ScalF& p_old, Real RK_a_coeff,
                              Real RK_dc_coeff)
         {
             auto u_new = u_old;
             auto p_new = p_old;
+
+            t += RK_dc_coeff * dt;
 
             // PREDICTOR STEP
             for (auto [k, j, i] : u_old.int_elems())
@@ -117,7 +199,7 @@ namespace numPDE
                                  dt * RK_dc_coeff * grad(p_old, i, j, k);
 
             // Exchange boundaries
-            r_dec.exchange_BC(u_new);
+            r_dec.exchange_ghosts(u_new);
 
             // PRESSURE SOLVE
             for (auto [k, j, i] : p_old.int_elems())
@@ -126,14 +208,18 @@ namespace numPDE
             pressure_solve(p_new, p_new);
 
             // Exchange boundaries
-            r_dec.exchange_BC(p_new);
+            r_dec.exchange_ghosts(p_new);
             // UPDATE THE VELOCITY FIELD
             for (auto [k, j, i] : u_new.int_elems())
                 u_new(i, j, k) += grad(p_new, i, j, k);
 
             p_new = p_new + p_old;
+
             // Exchange boundaries
-            r_dec.exchange_BC(u_new);
+            r_dec.exchange_ghosts(p_new);
+            r_dec.exchange_ghosts(u_new);
+
+            update_bc(u_new);
 
             return std::make_tuple(u_new, p_new);
         }
@@ -160,6 +246,7 @@ namespace numPDE
         Real &           m_h = r_cstns.h, dt = r_cstns.dt;
         const Real       a21 = 64.0 / 120.0, a31 = 0.25, a32 = 5.0 / 12.0;
         const Real       c1 = a21, c2 = 2.0 / 3.0, b3 = 0.75;
+        Real             t = 0;
 
         NewDecomp<TYPE>&        r_dec;
         FastLaplaceSolver<TYPE> fastLapSolver;
@@ -187,8 +274,8 @@ int main(int argc, char* argv[])
     constexpr Real Tmax{1};
 
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
-    auto V = numPDE::make_vector_field<Real, N_DIMS>(n_nodes);
-    auto P = numPDE::make_scalar_field<Real, N_DIMS>(decomposer.xSize());
+    auto V = numPDE::make_vector_field<Real, N_DIMS>(decomposer.dimsWithGhosts());
+    auto P = numPDE::make_scalar_field<Real, N_DIMS>(decomposer.dimsWithGhosts());
 
     auto exact = P;
     auto P_h   = P;

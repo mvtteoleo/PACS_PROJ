@@ -28,8 +28,8 @@
 
 enum neighbour_directions
 {
-    BOTTOM = 0,
-    TOP    = 1,
+    TOP    = 0,
+    BOTTOM = 1,
     RIGHT  = 2,
     LEFT   = 3
 };
@@ -70,25 +70,46 @@ class NewDecomp
         MPI_Finalize();
     }
 
-    template <typename T>
-    void exchange_edges(std::vector<T>& top_to_send, std::vector<T>& bottom_to_receive,
-                        std::vector<T>& left_to_receive, std::vector<T>& right_to_send) const
+    template <size_t N>
+    auto pos(std::array<int, N> ijk_s, value_type h)
     {
-        static_assert(std::is_trivially_copyable_v<T>,
-                      "exchange_edges requires trivially copyable types");
-        MPI_Datatype mpi_type = mpi_get_type<T>();
+        int n_scal = 0;
+        int i, j, k;
+        if constexpr (4 == N)
+        {
+            n_scal = ijk_s[0];
+            i      = ijk_s[1];
+            j      = ijk_s[2];
+            k      = ijk_s[3];
+        }
 
-        // Exchange top <-> bottom
-        MPI_Sendrecv(top_to_send.data(), static_cast<int>(top_to_send.size()), mpi_type,
-                     neighbors[1], 0, bottom_to_receive.data(),
-                     static_cast<int>(bottom_to_receive.size()), mpi_type, neighbors[0], 0,
-                     cart_comm, MPI_STATUS_IGNORE);
+        if constexpr (3 == N)
+        {
+            i = ijk_s[0];
+            j = ijk_s[1];
+            k = ijk_s[2];
+        }
 
-        // Exchange left <-> right
-        MPI_Sendrecv(left_to_receive.data(), static_cast<int>(left_to_receive.size()), mpi_type,
-                     neighbors[3], 1, right_to_send.data(), static_cast<int>(right_to_send.size()),
-                     mpi_type, neighbors[2], 1, cart_comm, MPI_STATUS_IGNORE);
+        // Add the starting position to the tensor
+        i += this->xStart()[0];
+        j += this->xStart()[1];
+        k += this->xStart()[2];
+        value_type x, y, z;
+
+        // Fix the position based on the ghost points
+        if (MPI_PROC_NULL != neighbors[neighbour_directions::RIGHT]) j -= 1;
+
+        if (MPI_PROC_NULL != neighbors[neighbour_directions::BOTTOM]) k -= 1;
+
+        x = i * h;
+        y = j * h;
+        z = k * h;
+        std::vector<value_type> pos{x, y, z};
+        if constexpr (4 == N) pos[n_scal] += h * 0.5;
+
+        return pos;
     }
+
     template <typename T, size_t RANK, size_t N_DIMS>
     void exchange_ghosts(numPDE::Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>& P)
     {
@@ -141,7 +162,7 @@ class NewDecomp
         if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
             for (int k = 1; k < nz - 1; ++k)
             {
-                constexpr int j = 1;
+                const int j = ny - 2;
                 std::copy_n(P.ptr_at(n_scal * nx * (k * ny + j)), nx * n_scal,
                             &int_left[(k - 1) * nx * n_scal]);
             }
@@ -149,7 +170,7 @@ class NewDecomp
         if (neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
             for (int k = 1; k < nz - 1; ++k)
             {
-                const int j = ny - 2;
+                constexpr int j = 1;
                 std::copy_n(P.ptr_at(n_scal * nx * (k * ny + j)), nx * n_scal,
                             &int_righ[(k - 1) * nx * n_scal]);
             }
@@ -325,6 +346,21 @@ class NewDecomp
     auto yEnd() const { return std::span<const int>(&c2d->yEnd[0], 3); }
     auto zEnd() const { return std::span<const int>(&c2d->zEnd[0], 3); }
 
+    auto dimsWithGhosts() const
+    {
+        std::array<int, 3> dims;
+        dims[0] = xSize()[0];
+        dims[1] = xSize()[1];
+        dims[2] = xSize()[2];
+
+        if (MPI_PROC_NULL != neighbors[neighbour_directions::LEFT]) dims[1] += 1;
+        if (MPI_PROC_NULL != neighbors[neighbour_directions::RIGHT]) dims[1] += 1;
+        if (MPI_PROC_NULL != neighbors[neighbour_directions::TOP]) dims[2] += 1;
+        if (MPI_PROC_NULL != neighbors[neighbour_directions::BOTTOM]) dims[2] += 1;
+
+        return dims;
+    }
+
     /*
      * Transpositions, just a templates overload for the moment that has the check for type mismatch
      */
@@ -384,6 +420,12 @@ class NewDecomp
         c2d->transposeY2X_MajorIndex(u1, u2);
     }
 
+    auto get_cart_comm() const
+    {
+        auto out_cart = cart_comm;
+        return out_cart;
+    };
+
   private:
     void split_rank_cartesian()
     {
@@ -391,7 +433,7 @@ class NewDecomp
         MPI_Barrier(MPI_COMM_WORLD);
         if (mpi_rank == 0)
         {
-            //auto [bCol, bRow] = best_rank_2D_grid(tot_rank);
+            // auto [bCol, bRow] = best_rank_2D_grid(tot_rank);
             auto [bRow, bCol] = best_rank_2D_grid(tot_rank);
             dims[0]           = bRow;
             dims[1]           = bCol;
@@ -402,8 +444,8 @@ class NewDecomp
         MPI_Cart_create(MPI_COMM_WORLD, 2, dims.data(), periods, 0, &cart_comm);
 
         neighbors.fill(MPI_PROC_NULL);
-        MPI_Cart_shift(cart_comm, 0, 1, &neighbors[neighbour_directions::TOP],
-                       &neighbors[neighbour_directions::BOTTOM]); // top, bottom
+        MPI_Cart_shift(cart_comm, 0, 1, &neighbors[neighbour_directions::BOTTOM],
+                       &neighbors[neighbour_directions::TOP]); // top, bottom
 
         MPI_Cart_shift(cart_comm, 1, 1, &neighbors[neighbour_directions::LEFT],
                        &neighbors[neighbour_directions::RIGHT]); // left, right
