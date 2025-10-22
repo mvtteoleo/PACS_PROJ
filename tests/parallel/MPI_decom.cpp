@@ -1,4 +1,4 @@
-#define TEST 2
+#define TEST 1
 #include "../../header/MY_LIB.hpp"
 #include "../../header/my_2Decomp/MPI_types.hpp"
 #include <algorithm>
@@ -41,9 +41,9 @@ int main(int argc, char* argv[])
         std::cout << "N values : " << nx << " " << ny << " " << nz << "\n";
     }
 
-    nx = 10;
-    ny = 10;
-    nz = 10;
+  //nx = 10;
+  //ny = 10;
+  //nz = 10;
     // Broadcast to all ranks (convert to an array for simplicity)
     size_t sizes[3] = {nx, ny, nz};
     MPI_Bcast(sizes, 3, MPI_UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
@@ -79,19 +79,22 @@ int main(int argc, char* argv[])
             //  std::cout << "x elems " << xels << "y elems " << yels << "z elems " << zels
             //            << std::endl;
             std::cout << "Rank " << r << ":\n";
-            //  for (auto i : decomp.xSize())
-            //      std::cout << i << " ";
-            //
-            //  std::cout << std::endl;
-            //
-            //  for (auto i : decomp.ySize())
-            //      std::cout << i << " ";
-            //  std::cout << std::endl;
-            //  for (auto i : decomp.zSize())
-            //      std::cout << i << " ";
-            //  std::cout << std::endl;
-            //
-            for (auto i : decomp.xStart())
+
+         std::cout << "X, Y, Z sizes\n";
+                for (auto i : decomp.xSize())
+                    std::cout << i << " ";
+              
+                std::cout << std::endl;
+              
+                for (auto i : decomp.ySize())
+                    std::cout << i << " ";
+                std::cout << std::endl;
+                for (auto i : decomp.zSize())
+                    std::cout << i << " ";
+                std::cout << std::endl;
+              
+         std::cout << "Dim w ghosts: ";
+            for (auto i : decomp.dimsWithGhosts())
                 std::cout << i << " ";
 
             auto top = neighbors[neighbour_directions::TOP];
