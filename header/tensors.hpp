@@ -336,8 +336,11 @@ namespace numPDE
         auto all_linear_elements() const { return std::views::iota(size_t{0}, m_Datas.size()); };
         auto make_iterator(size_t start_offset, size_t end_offset) const
         {
-            constexpr size_t slow_idx = (TYPE == ROW_MAJOR) ? 2 : 0;
-            constexpr size_t fast_idx = (TYPE == ROW_MAJOR) ? 0 : 2;
+            if constexpr (TYPE != ROW_MAJOR and N_DIMS != 3)
+                std::cerr << "The make_iterator is supported only for 3D and ROWMAJOR tensors\n";
+
+            constexpr size_t slow_idx = (N_DIMS == RANK) ? 0 : RANK-N_DIMS;
+         
             auto&            sizes    = m_Sizes;
             auto slow_range = std::views::iota(start_offset, sizes[slow_idx] - end_offset);
             auto j_range    = std::views::iota(size_t{0}, size_t{1});
@@ -346,12 +349,12 @@ namespace numPDE
             // j_range depends on N_DIMS
             if constexpr (N_DIMS >= 2)
             {
-                j_range = std::views::iota(start_offset, sizes[1] - end_offset);
+                j_range = std::views::iota(start_offset, sizes[slow_idx + 1] - end_offset);
             }
 
             if constexpr (N_DIMS >= 3)
             {
-                fast_range = std::views::iota(start_offset, sizes[fast_idx] - end_offset);
+                fast_range = std::views::iota(start_offset, sizes[slow_idx +2] - end_offset);
             }
             // Order in cartesian_product: leftmost slowest, rightmost fastest
             return std::ranges::views::cartesian_product(slow_range, j_range, fast_range);

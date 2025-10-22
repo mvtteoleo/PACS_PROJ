@@ -152,8 +152,8 @@ int main(int argc, char* argv[])
     MPI_Barrier(MPI_COMM_WORLD);
 
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
-    auto P = numPDE::make_scalar_field<Real, N_DIMS>(decomp.xSize());
-    auto V = numPDE::make_vector_field<Real, N_DIMS>(decomp.xSize());
+    auto P = numPDE::make_scalar_field<Real, N_DIMS>(decomp.dimsWithGhosts());
+    auto V = numPDE::make_vector_field<Real, N_DIMS>(decomp.dimsWithGhosts());
     nx     = decomp.xSize()[0];
     ny     = decomp.xSize()[1];
     nz     = decomp.xSize()[2];

@@ -51,14 +51,14 @@ namespace numPDE
             const auto& Top = h_U(i, j, k + 1); // top
             const auto& B   = h_U(i, j, k - 1); // bottom
 
-            const auto& NW = h_U.at(i - 1, j + 1, k, 0);
-            const auto& SE = h_U.at(i + 1, j - 1, k, 1);
-
-            const auto& WT = h_U.at(i - 1, j, k + 1, 0);
-            const auto& EB = h_U.at(i + 1, j, k - 1, 2);
-
-            const auto& NB = h_U.at(i, j + 1, k - 1, 2);
-            const auto& ST = h_U.at(i, j - 1, k + 1, 1);
+            const auto& NW = h_U.at(0, i - 1, j + 1, k);
+            const auto& SE = h_U.at(1, i + 1, j - 1, k);
+                                       
+            const auto& WT = h_U.at(0, i - 1, j, k + 1);
+            const auto& EB = h_U.at(2, i + 1, j, k - 1);
+                                       
+            const auto& NB = h_U.at(2, i, j + 1, k - 1);
+            const auto& ST = h_U.at(1, i, j - 1, k + 1);
 
             // --- Laplacian (if still needed) ---
             lap = (E + W + N + S + Top + B - 6.0 * C) / (h * h * Re);
@@ -92,9 +92,9 @@ namespace numPDE
 
         auto div(VecF& u, size_t i, size_t j, size_t k)
         {
-            Real du_dx = (u.at(i + 1, j, k, 0) - u.at(i, j, k, 0)) / r_cstns.h;
-            Real dv_dy = (u.at(i, j + 1, k, 1) - u.at(i, j, k, 1)) / r_cstns.h;
-            Real dw_dz = (u.at(i, j, k + 1, 2) - u.at(i, j, k, 2)) / r_cstns.h;
+            Real du_dx = (u.at(0, i + 1, j, k) - u.at(0, i, j, k)) / r_cstns.h;
+            Real dv_dy = (u.at(1, i, j + 1, k) - u.at(1, i, j, k)) / r_cstns.h;
+            Real dw_dz = (u.at(2, i, j, k + 1) - u.at(2, i, j, k)) / r_cstns.h;
             return du_dx + dv_dy + dw_dz;
         }
         numPDE::Vec<Real> grad(ScalF& p, size_t i, size_t j, size_t k)
@@ -107,9 +107,10 @@ namespace numPDE
 
         void update_bc(VecF& U)
         {
-            update_z(U);
-            update_y(U);
-            update_x(U);
+          //update_z(U);
+          //update_y(U);
+          //update_x(U);
+          return;
         }
 
         void update_y(VecF& u)
@@ -148,7 +149,7 @@ namespace numPDE
                             }
                         }
                 }
-                else if (r_inps.v_BC.BC_BOTTOM == NeuHomo)
+                else if (r_inps.v_BC.BC_WEST == NeuHomo)
                 {
                     for (int k = 0; k < nz; ++k)
                         for (int i = 0; i < nx; ++i)
@@ -172,7 +173,7 @@ namespace numPDE
                                 const auto            pos   = r_dec.pos(ijks, m_h);
                                 const auto            val   = r_inps.v_BC.g_east(pos);
                                 const auto&           phi_d = val[l];
-                                const auto&           phi_0 = u.at(l, i, j, k - 1);
+                                const auto&           phi_0 = u.at(l, i, j -1 , k);
                                 const auto            b     = 2 * (phi_0 - phi_d) / (3 * m_h);
                                 u.at(l, i, j, k)            = 0.5 * m_h * b + phi_d;
                             }
@@ -274,7 +275,7 @@ namespace numPDE
                 {
                     for (int j = 0; j < ny; ++j)
                         for (int i = 0; i < nx; ++i)
-                            u(i, j, k) = u(i, j, k + 1);
+                            u(i, j, k) = u(i, j, k - 1);
                 }
             }
         }
@@ -358,38 +359,38 @@ namespace numPDE
         auto pseudo_timestep(VecF& buff, VecF& u_old, ScalF& p_old, Real RK_a_coeff,
                              Real RK_dc_coeff)
         {
-            auto u_new = u_old;
-            auto p_new = p_old;
+            VecF u_new = u_old;
+            ScalF p_new = p_old;
 
             t += RK_dc_coeff * dt;
 
             // PREDICTOR STEP
-            for (auto [k, j, i] : u_old.int_elems())
-                u_new(i, j, k) = buff(i, j, k) + RK_a_coeff * dt * predictor_f(u_old, i, j, k) -
-                                 dt * RK_dc_coeff * grad(p_old, i, j, k);
-
-            // Exchange boundaries
-            r_dec.exchange_ghosts(u_new);
-
-            // PRESSURE SOLVE
-            for (auto [k, j, i] : p_old.int_elems())
-                p_new(i, j, k) = div(u_new, i, j, k) / (RK_dc_coeff * dt);
-
-            pressure_solve(p_new, p_new);
-
-            // Exchange boundaries
-            r_dec.exchange_ghosts(p_new);
-            // UPDATE THE VELOCITY FIELD
-            for (auto [k, j, i] : u_new.int_elems())
-                u_new(i, j, k) = u_new(i, j, k) + grad(p_new, i, j, k);
+        //  for (auto [k, j, i] : u_old.int_elems())
+        //      u_new(i, j, k) = buff(i, j, k) + RK_a_coeff * dt * predictor_f(u_old, i, j, k) -
+        //                       dt * RK_dc_coeff * grad(p_old, i, j, k);
+        //
+        //  // Exchange boundaries
+        //  r_dec.exchange_ghosts(u_new);
+        //
+        //  // PRESSURE SOLVE
+        //  for (auto [k, j, i] : p_old.int_elems())
+        //      p_new(i, j, k) = div(u_new, i, j, k) / (RK_dc_coeff * dt);
+        //
+        //  pressure_solve(p_new, p_new);
+        //
+        //  // Exchange boundaries
+       ///  r_dec.exchange_ghosts(p_new);
+        //  // UPDATE THE VELOCITY FIELD
+        //  for (auto [k, j, i] : u_new.int_elems())
+        //      u_new(i, j, k) = u_new(i, j, k) + grad(p_new, i, j, k);
 
             p_new = p_new + p_old;
 
             // Exchange boundaries
-            r_dec.exchange_ghosts(p_new);
-            r_dec.exchange_ghosts(u_new);
+       //   r_dec.exchange_ghosts(p_new);
+       //   r_dec.exchange_ghosts(u_new);
 
-            update_bc(u_new);
+            // update_bc(u_new);
 
             return std::make_tuple(u_new, p_new);
         }
@@ -399,8 +400,8 @@ namespace numPDE
             // Step 1
             auto [Y2, phi2] = pseudo_timestep(u_old, u_old, p_old, a21, c1);
             VecF BUFF       = u_old;
-            for (auto [k, j, i] : u_old.int_elems())
-                BUFF(i, j, k) = BUFF(i, j, k) + a31 * dt * predictor_f(u_old, i, j, k);
+        //  for (auto [k, j, i] : u_old.int_elems())
+        //      BUFF(i, j, k) = BUFF(i, j, k) + a31 * dt * predictor_f(u_old, i, j, k);
             // Step 2
             auto [Y3, phi3] = pseudo_timestep(BUFF, Y2, phi2, a32, (c2 - c1));
             // Step 3
@@ -416,7 +417,6 @@ namespace numPDE
 
             while (t < T)
             {
-                t += dt;
                 std::swap(u_old, u_new);
                 std::swap(p_old, p_new);
                 std::tie(u_new, p_new) = timestep(u_old, p_old);
@@ -480,19 +480,6 @@ int main(int argc, char* argv[])
 
     auto [V_new, P_new] = ns.solve(V, P);
 
-    std::cout << "P0 : " << P[0] << "\n";
-    std::cout << "exact0 : " << exact[0] << "\n";
-
-    Real max_err = 1e-4;
-    for (auto i : P.all_linear_elements())
-    {
-        const Real loc_err = std::abs(P[i] - exact[i] - P[0] + exact[0]);
-        if (loc_err > max_err)
-        {
-            max_err = loc_err;
-            std::cout << "New max err : " << max_err << "\n";
-        }
-    }
 
     return 0;
 }
