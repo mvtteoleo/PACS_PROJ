@@ -350,10 +350,10 @@ class NewDecomp
     auto dimsWithGhosts() const
     {
         std::array<int, 3> dims;
-        auto qui = this->xSize();
-        dims[0] = qui[0];
-        dims[1] = qui[1];
-        dims[2] = qui[2];
+        auto               qui = this->xSize();
+        dims[0]                = qui[0];
+        dims[1]                = qui[1];
+        dims[2]                = qui[2];
 
         if (MPI_PROC_NULL != neighbors[neighbour_directions::LEFT]) dims[1] += 1;
         if (MPI_PROC_NULL != neighbors[neighbour_directions::RIGHT]) dims[1] += 1;
@@ -428,8 +428,7 @@ class NewDecomp
         return out_cart;
     };
 
-    auto get_process_grid() const 
-    { return dims; }
+    auto get_process_grid() const { return dims; }
 
   private:
     void split_rank_cartesian()
