@@ -350,9 +350,10 @@ class NewDecomp
     auto dimsWithGhosts() const
     {
         std::array<int, 3> dims;
-        dims[0] = xSize()[0];
-        dims[1] = xSize()[1];
-        dims[2] = xSize()[2];
+        auto qui = this->xSize();
+        dims[0] = qui[0];
+        dims[1] = qui[1];
+        dims[2] = qui[2];
 
         if (MPI_PROC_NULL != neighbors[neighbour_directions::LEFT]) dims[1] += 1;
         if (MPI_PROC_NULL != neighbors[neighbour_directions::RIGHT]) dims[1] += 1;
@@ -484,8 +485,8 @@ class NewDecomp
             if (std::abs(f - other) < minDiff)
             {
                 minDiff = std::abs(f - other);
-                bestRow = other;
-                bestCol = f;
+                bestRow = f;
+                bestCol = other;
             }
         }
 
