@@ -28,8 +28,6 @@ namespace numPDE
         NeuHomo,
         Dirichlet,
         DirHomo
-        // No support for periodic for the moment
-        // Periodic
     };
 
     enum SIDES
@@ -84,6 +82,7 @@ namespace numPDE
         T h{1};
         T Re{1};
         T dt{1};
+        T T_max{1};
     };
 
     template <typename T = double>

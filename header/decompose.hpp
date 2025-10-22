@@ -34,7 +34,7 @@ enum neighbour_directions
     LEFT   = 3
 };
 // --- Main decomposition class ---
-template <typename value_type = double>
+template <typename T = double>
 class NewDecomp
 {
   private:
@@ -70,8 +70,9 @@ class NewDecomp
         MPI_Finalize();
     }
 
-    template <size_t N>
-    auto pos(std::array<int, N> ijk_s, value_type h)
+    template <typename I, size_t N>
+        requires std::is_integral_v<I>
+    auto pos(std::array<I, N> ijk_s, T h)
     {
         int n_scal = 0;
         int i, j, k;
@@ -94,7 +95,7 @@ class NewDecomp
         i += this->xStart()[0];
         j += this->xStart()[1];
         k += this->xStart()[2];
-        value_type x, y, z;
+        T x, y, z;
 
         // Fix the position based on the ghost points
         if (MPI_PROC_NULL != neighbors[neighbour_directions::RIGHT]) j -= 1;
@@ -104,22 +105,22 @@ class NewDecomp
         x = i * h;
         y = j * h;
         z = k * h;
-        std::vector<value_type> pos{x, y, z};
+        std::vector<T> pos{x, y, z};
         if constexpr (4 == N) pos[n_scal] += h * 0.5;
 
         return pos;
     }
 
-    template <typename T, size_t RANK, size_t N_DIMS>
-    void exchange_ghosts(numPDE::Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>& P)
+    template <typename U, size_t RANK, size_t N_DIMS>
+    void exchange_ghosts(numPDE::Tensor<U, RANK, N_DIMS, numPDE::ROW_MAJOR>& P)
     {
         exchange_late_bounds(P);
         exchange_vert_bounds(P);
         return;
     }
 
-    template <typename T, size_t RANK, size_t N_DIMS>
-    void exchange_late_bounds(numPDE::Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>& P)
+    template <typename U, size_t RANK, size_t N_DIMS>
+    void exchange_late_bounds(numPDE::Tensor<U, RANK, N_DIMS, numPDE::ROW_MAJOR>& P)
     {
         size_t nx, ny, nz, n_scal;
         auto   sizes = P.get_sizes();
@@ -150,8 +151,8 @@ class NewDecomp
 
         // Exchange TOP with rank on TOP
 
-        // using T = Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>::value_type;
-        MPI_Datatype mpi_type = mpi_get_type<T>();
+        // using T = Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>::T;
+        MPI_Datatype mpi_type = mpi_get_type<U>();
 
         // Each slice is one z-layer (ny × nx elements)
         const int      slice = (nz - 2) * nx * n_scal;
@@ -211,8 +212,8 @@ class NewDecomp
             }
         return;
     }
-    template <typename T, size_t RANK, size_t N_DIMS>
-    void exchange_vert_bounds(numPDE::Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>& P)
+    template <typename U, size_t RANK, size_t N_DIMS>
+    void exchange_vert_bounds(numPDE::Tensor<U, RANK, N_DIMS, numPDE::ROW_MAJOR>& P)
     {
 
         size_t nx, ny, nz, n_scal;
@@ -244,8 +245,8 @@ class NewDecomp
 
         // Exchange TOP with rank on TOP
 
-        // using T = Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>::value_type;
-        MPI_Datatype mpi_type = mpi_get_type<T>();
+        // using T = Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>::T;
+        MPI_Datatype mpi_type = mpi_get_type<U>();
 
         // Each slice is one z-layer (ny × nx elements)
         const int slice = (ny - 2) * nx * n_scal;
@@ -364,24 +365,24 @@ class NewDecomp
     /*
      * Transpositions, just a templates overload for the moment that has the check for type mismatch
      */
-    void transposeX2Y(value_type* src, value_type* dst)
+    void transposeX2Y(T* src, T* dst)
     {
-        static_assert(std::is_same_v<value_type, double>, "Currently only double supported");
+        static_assert(std::is_same_v<T, double>, "Currently only double supported");
         c2d->transposeX2Y_MajorIndex(src, dst);
     }
-    void transposeY2Z(value_type* src, value_type* dst)
+    void transposeY2Z(T* src, T* dst)
     {
-        static_assert(std::is_same_v<value_type, double>, "Currently only double supported");
+        static_assert(std::is_same_v<T, double>, "Currently only double supported");
         c2d->transposeY2Z_MajorIndex(src, dst);
     }
-    void transposeZ2Y(value_type* src, value_type* dst)
+    void transposeZ2Y(T* src, T* dst)
     {
-        static_assert(std::is_same_v<value_type, double>, "Currently only double supported");
+        static_assert(std::is_same_v<T, double>, "Currently only double supported");
         c2d->transposeZ2Y_MajorIndex(src, dst);
     }
-    void transposeY2X(value_type* src, value_type* dst)
+    void transposeY2X(T* src, T* dst)
     {
-        static_assert(std::is_same_v<value_type, double>, "Currently only double supported");
+        static_assert(std::is_same_v<T, double>, "Currently only double supported");
         c2d->transposeY2X_MajorIndex(src, dst);
     }
 
@@ -389,34 +390,34 @@ class NewDecomp
     template <numPDE::TensorLike Tensor>
     void transposeX2Y(Tensor& v1, Tensor& v2)
     {
-        using T = typename Tensor::value_type;
-        T* u1   = v1.ptr_at(0);
-        T* u2   = v2.ptr_at(0);
+        using U = typename Tensor::value_type;
+        U* u1   = v1.ptr_at(0);
+        U* u2   = v2.ptr_at(0);
         c2d->transposeX2Y_MajorIndex(u1, u2);
     }
     template <numPDE::TensorLike Tensor>
     void transposeY2Z(Tensor& v1, Tensor& v2)
     {
-        using T = typename Tensor::value_type;
-        T* u1   = v1.ptr_at(0);
-        T* u2   = v2.ptr_at(0);
+        using U = typename Tensor::value_type;
+        U* u1   = v1.ptr_at(0);
+        U* u2   = v2.ptr_at(0);
         c2d->transposeY2Z_MajorIndex(u1, u2);
     }
     template <numPDE::TensorLike Tensor>
     void transposeZ2Y(Tensor& v1, Tensor& v2)
     {
-        using T = typename Tensor::value_type;
-        T* u1   = v1.ptr_at(0);
-        T* u2   = v2.ptr_at(0);
+        using U = typename Tensor::value_type;
+        U* u1   = v1.ptr_at(0);
+        U* u2   = v2.ptr_at(0);
         c2d->transposeZ2Y_MajorIndex(u1, u2);
     }
     template <numPDE::TensorLike Tensor>
     void transposeY2X(Tensor& v1, Tensor& v2)
 
     {
-        using T = typename Tensor::value_type;
-        T* u1   = v1.ptr_at(0);
-        T* u2   = v2.ptr_at(0);
+        using U = typename Tensor::value_type;
+        U* u1   = v1.ptr_at(0);
+        U* u2   = v2.ptr_at(0);
         c2d->transposeY2X_MajorIndex(u1, u2);
     }
 
@@ -425,6 +426,9 @@ class NewDecomp
         auto out_cart = cart_comm;
         return out_cart;
     };
+
+    auto get_process_grid() const 
+    { return dims; }
 
   private:
     void split_rank_cartesian()
@@ -480,8 +484,8 @@ class NewDecomp
             if (std::abs(f - other) < minDiff)
             {
                 minDiff = std::abs(f - other);
-                bestRow = f;
-                bestCol = other;
+                bestRow = other;
+                bestCol = f;
             }
         }
 

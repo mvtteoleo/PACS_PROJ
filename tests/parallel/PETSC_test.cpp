@@ -22,6 +22,8 @@ int main(int argc, char** argv)
     std::size_t nx = N, ny = N, nz = N;
     decomposer.initialize_decomp(nx, ny, nz);
 
+    auto [prow, pcols] = decomposer.get_process_grid();
+
     // ----------------------------------------------------------
     // 2. PETSc setup (using your communicator)
     // ----------------------------------------------------------
@@ -30,13 +32,13 @@ int main(int argc, char** argv)
 
     PetscCall(PetscInitialize(&argc, &argv, NULL, NULL));
     ierr = DMDACreate3d(decomposer.get_cart_comm(), // your Cartesian comm
-                        DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DMDA_STENCIL_STAR, nx,
-                        ny, nz,                // global grid
-                        decomposer.xSize()[0], // Px (rows)
-                        decomposer.xSize()[1], // Py (cols)
-                        PETSC_DECIDE,          // Pz (auto)
-                        1,                     // dof = 1 scalar field
-                        1,                     // stencil width = 1
+                        DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED, DM_BOUNDARY_GHOSTED,
+                        DMDA_STENCIL_STAR, nx, ny, nz, // global grid
+                        PETSC_DECIDE,                  // Px (rows)
+                        prow,                          // Py (cols)
+                        pcols,                         // Pz (auto)
+                        1,                             // dof = 1 scalar field
+                        1,                             // stencil width = 1
                         NULL, NULL, NULL, &da);
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
     ierr = DMSetUp(da);

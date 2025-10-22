@@ -199,7 +199,7 @@ int main(int argc, char* argv[])
     if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
         for (int j = 0; j < nx; ++j)
             for (int jp = 1; jp < nz - 1; ++jp)
-                if (P(j, ny - 1, jp) != static_cast<int>(neighbors[neighbour_directions::LEFT]))
+                if (P(j, 0, jp) != static_cast<int>(neighbors[neighbour_directions::LEFT]))
                     std::cerr << "Problem in the left communication for " << decomp.rank() << "\n";
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -208,7 +208,7 @@ int main(int argc, char* argv[])
     if (neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
         for (int j = 0; j < nx; ++j)
             for (int jp = 1; jp < nz - 1; ++jp)
-                if (P(j, 0, jp) != static_cast<int>(neighbors[neighbour_directions::RIGHT]))
+                if (P(j, ny - 1, jp) != static_cast<int>(neighbors[neighbour_directions::RIGHT]))
                     std::cerr << "Problem in the right communication for " << decomp.rank() << "\n";
 
     MPI_Barrier(MPI_COMM_WORLD);

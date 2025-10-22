@@ -36,7 +36,7 @@ namespace numPDE
             : r_inps(inputs), r_cstns(inputs.constants), r_dec(decomp),
               fastLapSolver(decomp, inputs.p_BC, inputs.constants){};
 
-        numPDE::Vec<Real> predictor_f(VecF& h_U, size_t i, size_t j, size_t k)
+        numPDE::Vec<Real, 3> predictor_f(VecF& h_U, size_t i, size_t j, size_t k)
         {
 
             const auto&          h  = r_cstns.h;
@@ -107,81 +107,251 @@ namespace numPDE
 
         void update_bc(VecF& U)
         {
-            const auto& neigh = r_dec.get_neighbors();
-            size_t      nx, ny, nz, n_scal;
-            auto        sizes = U.get_sizes();
+            update_z(U);
+            update_y(U);
+            update_x(U);
+        }
 
-            nx     = sizes[0];
-            ny     = sizes[1];
-            nz     = sizes[2];
-            n_scal = 1;
+        void update_y(VecF& u)
+        {
+            const auto& neigh               = r_dec.get_neighbors();
+            const auto& [nscal, nx, ny, nz] = u.get_sizes();
 
-            // TODO
-            // Split in:
-            //      - apply_z, x, y that takes as input the BC type
-            //      - Specialize for each direction and leverage the BC type
-
-            {
-                constexpr int i = 0;
-                for (int k = 1; k < nz - 1; ++k)
-                    for (int j = 0; j < ny; ++j)
-                        for (int l = 0; l < 3; ++l)
-                        {
-                            std::array<int, 4> ijks = {l, i, j, k};
-
-                            U.at(l, i, j, k) = r_inps.v_BC.f(r_dec.pos(ijks, r_cstns.h));
-                        }
-            }
-
-            if (MPI_PROC_NULL == neigh[neighbour_directions::LEFT])
+            if (MPI_PROC_NULL != neigh[neighbour_directions::LEFT])
+                return;
+            else
             {
                 constexpr int j = 0;
-                for (int k = 1; k < nz - 1; ++k)
-                    for (int i = 0; i < nx; ++i)
-                        for (int l = 0; l < 3; ++l)
+                if (r_inps.v_BC.BC_WEST == Dirichlet)
+                {
+                    for (int k = 0; k < nz; ++k)
+                        for (int i = 0; i < nx; ++i)
                         {
-                            std::array<int, 4> ijks = {l, i, j, k};
+                            {
+                                constexpr int         l     = 1;
+                                std::array<size_t, 3> ijks  = {i, j, k};
+                                const auto            pos   = r_dec.pos(ijks, m_h);
+                                const auto            val   = r_inps.v_BC.g_west(pos);
+                                const auto&           phi_d = val[l];
+                                const auto&           phi_0 = u.at(l, i, j, k + 1);
+                                const auto            b     = -2 * (phi_0 - phi_d) / m_h;
+                                u.at(l, i, j, k)            = 0.5 * m_h * b + phi_d;
+                            }
+                            for (int l = 0; l < 3; l += 2)
+                            {
 
-                            U.at(l, i, j, k) = r_inps.v_BC.f(r_dec.pos(ijks, r_cstns.h));
+                                std::array<size_t, 4> ijks  = {l, i, j, k};
+                                const auto            pos   = r_dec.pos(ijks, m_h);
+                                const auto            val   = r_inps.v_BC.g_west(pos);
+                                const auto&           phi_d = val[l];
+                                u.at(l, i, j, k)            = phi_d;
+                            }
                         }
+                }
+                else if (r_inps.v_BC.BC_BOTTOM == NeuHomo)
+                {
+                    for (int k = 0; k < nz; ++k)
+                        for (int i = 0; i < nx; ++i)
+                            u(i, j, k) = u(i, j + 1, k);
+                }
             }
 
-            if (MPI_PROC_NULL == neigh[neighbour_directions::RIGHT])
+            if (MPI_PROC_NULL != neigh[neighbour_directions::RIGHT])
+                return;
+            else
             {
-                const int j = ny - 2;
-                for (int k = 1; k < nz - 1; ++k)
-                    for (int i = 0; i < nx; ++i)
-                        for (int l = 0; l < 3; ++l)
+                const int j = ny - 1;
+                if (r_inps.v_BC.BC_EAST == Dirichlet)
+                {
+                    for (int k = 0; k < nz; ++k)
+                        for (int i = 0; i < nx; ++i)
                         {
-                            std::array<int, 4> ijks = {l, i, j, k};
+                            {
+                                constexpr int         l     = 1;
+                                std::array<size_t, 3> ijks  = {i, j, k};
+                                const auto            pos   = r_dec.pos(ijks, m_h);
+                                const auto            val   = r_inps.v_BC.g_east(pos);
+                                const auto&           phi_d = val[l];
+                                const auto&           phi_0 = u.at(l, i, j, k - 1);
+                                const auto            b     = 2 * (phi_0 - phi_d) / (3 * m_h);
+                                u.at(l, i, j, k)            = 0.5 * m_h * b + phi_d;
+                            }
+                            for (int l = 0; l < 3; l += 2)
+                            {
 
-                            U.at(l, i, j, k) = r_inps.v_BC.f(r_dec.pos(ijks, r_cstns.h));
+                                std::array<size_t, 4> ijks  = {l, i, j, k};
+                                const auto            pos   = r_dec.pos(ijks, m_h);
+                                const auto            val   = r_inps.v_BC.g_east(pos);
+                                const auto&           phi_d = val[l];
+                                u.at(l, i, j, k)            = phi_d;
+                            }
                         }
+                }
+                else if (r_inps.v_BC.BC_EAST == NeuHomo)
+                {
+                    for (int k = 0; k < nz; ++k)
+                        for (int i = 0; i < nx; ++i)
+                            u(i, j, k) = u(i, j - 1, k);
+                }
             }
+        }
+        void update_z(VecF& u)
+        {
+            const auto& neigh               = r_dec.get_neighbors();
+            const auto& [nscal, nx, ny, nz] = u.get_sizes();
 
-            if (MPI_PROC_NULL == neigh[neighbour_directions::BOTTOM])
+            if (MPI_PROC_NULL != neigh[neighbour_directions::BOTTOM])
+                return;
+            else
             {
                 constexpr int k = 0;
-                for (int j = 0; j < ny; ++j)
-                    for (int i = 0; i < nx; ++i)
-                        for (int l = 0; l < 3; ++l)
+                if (r_inps.v_BC.BC_BOTTOM == Dirichlet)
+                {
+                    for (int j = 0; j < ny; ++j)
+                        for (int i = 0; i < nx; ++i)
                         {
-                            std::array<int, 4> ijks = {l, i, j, k};
+                            {
+                                constexpr int         l     = 2;
+                                std::array<size_t, 3> ijks  = {i, j, k};
+                                const auto            pos   = r_dec.pos(ijks, m_h);
+                                const auto            val   = r_inps.v_BC.g_bottom(pos);
+                                const auto&           phi_d = val[l];
+                                const auto&           phi_0 = u.at(l, i, j, k + 1);
+                                const auto            b     = -2 * (phi_0 - phi_d) / m_h;
+                                u.at(l, i, j, k)            = 0.5 * m_h * b + phi_d;
+                            }
+                            for (int l = 0; l < 2; ++l)
+                            {
 
-                            U.at(l, i, j, k) = r_inps.v_BC.f(r_dec.pos(ijks, r_cstns.h));
+                                std::array<size_t, 4> ijks  = {l, i, j, k};
+                                const auto            pos   = r_dec.pos(ijks, m_h);
+                                const auto            val   = r_inps.v_BC.g_south(pos);
+                                const auto&           phi_d = val[l];
+                                u.at(l, i, j, k)            = phi_d;
+                            }
                         }
+                }
+                else if (r_inps.v_BC.BC_BOTTOM == NeuHomo)
+                {
+                    for (int j = 0; j < ny; ++j)
+                        for (int i = 0; i < nx; ++i)
+                            u(i, j, k) = u(i, j, k + 1);
+                }
             }
-            if (MPI_PROC_NULL == neigh[neighbour_directions::TOP])
+
+            if (MPI_PROC_NULL != neigh[neighbour_directions::TOP])
+                return;
+            else
             {
                 const int k = nz - 1;
-                for (int j = 0; j < ny; ++j)
-                    for (int i = 0; i < nx; ++i)
-                        for (int l = 0; l < 3; ++l)
+                if (r_inps.v_BC.BC_TOP == Dirichlet)
+                {
+                    for (int j = 0; j < ny; ++j)
+                        for (int i = 0; i < nx; ++i)
                         {
-                            std::array<int, 4> ijks = {l, i, j, k};
+                            {
+                                constexpr int         l     = 2;
+                                std::array<size_t, 3> ijks  = {i, j, k};
+                                const auto            pos   = r_dec.pos(ijks, m_h);
+                                const auto            val   = r_inps.v_BC.g_top(pos);
+                                const auto&           phi_d = val[l];
+                                const auto&           phi_0 = u.at(l, i, j, k - 1);
+                                const auto            b     = 2 * (phi_0 - phi_d) / (3 * m_h);
+                                u.at(l, i, j, k)            = 0.5 * m_h * b + phi_d;
+                            }
+                            for (int l = 0; l < 2; ++l)
+                            {
 
-                            U.at(l, i, j, k) = r_inps.v_BC.f(r_dec.pos(ijks, r_cstns.h));
+                                std::array<size_t, 4> ijks  = {l, i, j, k};
+                                const auto            pos   = r_dec.pos(ijks, m_h);
+                                const auto            val   = r_inps.v_BC.g_south(pos);
+                                const auto&           phi_d = val[l];
+                                u.at(l, i, j, k)            = phi_d;
+                            }
                         }
+                }
+                else if (r_inps.v_BC.BC_BOTTOM == NeuHomo)
+                {
+                    for (int j = 0; j < ny; ++j)
+                        for (int i = 0; i < nx; ++i)
+                            u(i, j, k) = u(i, j, k + 1);
+                }
+            }
+        }
+        void update_x(VecF& u)
+        {
+            const auto& neigh               = r_dec.get_neighbors();
+            const auto& [nscal, nx, ny, nz] = u.get_sizes();
+
+            // Recall that due to staggered grid the position is
+            // actually half step out of the domain
+            // => Impose the value by interpolating
+            if (r_inps.v_BC.BC_SOUTH == Dirichlet)
+            {
+                constexpr int i = 0;
+                for (int k = 0; k < nz; ++k)
+                    for (int j = 0; j < ny; ++j)
+                    {
+                        {
+                            constexpr int         l     = 0;
+                            std::array<size_t, 3> ijks  = {i, j, k};
+                            const auto            pos   = r_dec.pos(ijks, m_h);
+                            const auto            val   = r_inps.v_BC.g_south(pos);
+                            const auto&           phi_d = val[l];
+                            const auto&           phi_0 = u.at(0, i + 1, j, k);
+                            const auto            b     = 2 * (phi_0 - phi_d) / (3 * m_h);
+                            u.at(l, i, j, k)            = 0.5 * m_h * b + phi_d;
+                        }
+                        for (int l = 1; l < 3; ++l)
+                        {
+
+                            std::array<size_t, 4> ijks  = {l, i, j, k};
+                            const auto            pos   = r_dec.pos(ijks, m_h);
+                            const auto            val   = r_inps.v_BC.g_south(pos);
+                            const auto&           phi_d = val[l];
+                            u.at(l, i, j, k)            = phi_d;
+                        }
+                    }
+            }
+            else if (r_inps.v_BC.BC_SOUTH == NeuHomo)
+            {
+                constexpr int i = 0;
+                for (int k = 0; k < nz; ++k)
+                    for (int j = 0; j < ny; ++j)
+                        u(i, j, k) = u(i + 1, j, k);
+            }
+            if (r_inps.v_BC.BC_NORTH == Dirichlet)
+            {
+                const int i = nx - 1;
+                for (int k = 0; k < nz; ++k)
+                    for (int j = 0; j < ny; ++j)
+                    {
+                        {
+                            constexpr int         l     = 0;
+                            std::array<size_t, 3> ijks  = {i, j, k};
+                            auto                  pos   = r_dec.pos(ijks, m_h);
+                            auto                  val   = r_inps.v_BC.g_north(pos);
+                            const auto&           phi_d = val[l];
+                            const auto&           phi_0 = u.at(0, i - 1, j, k);
+                            const auto            b     = -2 * (phi_0 - phi_d) / m_h;
+                            u.at(l, i, j, k)            = 0.5 * m_h * b + phi_d;
+                        }
+                        for (int l = 1; l < 3; ++l)
+                        {
+                            std::array<size_t, 4> ijks  = {l, i, j, k};
+                            auto                  pos   = r_dec.pos(ijks, m_h);
+                            auto                  val   = r_inps.v_BC.g_north(pos);
+                            const auto&           phi_d = val[l];
+                            u.at(l, i, j, k)            = phi_d;
+                        }
+                    }
+            }
+            else if (r_inps.v_BC.BC_NORTH == NeuHomo)
+            {
+                const int i = nx - 1;
+                for (int k = 0; k < nz; ++k)
+                    for (int j = 0; j < ny; ++j)
+                        u(i, j, k) = u(i - 1, j, k);
             }
         }
 
@@ -195,7 +365,7 @@ namespace numPDE
 
             // PREDICTOR STEP
             for (auto [k, j, i] : u_old.int_elems())
-                u_new(i, j, k) = buff + RK_a_coeff * dt * predictor_f(u_old, i, j, k) -
+                u_new(i, j, k) = buff(i, j, k) + RK_a_coeff * dt * predictor_f(u_old, i, j, k) -
                                  dt * RK_dc_coeff * grad(p_old, i, j, k);
 
             // Exchange boundaries
@@ -211,7 +381,7 @@ namespace numPDE
             r_dec.exchange_ghosts(p_new);
             // UPDATE THE VELOCITY FIELD
             for (auto [k, j, i] : u_new.int_elems())
-                u_new(i, j, k) += grad(p_new, i, j, k);
+                u_new(i, j, k) = u_new(i, j, k) + grad(p_new, i, j, k);
 
             p_new = p_new + p_old;
 
@@ -224,26 +394,43 @@ namespace numPDE
             return std::make_tuple(u_new, p_new);
         }
 
+        auto timestep(VecF& u_old, ScalF& p_old)
+        {
+            // Step 1
+            auto [Y2, phi2] = pseudo_timestep(u_old, u_old, p_old, a21, c1);
+            VecF BUFF       = u_old;
+            for (auto [k, j, i] : u_old.int_elems())
+                BUFF(i, j, k) = BUFF(i, j, k) + a31 * dt * predictor_f(u_old, i, j, k);
+            // Step 2
+            auto [Y3, phi3] = pseudo_timestep(BUFF, Y2, phi2, a32, (c2 - c1));
+            // Step 3
+            auto [u_new, p_new] = pseudo_timestep(BUFF, Y3, phi3, b3, (1 - c2));
+            // Return the updated solution
+            return std::make_tuple(u_new, p_new);
+        }
+
         auto solve(VecF& u_old, ScalF& p_old)
         {
-            // Apply BC and exchange boundaries
-            // Step 1
-            // Apply BC and exchange boundaries
-            // Step 2
-            // Apply BC and exchange boundaries
-            // Step 3
-            // Apply BC and exchange boundaries
-            // Return the updated solution
+            ScalF p_new = p_old;
+            VecF  u_new = u_old;
+
+            while (t < T)
+            {
+                t += dt;
+                std::swap(u_old, u_new);
+                std::swap(p_old, p_new);
+                std::tie(u_new, p_new) = timestep(u_old, p_old);
+            }
+
+            return std::make_tuple(u_new, p_new);
         }
 
         auto pressure_solve(ScalF& F, ScalF& chi) { fastLapSolver.solve(F, chi); }
 
-        auto apply_BC() { std::cout << "Boundary conditions apply still needs to be implemented"; }
-
       private:
         NS_input<TYPE>&  r_inps;
         Constants<TYPE>& r_cstns;
-        Real &           m_h = r_cstns.h, dt = r_cstns.dt;
+        Real &           m_h = r_cstns.h, dt = r_cstns.dt, T = r_cstns.T_max;
         const Real       a21 = 64.0 / 120.0, a31 = 0.25, a32 = 5.0 / 12.0;
         const Real       c1 = a21, c2 = 2.0 / 3.0, b3 = 0.75;
         Real             t = 0;
@@ -280,36 +467,18 @@ int main(int argc, char* argv[])
     auto exact = P;
     auto P_h   = P;
 
-    // Initialize the P and V fields
-    for (auto [kp, jp, ip] : P.all_elems())
-    {
-        int    ii    = P.get_linear_index(ip, jp, kp);
-        int    iglob = decomposer.xStart()[0] + ip;
-        int    jglob = decomposer.xStart()[1] + jp;
-        int    kglob = decomposer.xStart()[2] + kp;
-        double val   = std::cos(iglob * h) * std::cos(jglob * h) * std::cos(kglob * h);
-        exact[ii]    = val;
-        P[ii]        = 3.0 * val;
-    }
 
     numPDE::NS_input<Real> inputs;
+    inputs.p_BC.BC_NORTH  = numPDE::NeuHomo;
+    inputs.p_BC.BC_SOUTH  = numPDE::NeuHomo;
+    inputs.p_BC.BC_EAST   = numPDE::NeuHomo;
+    inputs.p_BC.BC_WEST   = numPDE::NeuHomo;
+    inputs.p_BC.BC_TOP    = numPDE::NeuHomo;
+    inputs.p_BC.BC_BOTTOM = numPDE::NeuHomo;
 
     numPDE::NS_problem<Real> ns(inputs, decomposer);
 
-    auto u_old = V;
-
-    auto u_new = V;
-    auto p_old = P;
-    auto p_new = P;
-    while (t < Tmax)
-    {
-
-        // auto   [ u_new, p_new ] = ns.solve(u_old, p_old);
-
-        std::swap(u_new, u_old);
-        std::swap(p_new, p_old);
-        t += dt;
-    }
+    auto [V_new, P_new] = ns.solve(V, P);
 
     std::cout << "P0 : " << P[0] << "\n";
     std::cout << "exact0 : " << exact[0] << "\n";
