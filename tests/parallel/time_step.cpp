@@ -431,8 +431,8 @@ namespace numPDE
         NS_input<TYPE>&  r_inps;
         Constants<TYPE>& r_cstns;
         Real &           m_h = r_cstns.h, dt = r_cstns.dt, T = r_cstns.T_max;
-        const Real       a21 = 64.0 / 120.0, a31 = 0.25, a32 = 5.0 / 12.0;
-        const Real       c1 = a21, c2 = 2.0 / 3.0, b3 = 0.75;
+        constexpr Real       a21 = 64.0 / 120.0, a31 = 0.25, a32 = 5.0 / 12.0;
+        constexpr Real       c1 = a21, c2 = 2.0 / 3.0, b3 = 0.75;
         Real             t = 0;
 
         NewDecomp<TYPE>&        r_dec;
