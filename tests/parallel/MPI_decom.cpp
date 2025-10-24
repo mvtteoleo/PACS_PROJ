@@ -1,4 +1,4 @@
-#define TEST 1
+#define TEST 2
 #include "../../header/MY_LIB.hpp"
 #include "../../header/my_2Decomp/MPI_types.hpp"
 #include <algorithm>
@@ -86,12 +86,17 @@ int main(int argc, char* argv[])
 
             std::cout << std::endl;
 
+<<<<<<< HEAD
             for (auto i : decomp.ySize())
                 std::cout << i << " ";
             std::cout << std::endl;
             for (auto i : decomp.zSize())
                 std::cout << i << " ";
             std::cout << std::endl;
+=======
+            for (auto i : decomp.xStart())
+                std::cout << i << " ";
+>>>>>>> VTK_writer
 
             std::cout << "Dim w ghosts: ";
             for (auto i : decomp.dimsWithGhosts())
@@ -157,9 +162,11 @@ int main(int argc, char* argv[])
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
     auto P = numPDE::make_scalar_field<Real, N_DIMS>(decomp.dimsWithGhosts());
     auto V = numPDE::make_vector_field<Real, N_DIMS>(decomp.dimsWithGhosts());
-    nx     = decomp.xSize()[0];
-    ny     = decomp.xSize()[1];
-    nz     = decomp.xSize()[2];
+    auto dims = P.get_sizes();
+
+    nx = dims[0];
+    ny = dims[1];
+    nz = dims[2];
 
     P.fill_val(decomp.rank());
     V.fill_val(decomp.rank());
@@ -227,7 +234,7 @@ int main(int argc, char* argv[])
             std::cout << "Rank " << r << ":\n";
             for (int k = nz - 1; k >= 0; --k)
             {
-                for (int j = 0; j < ny; ++j)
+                for (int j = ny - 1; j >= 0; --j)
                     std::cout << static_cast<int>(V.at(0, 0, j, k)) << " ";
                 std::cout << "\n";
             }
@@ -246,7 +253,7 @@ int main(int argc, char* argv[])
             std::cout << "Rank " << r << ":\n";
             for (int k = nz - 1; k >= 0; --k)
             {
-                for (int j = 0; j < ny; ++j)
+                for (int j = ny - 1; j >= 0; --j)
                     std::cout << static_cast<int>(P(0, j, k)) << " ";
                 std::cout << "\n";
             }
@@ -258,7 +265,7 @@ int main(int argc, char* argv[])
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
-    int i = 0, j = 2, k = 0;
+    int i = 0, j = 0, k = 0;
     if (!decomp.rank()) std::cout << " TEST \n";
     auto C = V(i, j, k);
     if (!decomp.rank())

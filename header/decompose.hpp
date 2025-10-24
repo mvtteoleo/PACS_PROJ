@@ -31,7 +31,9 @@ enum neighbour_directions
     TOP    = 0,
     BOTTOM = 1,
     RIGHT  = 2,
-    LEFT   = 3
+    LEFT   = 3,
+    FRONT  = 4,
+    BACK   = 5
 };
 // --- Main decomposition class ---
 template <typename T = double>
@@ -42,12 +44,13 @@ class NewDecomp
     int                tot_rank{1};
     int                mpi_rank{0};
     std::array<int, 2> dims{1, 1};
-    std::array<int, 4> neighbors{};
+    std::array<int, 6> neighbors{};
     MPI_Comm           cart_comm{MPI_COMM_NULL};
 
     std::unique_ptr<C2Decomp> c2d;
 
   public:
+    size_t Nx{}, Ny{}, Nz{};
     NewDecomp(int argc, char** argv)
     {
         MPI_Init(&argc, &argv);
@@ -286,14 +289,17 @@ class NewDecomp
         return;
     }
 
-    int                       rank() const { return mpi_rank; }
-    int                       totRank() const { return tot_rank; }
-    const std::array<int, 4>& get_neighbors() const { return neighbors; }
+    int         rank() const { return mpi_rank; }
+    int         totRank() const { return tot_rank; }
+    const auto& get_neighbors() const { return neighbors; }
 
     template <typename Ts>
         requires std::is_integral_v<Ts>
     void initialize_decomp(Ts nx, Ts ny, Ts nz)
     {
+        Nx = nx;
+        Ny = ny;
+        Nz = nz;
         MPI_Barrier(MPI_COMM_WORLD);
         nx       = static_cast<int>(nx);
         ny       = static_cast<int>(ny);
@@ -308,10 +314,18 @@ class NewDecomp
         if (pCol != dims[1] or pRow != dims[0])
         {
             std::cerr << "Warning: Row or column values changed!!\n";
-            dims[0] = pRow;
             dims[1] = pCol;
+            dims[0] = pRow;
             MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
         }
+        this->cart_comm = c2d->DECOMP_2D_COMM_CART_X;
+
+        this->neighbors[neighbour_directions::BACK]   = c2d->neighbor[0][0];
+        this->neighbors[neighbour_directions::FRONT]  = c2d->neighbor[0][1];
+        this->neighbors[neighbour_directions::RIGHT]  = c2d->neighbor[0][2];
+        this->neighbors[neighbour_directions::LEFT]   = c2d->neighbor[0][3];
+        this->neighbors[neighbour_directions::TOP]    = c2d->neighbor[0][4];
+        this->neighbors[neighbour_directions::BOTTOM] = c2d->neighbor[0][5];
         MPI_Barrier(MPI_COMM_WORLD);
     }
     /*
@@ -346,6 +360,35 @@ class NewDecomp
     auto xEnd() const { return std::span<const int>(&c2d->xEnd[0], 3); }
     auto yEnd() const { return std::span<const int>(&c2d->yEnd[0], 3); }
     auto zEnd() const { return std::span<const int>(&c2d->zEnd[0], 3); }
+
+    /*
+     * Get the global starting index of the local array, including ghost layers.
+     * This is typically used for defining the full extent of a local VTS file.
+     */
+    std::array<int, 3> xStartWGhosts() const
+    {
+        std::array<int, 3> start_w_ghosts;
+        auto               physical_start = this->xStart();
+
+        // X-dimension (index 0): Not decomposed in 2D, so no ghost adjustment
+        start_w_ghosts[0] = physical_start[0];
+
+        // Y-dimension (index 1): Check for LEFT neighbor (ghost at start)
+        start_w_ghosts[1] = physical_start[1];
+        if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
+        {
+            start_w_ghosts[1] -= 1;
+        }
+
+        // Z-dimension (index 2): Check for BOTTOM neighbor (ghost at start)
+        start_w_ghosts[2] = physical_start[2];
+        if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
+        {
+            start_w_ghosts[2] -= 1;
+        }
+
+        return start_w_ghosts;
+    }
 
     auto dimsWithGhosts() const
     {

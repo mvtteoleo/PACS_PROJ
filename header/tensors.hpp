@@ -483,6 +483,8 @@ namespace numPDE
         // *****      GETTER       **** //
         // -----------------------------//
         size_t constexpr get_n_dims() const noexcept { return N_DIMS; }
+        size_t constexpr get_rank() const noexcept { return RANK; }
+
         size_t constexpr size() const noexcept { return m_Datas.size(); }
         const auto& raw_datas() const noexcept { return m_Datas; }
         const auto  get_slices() const noexcept { return m_Slices_size; }
