@@ -12,6 +12,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        lib = pkgs.lib;
 
         # Python environment with specified packages
         pyEnv = pkgs.python311.withPackages (ps: with ps; [
