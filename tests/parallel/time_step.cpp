@@ -467,7 +467,6 @@ int main(int argc, char* argv[])
     auto exact = P;
     auto P_h   = P;
 
-
     numPDE::NS_input<Real> inputs;
     inputs.p_BC.BC_NORTH  = numPDE::NeuHomo;
     inputs.p_BC.BC_SOUTH  = numPDE::NeuHomo;

@@ -48,6 +48,7 @@ class NewDecomp
     std::unique_ptr<C2Decomp> c2d;
 
   public:
+    size_t Nx{}, Ny{}, Nz{};
     NewDecomp(int argc, char** argv)
     {
         MPI_Init(&argc, &argv);
@@ -294,6 +295,9 @@ class NewDecomp
         requires std::is_integral_v<Ts>
     void initialize_decomp(Ts nx, Ts ny, Ts nz)
     {
+        Nx = nx;
+        Ny = ny;
+        Nz = nz;
         MPI_Barrier(MPI_COMM_WORLD);
         nx       = static_cast<int>(nx);
         ny       = static_cast<int>(ny);
@@ -347,6 +351,29 @@ class NewDecomp
     auto yEnd() const { return std::span<const int>(&c2d->yEnd[0], 3); }
     auto zEnd() const { return std::span<const int>(&c2d->zEnd[0], 3); }
 
+    /*
+     * Get the global starting index of the local array, including ghost layers.
+     * This is typically used for defining the full extent of a local VTS file.
+     */
+    std::array<int, 3> xStartWGhosts() const
+    {
+        std::array<int, 3> start_w_ghosts;
+        auto physical_start = this->xStart();
+       
+        // X-dimension (index 0): Not decomposed in 2D, so no ghost adjustment
+        start_w_ghosts[0] = physical_start[0];
+       
+        // Y-dimension (index 1): Check for LEFT neighbor (ghost at start)
+        start_w_ghosts[1] = physical_start[1];
+        if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL) { start_w_ghosts[2] -= 1; }
+       
+        // Z-dimension (index 2): Check for BOTTOM neighbor (ghost at start)
+        start_w_ghosts[2] = physical_start[2];
+        if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL) { start_w_ghosts[1] -= 1; }
+       
+        return start_w_ghosts;
+}
+
     auto dimsWithGhosts() const
     {
         std::array<int, 3> dims;
@@ -355,10 +382,10 @@ class NewDecomp
         dims[1] = qui[1];
         dims[2] = qui[2];
 
-        if (MPI_PROC_NULL != neighbors[neighbour_directions::LEFT]) dims[1] += 1;
-        if (MPI_PROC_NULL != neighbors[neighbour_directions::RIGHT]) dims[1] += 1;
-        if (MPI_PROC_NULL != neighbors[neighbour_directions::TOP]) dims[2] += 1;
-        if (MPI_PROC_NULL != neighbors[neighbour_directions::BOTTOM]) dims[2] += 1;
+        if (MPI_PROC_NULL != neighbors[neighbour_directions::LEFT]) dims[2] += 1;
+        if (MPI_PROC_NULL != neighbors[neighbour_directions::RIGHT]) dims[2] += 1;
+        if (MPI_PROC_NULL != neighbors[neighbour_directions::TOP]) dims[1] += 1;
+        if (MPI_PROC_NULL != neighbors[neighbour_directions::BOTTOM]) dims[1] += 1;
 
         return dims;
     }

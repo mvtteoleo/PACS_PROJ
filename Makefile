@@ -5,6 +5,7 @@ MPICXX    := mpic++
 CPPFLAGS  := -Iheader -Isrc -I. 
 LDLIBS   := -lfftw3 -lm -lboost_iostreams -lboost_system #-lfftw3_mpi 
 
+
 NIX_CPPFLAGS := -I$(EIGEN_INCLUDE_DIR) -I$(FFTW_INCLUDE_DIR) -I$(PETSC_DIR)/include
 NIX_LDFLAGS  := -L$(patsubst %/include,%/lib,$(FFTW_INCLUDE_DIR)) -L$(PETSC_DIR)/lib
 NIX_LDLIBS   := -lpetsc
@@ -70,7 +71,7 @@ todays_test: $(TODAYS_TEST)
 # ==============================
 # Compile main program (everything O3)
 $(EXEC): $(OBJS)
-	$(CXX) $(GEN_FLAGS) $(CPPFLAGS) $^ -o $@ $(LDLIBS)
+	$(CXX) $(GEN_FLAGS) $(CPPFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 # Compile src files (O3)
 $(BUILD_DIR)/%.o: %.cpp
@@ -82,15 +83,25 @@ $(BUILD_DIR)/2Decomp_C/%.o: $(C2DECOMP_DIR)/%.cpp
 	@mkdir -p $(dir $@)
 	$(MPICXX) $(C2DEC_FLAGS) $(CPPFLAGS) -I$(C2DECOMP_DIR) -c $< -o $@
 
+# Compile serial test object files
+$(BUILD_DIR)/tests/serial/%.o: $(SERIAL_DIR)/%.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(GEN_FLAGS) $(CPPFLAGS) -c $< -o $@
+
+# Compile parallel test object files
+$(BUILD_DIR)/tests/parallel/%.o: $(PARALLEL_DIR)/%.cpp
+	@mkdir -p $(dir $@)
+	$(MPICXX) $(GEN_FLAGS) $(CPPFLAGS) -c $< -o $@
+
 # Link parallel test executables (use mpicxx and include O0 objects)
 $(BUILD_DIR)/parallel/%: $(BUILD_DIR)/tests/parallel/%.o $(OBJS) $(C2DECOMP_OBJS)
 	@mkdir -p $(dir $@)
-	$(MPICXX) $(GEN_FLAGS) $(CPPFLAGS) -I$(C2DECOMP_DIR) $^ -o $@ $(LDLIBS)
+	$(MPICXX) $(GEN_FLAGS) $(CPPFLAGS) -I$(C2DECOMP_DIR) $^ -o $@ $(LDFLAGS) $(LDLIBS)  
 
 # Link serial test executables (O3)
 $(BUILD_DIR)/serial/%: $(BUILD_DIR)/tests/serial/%.o $(OBJS)
 	@mkdir -p $(dir $@)
-	$(CXX) $(GEN_FLAGS) $(CPPFLAGS) $^ -o $@ $(LDLIBS)
+	$(CXX) $(GEN_FLAGS) $(CPPFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
 
 # ==============================
 # Cleaning
@@ -99,4 +110,9 @@ clean:
 
 distclean: clean
 	$(RM) $(EXEC) $(SERIAL_TESTS) $(PARALLEL_TESTS)
+
+check_vtk_dir:
+	@echo "VTK_INCLUDE_DIR = $(VTK_INCLUDE_DIR)"
+	@echo "VTK_LIB_DIR     = $(VTK_LIB_DIR)"
+	@ls -1 $(VTK_LIB_DIR)
 
