@@ -50,7 +50,7 @@ SERIAL_TESTS := $(patsubst $(SERIAL_DIR)/%.cpp,$(BUILD_DIR)/serial/%,$(SERIAL_SR
 
 PARALLEL_SRCS  := $(wildcard $(PARALLEL_DIR)/*.cpp)
 PARALLEL_TESTS := $(patsubst $(PARALLEL_DIR)/%.cpp,$(BUILD_DIR)/parallel/%,$(PARALLEL_SRCS))
-TODAYS_TEST := $(patsubst $(PARALLEL_DIR)/PETSC_test.cpp,$(BUILD_DIR)/parallel/PETSC_test,$(PARALLEL_SRCS))
+TODAYS_TEST := $(patsubst $(PARALLEL_DIR)/MPI_decom.cpp,$(BUILD_DIR)/parallel/MPI_decom,$(PARALLEL_SRCS))
 
 # Default MPI processes
 NP ?= 4
