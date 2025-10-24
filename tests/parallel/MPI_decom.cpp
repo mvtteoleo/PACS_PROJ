@@ -1,4 +1,4 @@
-#define TEST 2
+#define TEST 1
 #include "../../header/MY_LIB.hpp"
 #include "../../header/my_2Decomp/MPI_types.hpp"
 #include <algorithm>
