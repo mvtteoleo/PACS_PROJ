@@ -28,12 +28,12 @@
 
 enum neighbour_directions
 {
-    TOP    = 0,
-    BOTTOM = 1,
-    RIGHT  = 2,
-    LEFT   = 3,
-    FRONT  = 4,
-    BACK   = 5
+    TOP    = 0, // z = z_MAX
+    BOTTOM = 1, // z = z_min
+    RIGHT  = 2, // y = y_min
+    LEFT   = 3, // y = y_MAX
+    FRONT  = 4, // x = x_MAX
+    BACK   = 5  // x = x_min
 };
 // --- Main decomposition class ---
 template <typename T = double>

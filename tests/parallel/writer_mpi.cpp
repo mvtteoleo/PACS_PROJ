@@ -1,26 +1,23 @@
 #include "../../header/MY_LIB.hpp"
-#include <fstream>
-#include <sstream>
-#include <vector>
 #include <array>
-#include <string>
-#include <iomanip>
 #include <cassert>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+#include <string>
+#include <vector>
 
 #include <fstream>
-#include <sstream>
 #include <iomanip>
+#include <sstream>
 
-#include <fstream>
-#include <sstream>
-#include <vector>
 #include <array>
-#include <string>
-#include <iomanip>
 #include <cassert>
+#include <fstream>
+#include <iomanip>
 #include <iostream> // Added for cerr
-#include <fstream>
 #include <sstream>
+#include <string>
 #include <vector>
 
 #include <fstream>
@@ -214,7 +211,7 @@ int main(int argc, char* argv[])
     decomp.exchange_ghosts(field);
 
     field.fill_val(decomp.rank());
-    // decomp.exchange_ghosts(field);
+    decomp.exchange_ghosts(field);
 
     VTKStructuredWriter<NewDecomp<>, numPDE::Tensor<double, 3, 3>> writer(decomp);
     writer.write(field, "output/field", 1);

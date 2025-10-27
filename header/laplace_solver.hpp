@@ -221,6 +221,7 @@ namespace numPDE
             for (int kp = 0; kp < xSizeArr[2]; ++kp)
                 for (int jp = 0; jp < xSizeArr[1]; ++jp)
                 {
+                    // TODO FIX for the case of ghost points!
                     std::copy_n(in.ptr_at(start_x, jp, kp), Nx, xbuf);
                     fftw_execute(fft_x);
                     std::copy_n(xbuf, Nx, out.ptr_at(start_x, jp, kp));
