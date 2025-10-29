@@ -2,6 +2,7 @@
 #include "customvec.hpp"
 #include "decompose.hpp"
 #include "mesh.hpp"
+#include "navier_stokes.hpp"
 #include "overloads.hpp"
 #include "tensorExpressionTemplates.hpp"
 #include "tensors.hpp"

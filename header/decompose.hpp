@@ -35,23 +35,22 @@ enum neighbour_directions
     FRONT  = 4, // x = x_MAX
     BACK   = 5  // x = x_min
 };
-// --- Main decomposition class ---
+
 template <typename T = double>
-class NewDecomp
+class Communicator
 {
-  private:
+  protected:
     // Need to be int in order to speak with MPI
     int                tot_rank{1};
     int                mpi_rank{0};
     std::array<int, 2> dims{1, 1};
     std::array<int, 6> neighbors{};
     MPI_Comm           cart_comm{MPI_COMM_NULL};
-
-    std::unique_ptr<C2Decomp> c2d;
+    // Global sizes
+    size_t Nx{}, Ny{}, Nz{};
 
   public:
-    size_t Nx{}, Ny{}, Nz{};
-    NewDecomp(int argc, char** argv)
+    Communicator(int argc, char** argv)
     {
         MPI_Init(&argc, &argv);
         MPI_Comm_size(MPI_COMM_WORLD, &tot_rank);
@@ -59,59 +58,35 @@ class NewDecomp
         this->split_rank_cartesian();
     }
 
-    // Delete copy/move to enforce singleton
-    NewDecomp(const NewDecomp&)            = default;
-    NewDecomp& operator=(const NewDecomp&) = default;
-    NewDecomp(NewDecomp&&)                 = default;
-    NewDecomp& operator=(NewDecomp&&)      = default;
-    ~NewDecomp()
+    ~Communicator()
     {
         MPI_Barrier(MPI_COMM_WORLD);
         if (cart_comm != MPI_COMM_NULL) MPI_Comm_free(&cart_comm);
-        if (c2d.get() != nullptr) c2d->decomp2DFinalize();
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Finalize();
     }
 
-    template <typename I, size_t N>
-        requires std::is_integral_v<I>
-    auto pos(std::array<I, N> ijk_s, T h)
+    int         rank() const { return mpi_rank; }
+    int         totRank() const { return tot_rank; }
+    const auto& get_neighbors() const { return neighbors; }
+
+    auto get_cart_comm() const
     {
-        int n_scal = 0;
-        int i, j, k;
-        if constexpr (4 == N)
-        {
-            n_scal = ijk_s[0];
-            i      = ijk_s[1];
-            j      = ijk_s[2];
-            k      = ijk_s[3];
-        }
+        auto out_cart = cart_comm;
+        return out_cart;
+    };
 
-        if constexpr (3 == N)
-        {
-            i = ijk_s[0];
-            j = ijk_s[1];
-            k = ijk_s[2];
-        }
+    auto get_process_grid() const { return dims; }
 
-        // Add the starting position to the tensor
-        i += this->xStart()[0];
-        j += this->xStart()[1];
-        k += this->xStart()[2];
-        T x, y, z;
+    auto get_global_sizes() const { return std::make_tuple(this->Nx, this->Ny, this->Nz); }
 
-        // Fix the position based on the ghost points
-        if (MPI_PROC_NULL != neighbors[neighbour_directions::RIGHT]) j -= 1;
-
-        if (MPI_PROC_NULL != neighbors[neighbour_directions::BOTTOM]) k -= 1;
-
-        x = i * h;
-        y = j * h;
-        z = k * h;
-        std::vector<T> pos{x, y, z};
-        if constexpr (4 == N) pos[n_scal] += h * 0.5;
-
-        return pos;
+    template <typename Ts>
+        requires std::is_integral_v<Ts>
+    void load_glob_sizes(Ts nx, Ts ny, Ts nz)
+    {
+        this->Nx = static_cast<size_t>(nx);
+        this->Ny = static_cast<size_t>(ny);
+        this->Nz = static_cast<size_t>(nz);
     }
 
     template <typename U, size_t RANK, size_t N_DIMS>
@@ -163,7 +138,7 @@ class NewDecomp
         std::vector<T> ghost_righ(slice, 0.), int_righ(slice, 0.);
 
         // Extract the intern
-        if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
+        if (this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
             for (int k = 1; k < nz - 1; ++k)
             {
                 const int j = ny - 2;
@@ -171,7 +146,7 @@ class NewDecomp
                             &int_left[(k - 1) * nx * n_scal]);
             }
 
-        if (neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
+        if (this->neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
             for (int k = 1; k < nz - 1; ++k)
             {
                 constexpr int j = 1;
@@ -181,24 +156,26 @@ class NewDecomp
 
         // Exchange the ghost if there is a process that has sent the data
         MPI_Barrier(MPI_COMM_WORLD);
-        if (neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
+        if (this->neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
         {
-            MPI_Sendrecv(int_righ.data(), slice, mpi_type, neighbors[neighbour_directions::RIGHT],
-                         200, ghost_righ.data(), slice, mpi_type,
-                         neighbors[neighbour_directions::RIGHT], 201, cart_comm, MPI_STATUS_IGNORE);
+            MPI_Sendrecv(int_righ.data(), slice, mpi_type,
+                         this->neighbors[neighbour_directions::RIGHT], 200, ghost_righ.data(),
+                         slice, mpi_type, this->neighbors[neighbour_directions::RIGHT], 201,
+                         cart_comm, MPI_STATUS_IGNORE);
         }
 
         // Send first physical layer (bottom) directly, receive into bottom ghost layer
-        if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
+        if (this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
         {
-            MPI_Sendrecv(int_left.data(), slice, mpi_type, neighbors[neighbour_directions::LEFT],
-                         201, ghost_left.data(), slice, mpi_type,
-                         neighbors[neighbour_directions::LEFT], 200, cart_comm, MPI_STATUS_IGNORE);
+            MPI_Sendrecv(int_left.data(), slice, mpi_type,
+                         this->neighbors[neighbour_directions::LEFT], 201, ghost_left.data(), slice,
+                         mpi_type, this->neighbors[neighbour_directions::LEFT], 200, cart_comm,
+                         MPI_STATUS_IGNORE);
         }
         MPI_Barrier(MPI_COMM_WORLD);
 
         // Copy back in the tensor
-        if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
+        if (this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
             for (int k = 1; k < nz - 1; ++k)
             {
                 constexpr int j = 0;
@@ -206,7 +183,7 @@ class NewDecomp
                             P.ptr_at(n_scal * nx * (k * ny + j)));
             }
 
-        if (neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
+        if (this->neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
             for (int k = 1; k < nz - 1; ++k)
             {
                 const int j = ny - 1;
@@ -270,53 +247,141 @@ class NewDecomp
         v_bot[RANK - 1] -= 1;
         const int ghost_bot = P.get_linear_index(v_bot);
         MPI_Barrier(MPI_COMM_WORLD);
-        if (neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
+        if (this->neighbors[neighbour_directions::TOP] != MPI_PROC_NULL)
         {
-            MPI_Sendrecv(P.ptr_at(inter_top), slice, mpi_type, neighbors[neighbour_directions::TOP],
-                         100, P.ptr_at(ghost_top), slice, mpi_type,
-                         neighbors[neighbour_directions::TOP], 101, cart_comm, MPI_STATUS_IGNORE);
+            MPI_Sendrecv(P.ptr_at(inter_top), slice, mpi_type,
+                         this->neighbors[neighbour_directions::TOP], 100, P.ptr_at(ghost_top),
+                         slice, mpi_type, this->neighbors[neighbour_directions::TOP], 101,
+                         cart_comm, MPI_STATUS_IGNORE);
         }
 
         // Send first physical layer (bottom) directly, receive into bottom ghost layer
-        if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
+        if (this->neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
         {
             MPI_Sendrecv(P.ptr_at(inter_bot), slice, mpi_type,
-                         neighbors[neighbour_directions::BOTTOM], 101, P.ptr_at(ghost_bot), slice,
-                         mpi_type, neighbors[neighbour_directions::BOTTOM], 100, cart_comm,
-                         MPI_STATUS_IGNORE);
+                         this->neighbors[neighbour_directions::BOTTOM], 101, P.ptr_at(ghost_bot),
+                         slice, mpi_type, this->neighbors[neighbour_directions::BOTTOM], 100,
+                         cart_comm, MPI_STATUS_IGNORE);
         }
         MPI_Barrier(MPI_COMM_WORLD);
         return;
     }
 
-    int         rank() const { return mpi_rank; }
-    int         totRank() const { return tot_rank; }
-    const auto& get_neighbors() const { return neighbors; }
+  protected:
+    std::vector<int> findFactors(int num)
+    {
+        int              m = static_cast<int>(sqrt(num));
+        std::vector<int> factors;
+        for (int i = 1; i <= m; ++i)
+        {
+            if (num % i == 0)
+            {
+                factors.push_back(i);
+                if (i != num / i) factors.push_back(num / i);
+            }
+        }
+        std::sort(factors.begin(), factors.end());
+        return factors;
+    }
+
+    std::tuple<int, int> best_rank_2D_grid(int nproc, bool verbose = true)
+    {
+        auto factors = findFactors(nproc);
+        int  bestRow = 1, bestCol = nproc;
+        int  minDiff = nproc;
+        for (int f : factors)
+        {
+            int other = nproc / f;
+            if (std::abs(f - other) < minDiff)
+            {
+                minDiff = std::abs(f - other);
+                bestRow = other;
+                bestCol = f;
+            }
+        }
+
+        if (verbose and !mpi_rank)
+            std::cout << "The processes are split in row: " << bestRow << ", col: " << bestCol
+                      << "\n";
+
+        return {bestRow, bestCol};
+    }
+    void split_rank_cartesian()
+    {
+
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (mpi_rank == 0)
+        {
+            // auto [bCol, bRow] = best_rank_2D_grid(tot_rank);
+            auto [bRow, bCol] = best_rank_2D_grid(tot_rank);
+            dims[0]           = bRow;
+            dims[1]           = bCol;
+        }
+        MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
+
+        int periods[2] = {0, 0};
+        MPI_Cart_create(MPI_COMM_WORLD, 2, dims.data(), periods, 0, &cart_comm);
+
+        this->neighbors.fill(MPI_PROC_NULL);
+        MPI_Cart_shift(cart_comm, 0, 1, &this->neighbors[neighbour_directions::BOTTOM],
+                       &this->neighbors[neighbour_directions::TOP]); // top, bottom
+
+        MPI_Cart_shift(cart_comm, 1, 1, &this->neighbors[neighbour_directions::RIGHT],
+                       &this->neighbors[neighbour_directions::LEFT]); // left, right
+
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+};
+
+// --- Main decomposition class ---
+template <typename T = double>
+class NewDecomp : public Communicator<T>
+{
+  private:
+    std::unique_ptr<C2Decomp> c2d;
+
+  public:
+    template <typename Ts>
+        requires std::is_integral_v<Ts>
+    NewDecomp(int argc, char** argv, Ts nx, Ts ny, Ts nz) : Communicator<T>(argc, argv)
+    {
+        initialize_decomp(nx, ny, nz);
+    }
+
+    NewDecomp(int argc, char** argv) : Communicator<T>(argc, argv) {}
+
+    // Delete copy/move to enforce singleton
+    NewDecomp(const NewDecomp&)            = default;
+    NewDecomp& operator=(const NewDecomp&) = default;
+    NewDecomp(NewDecomp&&)                 = default;
+    NewDecomp& operator=(NewDecomp&&)      = default;
+    ~NewDecomp()
+    {
+        if (c2d.get() != nullptr) c2d->decomp2DFinalize();
+    }
 
     template <typename Ts>
         requires std::is_integral_v<Ts>
     void initialize_decomp(Ts nx, Ts ny, Ts nz)
     {
-        Nx = nx;
-        Ny = ny;
-        Nz = nz;
+        this->load_glob_sizes(nx, ny, nz);
         MPI_Barrier(MPI_COMM_WORLD);
         nx       = static_cast<int>(nx);
         ny       = static_cast<int>(ny);
         nz       = static_cast<int>(nz);
-        int pRow = dims[0];
-        int pCol = dims[1];
+        int pRow = this->dims[0];
+        int pCol = this->dims[1];
         // pRow = 0;
         // pCol = 0;
         bool periodicBC[3] = {false, false, false};
         // TODO add a check to round to the closest neighbour the value of nx, ny, nz global
         c2d = std::make_unique<C2Decomp>(nx, ny, nz, pRow, pCol, periodicBC);
-        if (pCol != dims[1] or pRow != dims[0])
+        if (pCol != this->dims[1] or pRow != this->dims[0])
         {
             std::cerr << "Warning: Row or column values changed!!\n";
-            dims[1] = pCol;
-            dims[0] = pRow;
-            MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
+            this->dims[1] = pCol;
+            this->dims[0] = pRow;
+            MPI_Bcast(this->dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
         }
         this->cart_comm = c2d->DECOMP_2D_COMM_CART_X;
 
@@ -375,14 +440,14 @@ class NewDecomp
 
         // Y-dimension (index 1): Check for LEFT neighbor (ghost at start)
         start_w_ghosts[1] = physical_start[1];
-        if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
+        if (this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
         {
             start_w_ghosts[1] -= 1;
         }
 
         // Z-dimension (index 2): Check for BOTTOM neighbor (ghost at start)
         start_w_ghosts[2] = physical_start[2];
-        if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
+        if (this->neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
         {
             start_w_ghosts[2] -= 1;
         }
@@ -392,18 +457,18 @@ class NewDecomp
 
     auto dimsWithGhosts() const
     {
-        std::array<int, 3> dims;
+        std::array<int, 3> GhostDims;
         auto               qui = this->xSize();
-        dims[0]                = qui[0];
-        dims[1]                = qui[1];
-        dims[2]                = qui[2];
+        GhostDims[0]           = qui[0];
+        GhostDims[1]           = qui[1];
+        GhostDims[2]           = qui[2];
 
-        if (MPI_PROC_NULL != neighbors[neighbour_directions::LEFT]) dims[1] += 1;
-        if (MPI_PROC_NULL != neighbors[neighbour_directions::RIGHT]) dims[1] += 1;
-        if (MPI_PROC_NULL != neighbors[neighbour_directions::TOP]) dims[2] += 1;
-        if (MPI_PROC_NULL != neighbors[neighbour_directions::BOTTOM]) dims[2] += 1;
+        if (MPI_PROC_NULL != this->neighbors[neighbour_directions::LEFT]) GhostDims[1] += 1;
+        if (MPI_PROC_NULL != this->neighbors[neighbour_directions::RIGHT]) GhostDims[1] += 1;
+        if (MPI_PROC_NULL != this->neighbors[neighbour_directions::TOP]) GhostDims[2] += 1;
+        if (MPI_PROC_NULL != this->neighbors[neighbour_directions::BOTTOM]) GhostDims[2] += 1;
 
-        return dims;
+        return GhostDims;
     }
 
     /*
@@ -463,79 +528,5 @@ class NewDecomp
         U* u1   = v1.ptr_at(0);
         U* u2   = v2.ptr_at(0);
         c2d->transposeY2X_MajorIndex(u1, u2);
-    }
-
-    auto get_cart_comm() const
-    {
-        auto out_cart = cart_comm;
-        return out_cart;
-    };
-
-    auto get_process_grid() const { return dims; }
-
-  private:
-    void split_rank_cartesian()
-    {
-
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (mpi_rank == 0)
-        {
-            // auto [bCol, bRow] = best_rank_2D_grid(tot_rank);
-            auto [bRow, bCol] = best_rank_2D_grid(tot_rank);
-            dims[0]           = bRow;
-            dims[1]           = bCol;
-        }
-        MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
-
-        int periods[2] = {0, 0};
-        MPI_Cart_create(MPI_COMM_WORLD, 2, dims.data(), periods, 0, &cart_comm);
-
-        neighbors.fill(MPI_PROC_NULL);
-        MPI_Cart_shift(cart_comm, 0, 1, &neighbors[neighbour_directions::BOTTOM],
-                       &neighbors[neighbour_directions::TOP]); // top, bottom
-
-        MPI_Cart_shift(cart_comm, 1, 1, &neighbors[neighbour_directions::LEFT],
-                       &neighbors[neighbour_directions::RIGHT]); // left, right
-
-        MPI_Barrier(MPI_COMM_WORLD);
-    }
-
-    std::vector<int> findFactors(int num)
-    {
-        int              m = static_cast<int>(sqrt(num));
-        std::vector<int> factors;
-        for (int i = 1; i <= m; ++i)
-        {
-            if (num % i == 0)
-            {
-                factors.push_back(i);
-                if (i != num / i) factors.push_back(num / i);
-            }
-        }
-        std::sort(factors.begin(), factors.end());
-        return factors;
-    }
-
-    std::tuple<int, int> best_rank_2D_grid(int nproc, bool verbose = true)
-    {
-        auto factors = findFactors(nproc);
-        int  bestRow = 1, bestCol = nproc;
-        int  minDiff = nproc;
-        for (int f : factors)
-        {
-            int other = nproc / f;
-            if (std::abs(f - other) < minDiff)
-            {
-                minDiff = std::abs(f - other);
-                bestRow = f;
-                bestCol = other;
-            }
-        }
-
-        if (verbose and !mpi_rank)
-            std::cout << "The processes are split in row: " << bestRow << ", col: " << bestCol
-                      << "\n";
-
-        return {bestRow, bestCol};
     }
 };
