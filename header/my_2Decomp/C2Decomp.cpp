@@ -136,7 +136,7 @@ void C2Decomp::decompInfoInit()
     if (nx < dims[0] || ny < dims[0] || ny < dims[1] || nz < dims[1])
     {
         errorcode  = 6;
-        string msg = "Invalid 2D processor grid. \n Make sure that min(nx, ny) > p_row and min(ny, "
+        std::string msg = "Invalid 2D processor grid. \n Make sure that min(nx, ny) > p_row and min(ny, "
                      "nz) >= p_col.";
         decomp2DAbort(errorcode, msg);
     }
@@ -331,7 +331,7 @@ void C2Decomp::distribute(int data1, int proc, int* st, int* en, int* sz)
         }
     };
 
-    if (distributionType == Distribution::DEFAULT)
+    if (true)
     {
         def();
     }

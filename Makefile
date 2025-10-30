@@ -31,7 +31,8 @@ TEST_DIR     := tests
 SERIAL_DIR   := $(TEST_DIR)/serial
 PARALLEL_DIR := $(TEST_DIR)/parallel
 BUILD_DIR    := build
-C2DECOMP_DIR := deps/2Decomp_C
+C2DECOMP_DIR := header/my_2Decomp
+#deps/2Decomp_C
 
 # Main target
 EXEC      := main
@@ -79,9 +80,9 @@ $(BUILD_DIR)/%.o: %.cpp
 	$(CXX) $(GEN_FLAGS) $(CPPFLAGS) -c $< -o $@
 
 # Compile 2Decomp_C library (O0 with MPI compiler)
-# $(BUILD_DIR)/2Decomp_C/%.o: $(C2DECOMP_DIR)/%.cpp
-# 	@mkdir -p $(dir $@)
-# 	$(MPICXX) $(C2DEC_FLAGS) $(CPPFLAGS) -I$(C2DECOMP_DIR) -c $< -o $@
+$(BUILD_DIR)/2Decomp_C/%.o: $(C2DECOMP_DIR)/%.cpp
+	@mkdir -p $(dir $@)
+	$(MPICXX) $(C2DEC_FLAGS) $(CPPFLAGS) -I$(C2DECOMP_DIR) -c $< -o $@
 
 # Compile serial test object files
 $(BUILD_DIR)/tests/serial/%.o: $(SERIAL_DIR)/%.cpp
@@ -94,7 +95,7 @@ $(BUILD_DIR)/tests/parallel/%.o: $(PARALLEL_DIR)/%.cpp
 	$(MPICXX) $(GEN_FLAGS) $(CPPFLAGS) -c $< -o $@
 
 # Link parallel test executables (use mpicxx and include O0 objects)
-$(BUILD_DIR)/parallel/%: $(BUILD_DIR)/tests/parallel/%.o $(OBJS) # $(C2DECOMP_OBJS)
+$(BUILD_DIR)/parallel/%: $(BUILD_DIR)/tests/parallel/%.o $(OBJS) $(C2DECOMP_OBJS)
 	@mkdir -p $(dir $@)
 	$(MPICXX) $(GEN_FLAGS) $(CPPFLAGS) -I$(C2DECOMP_DIR) $^ -o $@ $(LDFLAGS) $(LDLIBS)  
 

@@ -32,6 +32,7 @@ int main(int argc, char* argv[])
     std::size_t nx = 4, ny = N, nz = N;
 
     NewDecomp<> decomp(argc, argv);
+
     decomp.initialize_decomp(nx, ny, nz);
 
     numPDE::Tensor<double, 3, 3> field(decomp.dimsWithGhosts()); // your local data

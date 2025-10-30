@@ -295,8 +295,8 @@ class Communicator
             if (std::abs(f - other) < minDiff)
             {
                 minDiff = std::abs(f - other);
-                bestRow = other;
-                bestCol = f;
+                bestRow = f;
+                bestCol = other;
             }
         }
 
@@ -314,8 +314,8 @@ class Communicator
         {
             // auto [bCol, bRow] = best_rank_2D_grid(tot_rank);
             auto [bRow, bCol] = best_rank_2D_grid(tot_rank);
-            dims[0]           = bRow;
-            dims[1]           = bCol;
+            dims[1]           = bRow;
+            dims[0]           = bCol;
         }
         MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -379,16 +379,16 @@ class NewDecomp : public Communicator<T>
         if (pCol != this->dims[1] or pRow != this->dims[0])
         {
             std::cerr << "Warning: Row or column values changed!!\n";
-            this->dims[1] = pCol;
             this->dims[0] = pRow;
+            this->dims[1] = pCol;
             MPI_Bcast(this->dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
         }
         this->cart_comm = c2d->DECOMP_2D_COMM_CART_X;
 
         this->neighbors[neighbour_directions::BACK]   = c2d->neighbor[0][0];
         this->neighbors[neighbour_directions::FRONT]  = c2d->neighbor[0][1];
-        this->neighbors[neighbour_directions::RIGHT]  = c2d->neighbor[0][2];
-        this->neighbors[neighbour_directions::LEFT]   = c2d->neighbor[0][3];
+        this->neighbors[neighbour_directions::RIGHT]  = c2d->neighbor[0][3];
+        this->neighbors[neighbour_directions::LEFT]   = c2d->neighbor[0][2];
         this->neighbors[neighbour_directions::TOP]    = c2d->neighbor[0][4];
         this->neighbors[neighbour_directions::BOTTOM] = c2d->neighbor[0][5];
         MPI_Barrier(MPI_COMM_WORLD);
