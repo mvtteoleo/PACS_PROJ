@@ -48,6 +48,7 @@ class Communicator
     MPI_Comm           cart_comm{MPI_COMM_NULL};
     // Global sizes
     size_t Nx{}, Ny{}, Nz{};
+    bool m_owns_mpi_lifecycle=true;
 
   public:
     Communicator(int argc, char** argv)
@@ -60,8 +61,13 @@ class Communicator
 
     ~Communicator()
     {
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (cart_comm != MPI_COMM_NULL) MPI_Comm_free(&cart_comm);
+        if (m_owns_mpi_lifecycle)
+        {
+            if (cart_comm != MPI_COMM_NULL) {
+                MPI_Comm_free(&cart_comm);
+                cart_comm = MPI_COMM_NULL;
+            }
+        }
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Finalize();
     }
@@ -80,6 +86,7 @@ class Communicator
 
     auto get_global_sizes() const { return std::make_tuple(this->Nx, this->Ny, this->Nz); }
 
+    void release_mpi_ownership() { m_owns_mpi_lifecycle = false; }
     template <typename Ts>
         requires std::is_integral_v<Ts>
     void load_glob_sizes(Ts nx, Ts ny, Ts nz)
