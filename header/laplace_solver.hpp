@@ -10,6 +10,7 @@
 #include <memory>
 #include <omp.h>
 #include <random>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -26,6 +27,7 @@ namespace numPDE
     enum BC
     {
         NeuHomo,
+        Neumann,
         Dirichlet,
         DirHomo
     };
@@ -35,27 +37,33 @@ namespace numPDE
         NORTH, // ++i
         SOUTH, // --i
         WEST,  // ++j
-        EST,   // --j
+        EAST,  // --j
         TOP,   // ++k
         BOTTOM // --k
     };
 
     template <typename OT, typename T>
+    constexpr auto f_0= [](std::vector<T> const& pos){ return OT{};};
+
+    template <typename OT, typename IT>
     struct generic_BC
     {
+        using output_type = OT;
+        using input_type  = IT; 
+
         // Function wrapper
         // TODO fix it so that the BCs get apply also as function of time
-        using Function = std::function<OT(const std::vector<T>&)>;
+        using Function = std::function<OT(const IT&)>;
 
-        Function f{nullptr};    // forcing term
-        Function u_ex{nullptr}; // exact solution
+        Function f    = f_0<OT, IT>; // forcing term
+        Function u_ex = f_0<OT, IT>; // exact solution
 
-        Function g_north  = nullptr;
-        Function g_south  = nullptr;
-        Function g_east   = nullptr;
-        Function g_west   = nullptr;
-        Function g_top    = nullptr;
-        Function g_bottom = nullptr;
+        Function g_north  = f_0<OT, IT>;
+        Function g_south  = f_0<OT, IT>;
+        Function g_east   = f_0<OT, IT>;
+        Function g_west   = f_0<OT, IT>;
+        Function g_top    = f_0<OT, IT>;
+        Function g_bottom = f_0<OT, IT>;
 
         BC BC_NORTH  = Dirichlet; // Boundary condition type, x=1, i.e. north boundary
         BC BC_SOUTH  = Dirichlet; // Boundary condition type, x=0, i.e. south boundary
@@ -64,18 +72,30 @@ namespace numPDE
         BC BC_TOP    = Dirichlet; // Boundary condition type, z=1, i.e. top boundary
         BC BC_BOTTOM = Dirichlet; // Boundary condition type, z=0, i.e. top boundary
 
-        OT def_val; // default value to initialize the field
+        OT def_val{}; // default value to initialize the field
     };
 
+/*
+    template <typename T = double, size_t N_DO=3, size_t N_DI=4>
+    struct VelocityBC : generic_BC<std::array<T, N_DO>, std::array<T, N_DI>>
+    {
+    };
+
+    template <typename T = double, size_t ND=4>
+    struct PressureBC : generic_BC<T, std::array<T, ND>>
+    {
+    };
+*/
     template <typename T = double>
-    struct VelocityBC : generic_BC<std::vector<T>, T>
+    struct VelocityBC : generic_BC<std::vector<T>, std::vector<T>>
     {
     };
 
     template <typename T = double>
-    struct PressureBC : generic_BC<T, T>
+    struct PressureBC : generic_BC<T, std::vector<T>>
     {
     };
+
     template <typename T = double>
     struct Constants
     {
@@ -95,10 +115,15 @@ namespace numPDE
         {
             auto check_pair = [](BC bc1, BC bc2, const std::string& axis) -> BC
             {
+                if (bc1 != NeuHomo or bc1 != DirHomo)
+                    std::cerr << "The " << std::to_string(bc1)
+                              << " is of a type not supported for the FastLaplaceSolver class\n";
+
                 if (bc1 == bc2) return bc1;
                 std::cerr << "Error: Boundary conditions do not match along " << axis
                           << " direction.\n";
-                return BC::DirHomo; // or some default/fallback
+
+                return BC::DirHomo;
             };
 
             m_BC_x = check_pair(r_BCs.BC_NORTH, r_BCs.BC_SOUTH, "x");
@@ -188,7 +213,7 @@ namespace numPDE
         // Expects a contiguos block of memory that contains 3d values in ROW Major order with:
         // k slowest, j middle and i fastest
         void solve(const numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& in,
-                   numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& out, bool verbose = true)
+                   numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& out, bool verbose = false)
         {
             int         mpiRank  = r_dec.rank();
             const auto& exe_type = std::execution::seq;

@@ -48,7 +48,7 @@ class Communicator
     MPI_Comm           cart_comm{MPI_COMM_NULL};
     // Global sizes
     size_t Nx{}, Ny{}, Nz{};
-    bool m_owns_mpi_lifecycle=true;
+    bool   m_owns_mpi_lifecycle = true;
 
   public:
     Communicator(int argc, char** argv)
@@ -63,7 +63,8 @@ class Communicator
     {
         if (m_owns_mpi_lifecycle)
         {
-            if (cart_comm != MPI_COMM_NULL) {
+            if (cart_comm != MPI_COMM_NULL)
+            {
                 MPI_Comm_free(&cart_comm);
                 cart_comm = MPI_COMM_NULL;
             }
@@ -536,4 +537,130 @@ class NewDecomp : public Communicator<T>
         U* u2   = v2.ptr_at(0);
         c2d->transposeY2X_MajorIndex(u1, u2);
     }
+};
+
+#include <petscksp.h>
+template <typename T = double>
+class PETScDecomp : public Communicator<T>
+{
+  public:
+    // PETSc communicator
+    DM       da;
+    PetscInt xs, ys, zs, xm, ym, zm;
+    PetscInt gxs, gys, gzs, gxm, gym, gzm;
+
+    template <typename Ts>
+        requires std::is_integral_v<Ts>
+    PETScDecomp(int argc, char** argv, Ts nx, Ts ny, Ts nz) : Communicator<T>(argc, argv)
+    {
+        this->release_mpi_ownership();
+        this->load_glob_sizes(nx, ny, nz);
+        PetscErrorCode ierr;
+        ierr = PetscInitialize(&argc, &argv, NULL, NULL);
+        CHKERRABORT(PETSC_COMM_WORLD, ierr);
+
+        int& pRows = this->dims[0];
+        int& pCols = this->dims[1];
+        ierr       = DMDACreate3d(this->cart_comm, // your Cartesian comm
+                                  DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED, DM_BOUNDARY_GHOSTED,
+                                  DMDA_STENCIL_BOX, nx, ny, nz, // global grid
+                                  PETSC_DECIDE,                 // Px (1/auto)
+                                  pCols,                        // Py (cols)
+                                  pRows,                        // Pz (rows)
+                                  1,                            // dof = 1 scalar field
+                                  1,                            // stencil width = 1
+                                  NULL, NULL, NULL, &this->da);
+        CHKERRABORT(PETSC_COMM_WORLD, ierr);
+        ierr = DMSetUp(this->da);
+        CHKERRABORT(PETSC_COMM_WORLD, ierr);
+        this->init_loal_sizes();
+    }
+
+    auto init_loal_sizes()
+    {
+        DMDAGetCorners(da, &xs, &ys, &zs, &xm, &ym, &zm);
+        DMDAGetGhostCorners(da, &gxs, &gys, &gzs, &gxm, &gym, &gzm);
+    }
+
+    auto xStart() const
+    {
+        return std::array<int, 3>{
+            {static_cast<int>(xs), static_cast<int>(ys), static_cast<int>(zs)}};
+    }
+
+    auto xSize() const
+    {
+        return std::array<int, 3>{
+            {static_cast<int>(xm), static_cast<int>(ym), static_cast<int>(zm)}};
+    }
+
+    auto dimsWithGhosts() const
+    {
+        return std::array<int, 3>{
+            {static_cast<int>(gxm), static_cast<int>(gym), static_cast<int>(gzm)}};
+    }
+    auto xStartWGhosts() const
+    {
+        return std::array<int, 3>{
+            {static_cast<int>(gxs), static_cast<int>(gys), static_cast<int>(gzs)}};
+    }
+
+    PETScDecomp(PETScDecomp&&)                 = default;
+    PETScDecomp(const PETScDecomp&)            = default;
+    PETScDecomp& operator=(PETScDecomp&&)      = default;
+    PETScDecomp& operator=(const PETScDecomp&) = default;
+
+    template <numPDE::TypeIndex TYPE = numPDE::ROW_MAJOR>
+    void tensor_to_PETScVec(numPDE::Tensor<T, 3, 3, TYPE> const& Tens, Vec& P_vec)
+    {
+        PetscScalar*** bAsTens;
+        DMDAVecGetArray(da, P_vec, &bAsTens);
+
+        // Assign using global indexing for PETSc array and local for the
+        // numPDE tensor.
+        // WARNING Avoid the std::copy_n for the contiguos elements in the x direction, PETSc does
+        // not assure to employ ROWMAJOR layout
+        for (int k = zs; k < zs + zm; ++k)
+            for (int j = ys; j < ys + ym; ++j)
+                for (int i = xs; i < xs + xm; ++i)
+                {
+                    int li           = i - gxs;
+                    int lj           = j - gys;
+                    int lk           = k - gzs;
+                    bAsTens[k][j][i] = static_cast<PetscScalar>(Tens(li, lj, lk));
+                }
+
+        DMDAVecRestoreArray(da, P_vec, &bAsTens);
+    }
+
+    template <numPDE::TypeIndex TYPE = numPDE::ROW_MAJOR>
+    void PETScVec_to_tensor(Vec const& P_vec, numPDE::Tensor<T, 3, 3, TYPE>& Tens)
+    {
+        PetscScalar*** bAsTens;
+        DMDAVecGetArray(da, P_vec, &bAsTens);
+
+        // Assign using global indexing for PETSc array and local for the
+        // numPDE tensor.
+        // WARNING Avoid the std::copy_n for the contiguos elements in the x direction, PETSc does
+        // not assure to employ ROWMAJOR layout
+        for (int k = zs; k < zs + zm; ++k)
+            for (int j = ys; j < ys + ym; ++j)
+                for (int i = xs; i < xs + xm; ++i)
+                {
+                    int li           = i - gxs;
+                    int lj           = j - gys;
+                    int lk           = k - gzs;
+                    Tens(li, lj, lk) = static_cast<T>(bAsTens[k][j][i]);
+                }
+
+        DMDAVecRestoreArray(da, P_vec, &bAsTens);
+    }
+
+    ~PETScDecomp()
+    {
+        DMDestroy(&da);
+        PetscFinalize();
+    }
+
+  private:
 };

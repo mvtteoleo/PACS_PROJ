@@ -290,7 +290,6 @@ void C2Decomp::distribute(int data1, int proc, int* st, int* en, int* sz)
             big_size     = div + 1;
         }
 
-        // TODO: make these only under debug mode
 #ifdef PEDANTIC
         if (n_big_size + n_small_size != proc)
         {

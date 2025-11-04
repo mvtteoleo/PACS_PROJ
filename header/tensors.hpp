@@ -225,8 +225,8 @@ namespace numPDE
             requires UnsignedInt<Ts...>
         decltype(auto) access(Ts... idxs) const
         {
-            static_assert(sizeof...(Ts) > RANK, "Number of indices must match tensor "
-                                                "dimensionality or number of phisical dimension");
+            static_assert(sizeof...(Ts) == N_DIMS,
+                          "Number of indices must match tensor dimensionality");
 
             // if constexpr (N_DIMS == RANK)
             if constexpr (sizeof...(Ts) == RANK)
