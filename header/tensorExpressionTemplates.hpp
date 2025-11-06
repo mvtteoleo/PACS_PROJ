@@ -19,11 +19,11 @@ namespace numPDE
     };
 
     template <typename T, size_t N = DEF_DIM>
-    struct Vec : Expr<Vec<T, N>>
+    struct MyVec : Expr<MyVec<T, N>>
     {
       public:
-        Vec() = default;
-        Vec(std::initializer_list<T> l)
+        MyVec() = default;
+        MyVec(std::initializer_list<T> l)
         {
             assert(l.size() <= N && "Value bigger than the size of the  element");
             std::copy_n(l.begin(), l.size(), m_Datas.begin());
@@ -103,7 +103,7 @@ namespace numPDE
         ElementProxy(PointerType ptr, size_t size) : base(ptr), dim(size)
         {
 #ifdef PEDANTIC
-            assert(size == N && "Proxy size mismatch with Vec size");
+            assert(size == N && "Proxy size mismatch with MyVec size");
 #endif
         }
 

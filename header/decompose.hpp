@@ -22,6 +22,7 @@
 #include <tuple>
 #include <type_traits>
 #include <vector>
+#include <ranges>
 
 #include "my_2Decomp/MPI_types.hpp"
 #include "tensors.hpp"
@@ -33,7 +34,10 @@ enum neighbour_directions
     RIGHT  = 2, // y = y_min
     LEFT   = 3, // y = y_MAX
     FRONT  = 4, // x = x_MAX
-    BACK   = 5  // x = x_min
+    BACK   = 5,  // x = x_min
+
+    begin = TOP,
+    end = BACK,
 };
 
 template <typename T = double>
@@ -539,7 +543,11 @@ class NewDecomp : public Communicator<T>
     }
 };
 
+#include <petscdm.h>
+#include <petscdmda.h>
 #include <petscksp.h>
+#include <petscvec.h>
+
 template <typename T = double>
 class PETScDecomp : public Communicator<T>
 {
@@ -664,3 +672,5 @@ class PETScDecomp : public Communicator<T>
 
   private:
 };
+
+

@@ -17,7 +17,7 @@ LDLIBS   += $(NIX_LDLIBS)
 
 
 # Optimization flags
-DEBUG_FLAGS := -O0 -g  -Wall -Wextra -pedantic -fopenmp -std=c++23
+DEBUG_FLAGS := -O0 -g  -Wall -Wextra -pedantic -fopenmp -std=c++23 -on_error_attach_debugger
 OPT_FLAGS := -O3 -Wall -Wextra -pedantic -fopenmp  -std=c++23
 
 GEN_FLAGS   := $(DEBUG_FLAGS)

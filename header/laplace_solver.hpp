@@ -39,17 +39,71 @@ namespace numPDE
         WEST,  // ++j
         EAST,  // --j
         TOP,   // ++k
-        BOTTOM // --k
-    };
+        BOTTOM, // --k
 
-    template <typename OT, typename T>
-    constexpr auto f_0= [](std::vector<T> const& pos){ return OT{};};
+        begin = NORTH,
+        end = BOTTOM,
+    
+    };
+}
+
+template<typename ENUM>
+constexpr auto enum_range()
+{
+    constexpr auto first = static_cast<std::underlying_type_t<ENUM>>(ENUM::begin);
+    constexpr auto last  = static_cast<std::underlying_type_t<ENUM>>(ENUM::end);
+
+    return std::views::iota(first, last + 1)
+         | std::views::transform([](auto val) {
+               return static_cast<ENUM>(val);
+           });
+}
+
+template <typename COMM>
+bool is_side( numPDE::SIDES const side, COMM const & r_dec)
+{
+    const auto [xs, ys, zs]        = r_dec.xStart();
+    const auto [xm, ym, zm]        = r_dec.xSize();
+    const auto& [nx, ny, nz]       = r_dec.get_global_sizes();
+
+    switch (side)
+    {
+        case numPDE::SIDES::NORTH:
+            return (xs + xm == nx);
+
+        case numPDE::SIDES::SOUTH:
+            return (xs == 0);
+
+        case numPDE::SIDES::EAST:
+            return (ys == 0);
+
+        case numPDE::SIDES::WEST:
+            return (ys + ym == ny);
+
+        case numPDE::SIDES::BOTTOM:
+            return (zs == 0);
+
+        case numPDE::SIDES::TOP:
+            return (zm + zs == nz);
+
+        default:
+            std::cerr << "Invalid side specified — check numPDE::SIDES in setup.\n";
+            return false;
+    }
+};
+
+
+
+
+namespace numPDE {
+    template <typename OT, typename IT>
+    constexpr auto f_0 = [](IT const& pos) { return OT{}; };
 
     template <typename OT, typename IT>
     struct generic_BC
     {
         using output_type = OT;
-        using input_type  = IT; 
+        using input_type  = IT;
 
         // Function wrapper
         // TODO fix it so that the BCs get apply also as function of time
@@ -65,27 +119,27 @@ namespace numPDE
         Function g_top    = f_0<OT, IT>;
         Function g_bottom = f_0<OT, IT>;
 
-        BC BC_NORTH  = Dirichlet; // Boundary condition type, x=1, i.e. north boundary
-        BC BC_SOUTH  = Dirichlet; // Boundary condition type, x=0, i.e. south boundary
-        BC BC_EAST   = Dirichlet; // Boundary condition type, y=0, i.e. east boundary
-        BC BC_WEST   = Dirichlet; // Boundary condition type, y=1, i.e. west boundary
-        BC BC_TOP    = Dirichlet; // Boundary condition type, z=1, i.e. top boundary
-        BC BC_BOTTOM = Dirichlet; // Boundary condition type, z=0, i.e. top boundary
+        BC BC_NORTH  = DirHomo; // Boundary condition type, x=1, i.e. north boundary
+        BC BC_SOUTH  = DirHomo; // Boundary condition type, x=0, i.e. south boundary
+        BC BC_EAST   = DirHomo; // Boundary condition type, y=0, i.e. east boundary
+        BC BC_WEST   = DirHomo; // Boundary condition type, y=1, i.e. west boundary
+        BC BC_TOP    = DirHomo; // Boundary condition type, z=1, i.e. top boundary
+        BC BC_BOTTOM = DirHomo; // Boundary condition type, z=0, i.e. top boundary
 
         OT def_val{}; // default value to initialize the field
     };
 
-/*
-    template <typename T = double, size_t N_DO=3, size_t N_DI=4>
-    struct VelocityBC : generic_BC<std::array<T, N_DO>, std::array<T, N_DI>>
-    {
-    };
+    /*
+        template <typename T = double, size_t N_DO=3, size_t N_DI=4>
+        struct VelocityBC : generic_BC<std::array<T, N_DO>, std::array<T, N_DI>>
+        {
+        };
 
-    template <typename T = double, size_t ND=4>
-    struct PressureBC : generic_BC<T, std::array<T, ND>>
-    {
-    };
-*/
+        template <typename T = double, size_t ND=4>
+        struct PressureBC : generic_BC<T, std::array<T, ND>>
+        {
+        };
+    */
     template <typename T = double>
     struct VelocityBC : generic_BC<std::vector<T>, std::vector<T>>
     {
@@ -404,3 +458,4 @@ namespace numPDE
     };
 
 } // namespace numPDE
+

@@ -29,12 +29,12 @@ namespace numPDE
 
         using ScalF = numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>;
         using VecF  = numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>;
-        numPDE::Vec<T, 3> predictor_f(VecF& h_U, size_t i, size_t j, size_t k)
+        numPDE::MyVec<T, 3> predictor_f(VecF& h_U, size_t i, size_t j, size_t k)
         {
 
-            const auto&       h  = r_cstns.h;
-            const auto&       Re = r_cstns.Re;
-            numPDE::Vec<T, 3> U_x, U_y, U_z, dU_dx, dU_dy, dU_dz, lap, Conv, ris;
+            const auto&         h  = r_cstns.h;
+            const auto&         Re = r_cstns.Re;
+            numPDE::MyVec<T, 3> U_x, U_y, U_z, dU_dx, dU_dy, dU_dz, lap, Conv, ris;
             // neighbor aliases (use auto& to avoid copies and help optimizer)
             const auto& C   = h_U(i, j, k);     // center (i,j,k)
             const auto& E   = h_U(i + 1, j, k); // east
@@ -90,7 +90,7 @@ namespace numPDE
             T dw_dz = (u.at(2, i, j, k + 1) - u.at(2, i, j, k)) / r_cstns.h;
             return du_dx + dv_dy + dw_dz;
         }
-        numPDE::Vec<T> grad(ScalF& p, size_t i, size_t j, size_t k)
+        numPDE::MyVec<T> grad(ScalF& p, size_t i, size_t j, size_t k)
         {
             T dp_dx = (p(i + 1, j, k) - p(i, j, k)) / r_cstns.h;
             T dp_dy = (p(i, j + 1, k) - p(i, j, k)) / r_cstns.h;
