@@ -1,19 +1,20 @@
-#include <algorithm>
-#include <array>
-#include <cstddef>
-#include <iostream>
-#include <random>
-#include <vector>
 #include "../../header/MY_LIB.hpp"
 #include "../../header/decompose.hpp"
 #include "../../header/pvts_writer.hpp"
 #include "petscdmda.h"
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstddef>
+#include <iostream>
+#include <numbers>
 #include <petscdm.h>
 #include <petscdmda.h>
 #include <petscksp.h>
 #include <petscsys.h>
 #include <petscvec.h>
+#include <random>
+#include <vector>
 
 #if 0
 int main (int argc, char *argv[]) {
@@ -64,17 +65,16 @@ namespace numPDE
             KSPSetType(ksp, KSPCG);
 
             KSPSetTolerances(ksp, 1e-10, 1e-10, PETSC_DEFAULT, PETSC_DEFAULT);
-            KSPGetPC(ksp, &pc);
-            PCSetType(pc, PCMG);
+           KSPGetPC(ksp, &pc);
+           PCSetType(pc, PCMG);
 
             KSPSetFromOptions(ksp);
         }
 
         auto apply_bc_to_A()
         {
-            for(auto side : enum_range<numPDE::SIDES>())
-                if(is_side(side, r_dec))
-                    apply_BC_A_impl(side);
+            for (auto side : enum_range<numPDE::SIDES>())
+                if (is_side(side, r_dec)) apply_BC_A_impl(side);
         };
 
         template <bool NEEDS_UPDATE_BC = true, TypeIndex TYPE>
@@ -96,10 +96,7 @@ namespace numPDE
 
         bool all_neumann_bc() const
         {
-            auto is_neumann = [](BC bc) -> bool
-            {
-                return (bc == NeuHomo or bc == Neumann);
-            };
+            auto is_neumann = [](BC bc) -> bool { return (bc == NeuHomo or bc == Neumann); };
 
             const std::array<BC, 6> bcs = {r_BCs.BC_BOTTOM, r_BCs.BC_TOP,   r_BCs.BC_EAST,
                                            r_BCs.BC_WEST,   r_BCs.BC_SOUTH, r_BCs.BC_NORTH};
@@ -109,9 +106,8 @@ namespace numPDE
 
         auto update_bc_on_b()
         {
-            for(auto side : enum_range<numPDE::SIDES>())
-                if(is_side(side, r_dec))
-                    update_bc_b_impl(side);
+            for (auto side : enum_range<numPDE::SIDES>())
+                if (is_side(side, r_dec)) update_bc_b_impl(side);
         }
 
         auto update_bc_b_impl(SIDES side)
@@ -188,7 +184,7 @@ namespace numPDE
                         // OT debacle
                         using IT         = typename PressureBC<T>::input_type;
                         auto pos         = IT{i * r_const.h, j * r_const.h, k * r_const.h, 0};
-                        bAsTens[k][j][i] = static_cast<PetscScalar>(fun(pos));
+                        bAsTens[k][j][i] = static_cast<PetscScalar>(fun(pos) );
                     }
 
             DMDAVecRestoreArray(r_dec.da, this->b, &bAsTens);
@@ -200,7 +196,7 @@ namespace numPDE
             auto [xm, ym, zm]        = r_dec.xSize();
             const auto& [nx, ny, nz] = r_dec.get_global_sizes();
             BC                      bc{};
-            std::array<PetscInt, 6> stencil{};
+            std::array<PetscInt, 6> stencil = {0, 0, 0, 0, 0, 0};
             auto& [i_1, j_1, k_1, i_2, j_2, k_2] = stencil;
 
             if (side == SIDES::NORTH)
@@ -219,7 +215,7 @@ namespace numPDE
                 i_1 = 1;
                 i_2 = 2;
             }
-            else if (side== SIDES::EAST)
+            else if (side == SIDES::EAST)
             {
                 ys  = 0;
                 ym  = 1;
@@ -227,7 +223,7 @@ namespace numPDE
                 j_1 = 1;
                 j_2 = 2;
             }
-            else if (side== SIDES::WEST)
+            else if (side == SIDES::WEST)
             {
                 ys  = ny - 1;
                 ym  = 1;
@@ -272,9 +268,9 @@ namespace numPDE
                     for (PetscInt i = xs_; i < xs_ + xm_; ++i)
                     {
 
-                        constexpr PetscInt    n    = 1;
-                        PetscScalar v[n] = {1.0};
-                        MatStencil            row, col[n];
+                        constexpr PetscInt n    = 1;
+                        PetscScalar        v[n] = {1.0};
+                        MatStencil         row, col[n];
                         row.c = 0;
                         row.i = i;
                         row.j = j;
@@ -292,7 +288,7 @@ namespace numPDE
          * of the II order => Third order accurate Neumann BCs
          */
         auto neumann_on_A(PetscInt xs_, PetscInt xm_, PetscInt ys_, PetscInt ym_, PetscInt zs_,
-                          PetscInt zm_, std::array<PetscInt, 6> stencil)
+                          PetscInt zm_, std::array<PetscInt, 6> &stencil)
         {
             const auto& [i_1, j_1, k_1, i_2, j_2, k_2] = stencil;
 
@@ -301,11 +297,10 @@ namespace numPDE
                     for (PetscInt i = xs_; i < xs_ + xm_; ++i)
                     {
 
-                        constexpr int n = 3;
+                        constexpr int n = 2;
                         PetscScalar   v[n]; // Use one array, max size is 7
-                        v[0] = 3.;
-                        v[1] = -4.0;
-                        v[2] = 1;
+                        v[0] = 1.;
+                        v[1] = -1.0;
                         MatStencil row, col[n];
                         row.c = 0;
 
@@ -320,10 +315,6 @@ namespace numPDE
                         col[1].i = i + i_1;
                         col[1].j = j + j_1;
                         col[1].k = k + k_1;
-
-                        col[2].i = i + i_2;
-                        col[2].j = j + j_2;
-                        col[2].k = k + k_2;
 
                         MatSetValuesStencil(A, 1, &row, n, col, v, INSERT_VALUES);
                     }
@@ -346,9 +337,9 @@ namespace numPDE
 
             const auto& [nx, ny, nz] = r_dec.get_global_sizes();
 
-            for (kp = zs; kp < zs + zm ; kp++)
-                for (jp = ys; jp < ys + ym ; jp++)
-                    for (ip = xs; ip < xs + xm ; ip++)
+            for (kp = zs; kp < zs + zm; kp++)
+                for (jp = ys; jp < ys + ym; jp++)
+                    for (ip = xs; ip < xs + xm; ip++)
                     {
                         if (ip == 0 || ip == nx - 1 || jp == 0 || jp == ny - 1 || kp == 0 ||
                             kp == nz - 1)
@@ -362,7 +353,6 @@ namespace numPDE
                             row.i      = ip;
                             row.j      = jp;
                             row.k      = kp;
-
 
                             // Center
                             v[n]     = -6.0;
@@ -439,11 +429,11 @@ int main(int argc, char** argv)
     // ----------------------------------------------------------
 
     constexpr std::size_t N_DIMS = 3;
-    std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 8;
+    std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 8;
     if (N < 2) N = 8;
     std::size_t nx = N, ny = N, nz = N;
 
-    Real L = 1;
+    Real L = std::numbers::pi;
     Real h = L / (nx - 1);
 
     // ----------------------------------------------------------
@@ -464,15 +454,15 @@ int main(int argc, char** argv)
     std::array<int, 3> size{decomp.xSize()};
     const auto& [gxs, gys, gzs] = xStartWG;
     const auto& [gxm, gym, gzm] = sizeWG;
-    const auto& [xs, ys, zs] = decomp.xStart();
-    const auto& [xm, ym, zm] = decomp.xSize();
+    const auto& [xs, ys, zs]    = decomp.xStart();
+    const auto& [xm, ym, zm]    = decomp.xSize();
 
-    auto P = numPDE::make_scalar_field<Real, N_DIMS>(sizeWG);
-    auto f = P;
+    auto P   = numPDE::make_scalar_field<Real, N_DIMS>(sizeWG);
+    auto f   = P;
     auto P_h = P;
 
     std::random_device rd;
-    std::mt19937 gen(rd());
+    std::mt19937       gen(rd());
 
     std::uniform_real_distribution<Real> dist(-1e-3, +1e-3);
 
@@ -482,7 +472,7 @@ int main(int argc, char** argv)
         double Ax = x * x - Lx * x;
         double By = y * y - Ly * y;
         double Cz = z * z - Lz * z;
-        return Ax * By * Cz;
+        return Ax * By * Cz ;
     };
 
     auto forcing_poly = [=](double x, double y, double z) -> Real
@@ -492,32 +482,53 @@ int main(int argc, char** argv)
         double Cz = z * z - Lz * z;
         return 2.0 * (By * Cz + Ax * Cz + Ax * By);
     };
+    auto u_ex = [](std::vector<Real>& pos) -> Real
+    { return std::cos(pos[0]) * std::cos(pos[1]) * std::cos(pos[2]); };
+
+    auto forc = [&u_ex](std::vector<Real>& pos) -> Real { return -3 * u_ex(pos); };
+
     // Initialize the velocity field
     for (auto [k, j, i] : P.all_elems())
     {
-        Real x = h * static_cast<Real>(i + gxs);
-        Real y = h * static_cast<Real>(j + gys);
-        Real z = h * static_cast<Real>(k + gzs);
-        P(i, j, k) = exact_sol_poly(x, y, z); // dist(gen);
-        f(i, j, k) = forcing_poly(x, y, z);
+        Real              x   = h * static_cast<Real>(i + gxs);
+        Real              y   = h * static_cast<Real>(j + gys);
+        Real              z   = h * static_cast<Real>(k + gzs);
+        std::vector<Real> pos = {x, y, z};
+        P(i, j, k)            =  exact_sol_poly(x, y, z); // u_ex(pos);//
+        f(i, j, k)            =  forcing_poly(x, y, z);   // forc(pos);//
     }
 
     decomp.exchange_ghosts(P);
 
     // ----------------------------------------------------------
-    // 4. Create system: -∇² u = f
+    // 4. Create system: ∇² u = f
     // ----------------------------------------------------------
-
-    f = f * h * h;
     numPDE::PressureBC<Real> Bcs;
+    auto                     g_ = [](std::vector<Real> const& pos) -> Real { return 1.; };
+    Bcs.g_north                 = g_;
+    Bcs.g_south                 = g_;
+    Bcs.g_east                  = g_;
+    Bcs.g_west                  = g_;
+    Bcs.g_top                   = g_;
+    Bcs.g_bottom                = g_;
+    Bcs.BC_NORTH  = numPDE::DirHomo;
+    Bcs.BC_SOUTH  = numPDE::DirHomo;
+    Bcs.BC_EAST   = numPDE::DirHomo;
+    Bcs.BC_WEST   = numPDE::DirHomo;
+    Bcs.BC_TOP    = numPDE::DirHomo;
+    Bcs.BC_BOTTOM = numPDE::DirHomo;
 
-    numPDE::Constants<Real> constants;
+    numPDE::Constants<Real>       constants;
     numPDE::MGLaplaceSolver<Real> mg(decomp, Bcs, constants);
+    f = f * h*h;
     mg.solve(f);
     decomp.PETScVec_to_tensor(mg.x_h, P_h);
 
+    P = P_h - P;
+    writer.write(P, "output/sol", h);
+
     Real max_err = 0.0;
-    Real L2err = 0.0;
+    Real L2err   = 0.0;
 
     for (auto [k, j, i] : P.int_elems())
     {
@@ -533,7 +544,7 @@ int main(int argc, char** argv)
     L2err *= h * h * h;
 
     double glob_max = 0.0;
-    double glob_L2 = 0.0;
+    double glob_L2  = 0.0;
 
     MPI_Reduce(&L2err, &glob_L2, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(&max_err, &glob_max, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
@@ -558,4 +569,3 @@ int main(int argc, char** argv)
 }
 
 #endif
-
