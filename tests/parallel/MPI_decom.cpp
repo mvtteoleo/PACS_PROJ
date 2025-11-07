@@ -20,10 +20,18 @@ using Real = double;
 
 int main(int argc, char* argv[])
 {
-    NewDecomp<Real> decomp(argc, argv);
+    // Test to handle the MPI communications and boundary exchange
+    constexpr std::size_t N_DIMS = 3;
+    std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
+    if (N < 2) N = 5;
+    std::size_t nx = N, ny = N, nz = N;
+    // PETScDecomp<Real> decomp(argc, argv, nx, ny, nz);             
 
+    
+    NewDecomp<Real> decomp(argc, argv);
+    decomp.initialize_decomp(nx, ny, nz);
+    
     const auto& neighbors = decomp.get_neighbors();
-    //
 #if TEST == 1
     size_t nx, ny, nz;
 
@@ -127,12 +135,6 @@ int main(int argc, char* argv[])
     MPI_Barrier(MPI_COMM_WORLD);
 
 #elif TEST == 2
-    // Test to handle the MPI communications and boundary exchange
-    constexpr std::size_t N_DIMS = 3;
-    std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
-    if (N < 2) N = 5;
-    std::size_t nx = N, ny = N, nz = N;
-    decomp.initialize_decomp(nx, ny, nz);
 
     // Print results rank by rank
     for (int r = 0; r < decomp.totRank(); ++r)
@@ -140,10 +142,16 @@ int main(int argc, char* argv[])
         MPI_Barrier(MPI_COMM_WORLD);
         if (decomp.rank() == r)
         {
+            std::cout << std::endl;
+            std::cout << std::endl;
+            std::cout << std::endl;
             std::cout << "Rank " << r << ":\n";
-            for (auto i : decomp.xStart())
+            for (auto i : decomp.xStartWGhosts())
                 std::cout << i << " ";
 
+            std::cout << std::endl;
+            for (auto i : decomp.xStart())
+                std::cout << i << " ";
             auto top = neighbors[neighbour_directions::TOP];
             std::cout << "\nTop    : " << top;
             auto bot = neighbors[neighbour_directions::BOTTOM];
@@ -153,6 +161,8 @@ int main(int argc, char* argv[])
             auto left = neighbors[neighbour_directions::LEFT];
             std::cout << "\nLeft   : " << left;
 
+            std::cout << std::endl;
+            std::cout << std::endl;
             std::cout << std::endl;
         }
         MPI_Barrier(MPI_COMM_WORLD);
@@ -222,64 +232,64 @@ int main(int argc, char* argv[])
                 if (P(j, ny - 1, jp) != static_cast<int>(neighbors[neighbour_directions::RIGHT]))
                     std::cerr << "Problem in the right communication for " << decomp.rank() << "\n";
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD);
-
-    //   Print results rank by rank
-    for (int r = 0; r < decomp.totRank(); ++r)
-    {
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (decomp.rank() == r)
-        {
-            MPI_Barrier(MPI_COMM_WORLD);
-            std::cout << "Rank " << r << ":\n";
-            for (int k = nz - 1; k >= 0; --k)
-            {
-                for (int j = ny - 1; j >= 0; --j)
-                    std::cout << static_cast<int>(V.at(0, 0, j, k)) << " ";
-                std::cout << "\n";
-            }
-            MPI_Barrier(MPI_COMM_WORLD);
-        }
-    }
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD);
-
-    for (int r = 0; r < decomp.totRank(); ++r)
-    {
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (decomp.rank() == r)
-        {
-            std::cout << "Rank " << r << ":\n";
-            for (int k = nz - 1; k >= 0; --k)
-            {
-                for (int j = ny - 1; j >= 0; --j)
-                    std::cout << static_cast<int>(P(0, j, k)) << " ";
-                std::cout << "\n";
-            }
-            MPI_Barrier(MPI_COMM_WORLD);
-            std::cout << std::endl;
-        }
-        MPI_Barrier(MPI_COMM_WORLD);
-    }
-    MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD);
-
-    int i = 0, j = 0, k = 0;
-    if (!decomp.rank()) std::cout << " TEST \n";
-    auto C = V(i, j, k);
-    if (!decomp.rank())
-        for (int i = 0; i < 3; ++i)
-            std::cout << static_cast<int>(C[i]) << " ";
-
-    if (!decomp.rank()) std::cout << " TEST \n";
-    if (!decomp.rank())
-        for (int l = 0; l < 3; ++l)
-            std::cout << static_cast<int>(V.at(l, i, j, k)) << " ";
-
-    if (!decomp.rank()) std::cout << "\n";
-    if (!decomp.rank()) std::cout << P(i, j, k) << " " << P.at(i, j, k);
+//  MPI_Barrier(MPI_COMM_WORLD);
+//  MPI_Barrier(MPI_COMM_WORLD);
+//
+//  //   Print results rank by rank
+//  for (int r = 0; r < decomp.totRank(); ++r)
+//  {
+//      MPI_Barrier(MPI_COMM_WORLD);
+//      if (decomp.rank() == r)
+//      {
+//          MPI_Barrier(MPI_COMM_WORLD);
+//          std::cout << "Rank " << r << ":\n";
+//          for (int k = nz - 1; k >= 0; --k)
+//          {
+//              for (int j = ny - 1; j >= 0; --j)
+//                  std::cout << static_cast<int>(V.at(0, 0, j, k)) << " ";
+//              std::cout << "\n";
+//          }
+//          MPI_Barrier(MPI_COMM_WORLD);
+//      }
+//  }
+//
+//  MPI_Barrier(MPI_COMM_WORLD);
+//  MPI_Barrier(MPI_COMM_WORLD);
+//
+//  for (int r = 0; r < decomp.totRank(); ++r)
+//  {
+//      MPI_Barrier(MPI_COMM_WORLD);
+//      if (decomp.rank() == r)
+//      {
+//          std::cout << "Rank " << r << ":\n";
+//          for (int k = nz - 1; k >= 0; --k)
+//          {
+//              for (int j = ny - 1; j >= 0; --j)
+//                  std::cout << static_cast<int>(P(0, j, k)) << " ";
+//              std::cout << "\n";
+//          }
+//          MPI_Barrier(MPI_COMM_WORLD);
+//          std::cout << std::endl;
+//      }
+//      MPI_Barrier(MPI_COMM_WORLD);
+//  }
+//  MPI_Barrier(MPI_COMM_WORLD);
+//  MPI_Barrier(MPI_COMM_WORLD);
+//
+//  int i = 0, j = 0, k = 0;
+//  if (!decomp.rank()) std::cout << " TEST \n";
+//  auto C = V(i, j, k);
+//  if (!decomp.rank())
+//      for (int i = 0; i < 3; ++i)
+//          std::cout << static_cast<int>(C[i]) << " ";
+//
+//  if (!decomp.rank()) std::cout << " TEST \n";
+//  if (!decomp.rank())
+//      for (int l = 0; l < 3; ++l)
+//          std::cout << static_cast<int>(V.at(l, i, j, k)) << " ";
+//
+//  if (!decomp.rank()) std::cout << "\n";
+//  if (!decomp.rank()) std::cout << P(i, j, k) << " " << P.at(i, j, k);
 
 #endif
 

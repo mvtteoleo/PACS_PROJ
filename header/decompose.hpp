@@ -326,20 +326,21 @@ class Communicator
         {
             // auto [bCol, bRow] = best_rank_2D_grid(tot_rank);
             auto [bRow, bCol] = best_rank_2D_grid(tot_rank);
-            dims[1]           = bRow;
-            dims[0]           = bCol;
+            dims[0]           = bRow;
+            dims[1]           = bCol;
         }
         MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
 
+        // Cast to int from boolean to handle periodicity
         int periods[2] = {0, 0};
         MPI_Cart_create(MPI_COMM_WORLD, 2, dims.data(), periods, 0, &cart_comm);
 
         this->neighbors.fill(MPI_PROC_NULL);
+        MPI_Cart_shift(cart_comm, 1, 1, &this->neighbors[neighbour_directions::RIGHT],
+                       &this->neighbors[neighbour_directions::LEFT]); // left, right
         MPI_Cart_shift(cart_comm, 0, 1, &this->neighbors[neighbour_directions::BOTTOM],
                        &this->neighbors[neighbour_directions::TOP]); // top, bottom
 
-        MPI_Cart_shift(cart_comm, 1, 1, &this->neighbors[neighbour_directions::RIGHT],
-                       &this->neighbors[neighbour_directions::LEFT]); // left, right
 
         MPI_Barrier(MPI_COMM_WORLD);
     }
@@ -391,8 +392,8 @@ class NewDecomp : public Communicator<T>
         if (pCol != this->dims[1] or pRow != this->dims[0])
         {
             std::cerr << "Warning: Row or column values changed!!\n";
-            this->dims[0] = pRow;
-            this->dims[1] = pCol;
+            this->dims[1] = pRow;
+            this->dims[0] = pCol;
             MPI_Bcast(this->dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
         }
         this->cart_comm = c2d->DECOMP_2D_COMM_CART_X;
@@ -452,7 +453,7 @@ class NewDecomp : public Communicator<T>
 
         // Y-dimension (index 1): Check for LEFT neighbor (ghost at start)
         start_w_ghosts[1] = physical_start[1];
-        if (this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
+        if (this->neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
         {
             start_w_ghosts[1] -= 1;
         }
@@ -555,7 +556,6 @@ class PETScDecomp : public Communicator<T>
     // PETSc communicator
     DM       da;
     PetscInt xs, ys, zs, xm, ym, zm;
-    PetscInt gxs, gys, gzs, gxm, gym, gzm;
 
     template <typename Ts>
         requires std::is_integral_v<Ts>
@@ -587,7 +587,6 @@ class PETScDecomp : public Communicator<T>
     auto init_loal_sizes()
     {
         DMDAGetCorners(da, &xs, &ys, &zs, &xm, &ym, &zm);
-        DMDAGetGhostCorners(da, &gxs, &gys, &gzs, &gxm, &gym, &gzm);
     }
 
     auto xStart() const
@@ -601,16 +600,45 @@ class PETScDecomp : public Communicator<T>
         return std::array<int, 3>{
             {static_cast<int>(xm), static_cast<int>(ym), static_cast<int>(zm)}};
     }
+    std::array<int, 3> xStartWGhosts() const
+    {
+        std::array<int, 3> start_w_ghosts;
+        auto               physical_start = this->xStart();
+
+        // X-dimension (index 0): Not decomposed in 2D, so no ghost adjustment
+        start_w_ghosts[0] = physical_start[0];
+
+        // Y-dimension (index 1): Check for LEFT neighbor (ghost at start)
+        start_w_ghosts[1] = physical_start[1];
+        if (this->neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
+        {
+            start_w_ghosts[1] -= 1;
+        }
+
+        // Z-dimension (index 2): Check for BOTTOM neighbor (ghost at start)
+        start_w_ghosts[2] = physical_start[2];
+        if (this->neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
+        {
+            start_w_ghosts[2] -= 1;
+        }
+
+        return start_w_ghosts;
+    }
 
     auto dimsWithGhosts() const
     {
-        return std::array<int, 3>{
-            {static_cast<int>(gxm), static_cast<int>(gym), static_cast<int>(gzm)}};
-    }
-    auto xStartWGhosts() const
-    {
-        return std::array<int, 3>{
-            {static_cast<int>(gxs), static_cast<int>(gys), static_cast<int>(gzs)}};
+        std::array<int, 3> GhostDims;
+        auto               qui = this->xSize();
+        GhostDims[0]           = qui[0];
+        GhostDims[1]           = qui[1];
+        GhostDims[2]           = qui[2];
+
+        if (MPI_PROC_NULL != this->neighbors[neighbour_directions::LEFT]) GhostDims[1] += 1;
+        if (MPI_PROC_NULL != this->neighbors[neighbour_directions::RIGHT]) GhostDims[1] += 1;
+        if (MPI_PROC_NULL != this->neighbors[neighbour_directions::TOP]) GhostDims[2] += 1;
+        if (MPI_PROC_NULL != this->neighbors[neighbour_directions::BOTTOM]) GhostDims[2] += 1;
+
+        return GhostDims;
     }
 
     PETScDecomp(PETScDecomp&&)                 = default;
@@ -624,6 +652,7 @@ class PETScDecomp : public Communicator<T>
         PetscScalar*** bAsTens;
         DMDAVecGetArray(da, P_vec, &bAsTens);
 
+        auto [gxs, gys, gzs] = this->xStartWGhosts();
         // Assign using global indexing for PETSc array and local for the
         // numPDE tensor.
         // WARNING Avoid the std::copy_n for the contiguos elements in the x direction, PETSc does
@@ -647,6 +676,7 @@ class PETScDecomp : public Communicator<T>
         PetscScalar*** bAsTens;
         DMDAVecGetArray(da, P_vec, &bAsTens);
 
+        auto [gxs, gys, gzs] = this->xStartWGhosts();
         // Assign using global indexing for PETSc array and local for the
         // numPDE tensor.
         // WARNING Avoid the std::copy_n for the contiguos elements in the x direction, PETSc does
