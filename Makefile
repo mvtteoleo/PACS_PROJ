@@ -31,8 +31,7 @@ TEST_DIR     := tests
 SERIAL_DIR   := $(TEST_DIR)/serial
 PARALLEL_DIR := $(TEST_DIR)/parallel
 BUILD_DIR    := build
-C2DECOMP_DIR := header/my_2Decomp
-#deps/2Decomp_C
+C2DECOMP_DIR := deps/2Decomp_C
 
 # Main target
 EXEC      := main

@@ -2,7 +2,7 @@ import sympy as sp
 import numpy as np
 import matplotlib.pyplot as plt
 
-if 1:
+if False:
     R = 0.5
     sigma = R / 3
     k = 134
@@ -31,15 +31,16 @@ if 1:
     plt.legend()
     plt.show()
 # Symbols
-exit()
 
-if 1:
+if True:
     x, y, z = sp.symbols("x y z", real=True)
     x0, y0, z0 = sp.symbols("x0 y0 z0", real=True)
     R, k = sp.symbols("R k", real=True)
 
     r2 = (x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2
-    f = 0.5 * (1.0 + sp.tanh(k * (r2 - R**2)))
+    # f = 0.5 * (1.0 + sp.tanh(k * (r2 - R**2)))
+
+    f = 3*x**2 *y**2 * (z-1)  #- sp.sin(3*x-y*z)
 
     print("\nLaplacian Δf(x,y,z) =")
     print(sp.pretty(f))
@@ -51,9 +52,6 @@ if 1:
     print("Finished to differentiate")
     print("\nLaplacian Δf(x,y,z) =")
     print(lap_f)
-    u = k*(r2 - R)
-    check = sp.simplify(k*(sp.tanh(u - 1)*sp.tanh(u - 1)) * (4*k*r2 * sp.tanh(u) -3))
-    print("CHECK")
 
     lap_f_simplified = sp.pretty(sp.simplify(lap_f))
 

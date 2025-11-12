@@ -32,13 +32,13 @@ int main(int argc, char* argv[])
 
     numPDE::PressureBC<> bc;
 
-    bc.BC_NORTH                = numPDE::DirHomo;
-    bc.BC_SOUTH                = numPDE::DirHomo;
-    bc.BC_EAST                 = numPDE::DirHomo;
-    bc.BC_WEST                 = numPDE::DirHomo;
-    bc.BC_TOP                  = numPDE::DirHomo;
-    bc.BC_BOTTOM               = numPDE::DirHomo;
-    Real                    Lx = M_PI;
+    bc.BC_NORTH                = numPDE::NeuHomo;
+    bc.BC_SOUTH                = numPDE::NeuHomo;
+    bc.BC_EAST                 = numPDE::NeuHomo;
+    bc.BC_WEST                 = numPDE::NeuHomo;
+    bc.BC_TOP                  = numPDE::NeuHomo;
+    bc.BC_BOTTOM               = numPDE::NeuHomo;
+    Real                    Lx = 1; //2*M_PI;
     Real                    h  = Lx / (nx - 1);
     Real                    Ly = h * (ny - 1), Lz = h * (nz - 1);
     numPDE::Constants<Real> csts;
@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
 
     // List of wave numbers for each harmonic (could be different in x,y,z)
     std::vector<std::tuple<int, int, int>> harmonics = {
-        {1, 1, 1}, {2, 1, 1}, {1, 2, 1}, {1, 1, 2} // Add as many as you like
+        {1, 1, 1} //, {2, 1, 1}, {1, 2, 1}, {1, 1, 2} // Add as many as you like
     };
 
     auto exact_sol_harm = [&](double x, double y, double z) -> Real
@@ -77,8 +77,8 @@ int main(int argc, char* argv[])
         Real sum = 0.0;
         for (auto [wx, wy, wz] : harmonics)
         {
-            sum += scale * std::sin(wx * M_PI * x / Lx) * std::sin(wy * M_PI * y / Ly) *
-                   std::sin(wz * M_PI * z / Lz);
+            sum += scale * std::cos(wx * M_PI * x / Lx) * std::cos(wy * M_PI * y / Ly) *
+                   std::cos(wz * M_PI * z / Lz);
         }
         return sum;
     };
@@ -88,8 +88,8 @@ int main(int argc, char* argv[])
         Real sum = 0.0;
         for (auto [wx, wy, wz] : harmonics)
         {
-            Real u = scale * std::sin(wx * M_PI * x / Lx) * std::sin(wy * M_PI * y / Ly) *
-                     std::sin(wz * M_PI * z / Lz);
+            Real u = scale * std::cos(wx * M_PI * x / Lx) * std::cos(wy * M_PI * y / Ly) *
+                     std::cos(wz * M_PI * z / Lz);
 
             double coeff = -M_PI * M_PI *
                            ((wx * wx) / (Lx * Lx) + (wy * wy) / (Ly * Ly) + (wz * wz) / (Lz * Lz));
@@ -98,8 +98,8 @@ int main(int argc, char* argv[])
         return sum;
     };
 
-    auto exact_sol = exact_sol_harm;
-    auto forcing   = forcing_harm;
+    auto exact_sol =  exact_sol_harm; // exact_sol_poly;//
+    auto forcing   = forcing_harm;    // forcing_poly ; //
 
     for (auto [kp, jp, ip] : P.all_elems())
     {

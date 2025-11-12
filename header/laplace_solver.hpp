@@ -169,9 +169,12 @@ namespace numPDE {
         {
             auto check_pair = [](BC bc1, BC bc2, const std::string& axis) -> BC
             {
-                if (bc1 != NeuHomo or bc1 != DirHomo)
+                if (bc1 != NeuHomo and bc1 != DirHomo)
+                {
                     std::cerr << "The " << std::to_string(bc1)
                               << " is of a type not supported for the FastLaplaceSolver class\n";
+                    return BC::DirHomo;
+                }
 
                 if (bc1 == bc2) return bc1;
                 std::cerr << "Error: Boundary conditions do not match along " << axis

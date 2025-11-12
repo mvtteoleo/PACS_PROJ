@@ -1,3 +1,10 @@
+/*
+ * Nota che ad ora  funziona con DirHomo e  Dirichlet se g_ = 0, il lifting funziona ad ora.
+ * => Solve homogeneus problems and then lift per ora. Deve funzionare...
+ *
+ *
+ *
+ */ 
 #include "../../header/MY_LIB.hpp"
 #include "../../header/decompose.hpp"
 #include "../../header/pvts_writer.hpp"
@@ -65,8 +72,10 @@ namespace numPDE
             KSPSetType(ksp, KSPCG);
 
             KSPSetTolerances(ksp, 1e-10, 1e-10, PETSC_DEFAULT, PETSC_DEFAULT);
-           KSPGetPC(ksp, &pc);
-           PCSetType(pc, PCMG);
+            /*
+            */
+            KSPGetPC(ksp, &pc);
+            PCSetType(pc, PCMG);
 
             KSPSetFromOptions(ksp);
         }
@@ -88,8 +97,31 @@ namespace numPDE
             // Attach nullspace
             if (all_neumann_bc() == true)
             {
+                if(!r_dec.rank())
+                    std::cout << "Nullspace activated\n";
                 MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_TRUE, 0, NULL, &nullspace);
                 MatSetNullSpace(A, nullspace);
+
+            /*
+          // ENSURE COMPATIBILITY: ∫f dΩ = ∫g d∂Ω
+                // For homogeneous Neumann: ∫f dΩ must be 0
+                PetscScalar rhs_sum;
+                VecSum(b, &rhs_sum);
+                
+                PetscInt local_size, global_size;
+                VecGetLocalSize(b, &local_size);
+                VecGetSize(b, &global_size);
+                
+                if (std::abs(rhs_sum) > 1e-12) {
+                    PetscScalar adjustment = -rhs_sum / global_size;
+                    VecShift(b, adjustment);
+                    if (!r_dec.rank()) {
+                        std::cout << "RHS compatibility adjustment: sum was " 
+                                 << rhs_sum << ", adding " << adjustment << " to each point\n";
+                    }
+                }
+                */
+
             }
             KSPSolve(ksp, b, x_h);
         }
@@ -107,7 +139,11 @@ namespace numPDE
         auto update_bc_on_b()
         {
             for (auto side : enum_range<numPDE::SIDES>())
-                if (is_side(side, r_dec)) update_bc_b_impl(side);
+                if (is_side(side, r_dec))
+                {
+                    printf("Uodate bc on side : %d, from rank %d\n", static_cast<int>(side), r_dec.rank());
+                    update_bc_b_impl(side);
+                }
         }
 
         auto update_bc_b_impl(SIDES side)
@@ -116,10 +152,12 @@ namespace numPDE
             auto [xm, ym, zm]        = r_dec.xSize();
             const auto& [nx, ny, nz] = r_dec.get_global_sizes();
             BC                               bc{};
-            typename PressureBC<T>::Function fun = nullptr;
+            typename PressureBC<T>::Function fun;
 
+            printf("Updating SIDE impl\n");
             if (side == SIDES::NORTH)
             {
+
                 xs  = nx - 1;
                 xm  = 1;
                 bc  = r_BCs.BC_NORTH;
@@ -162,11 +200,17 @@ namespace numPDE
             }
             if (bc == DirHomo or bc == NeuHomo)
             {
+                if(!r_dec.rank())
+                    printf("\tHomogeneus bcs\n");
+
                 constexpr auto f_0 = [](std::vector<T> const& pos) -> T { return 0; };
                 set_fun_on_bounds(xs, xm, ys, ym, zs, zm, f_0);
             }
             else if (bc == Dirichlet or bc == Neumann)
             {
+                if(!r_dec.rank())
+                    printf("\tNon homo bcs\n");
+
                 set_fun_on_bounds(xs, xm, ys, ym, zs, zm, fun);
             }
             else if (!r_dec.rank())
@@ -183,7 +227,7 @@ namespace numPDE
                     {
                         // OT debacle
                         using IT         = typename PressureBC<T>::input_type;
-                        auto pos         = IT{i * r_const.h, j * r_const.h, k * r_const.h, 0};
+                        auto pos         = IT{i * r_const.h, j * r_const.h, k * r_const.h};
                         bAsTens[k][j][i] = static_cast<PetscScalar>(fun(pos) );
                     }
 
@@ -280,7 +324,7 @@ namespace numPDE
                         col[0].j = j;
                         col[0].k = k;
                         // Insert the row (either 1-point BC or 7-point stencil)
-                        MatSetValuesStencil(A, 1, &row, n, col, v, INSERT_VALUES);
+                        MatSetValuesStencil(this->A, 1, &row, n, col, v, INSERT_VALUES);
                     }
         }
         /*
@@ -298,8 +342,8 @@ namespace numPDE
                     {
 
                         constexpr int n = 2;
-                        PetscScalar   v[n]; // Use one array, max size is 7
-                        v[0] = 1.;
+                        PetscScalar   v[n];
+                        v[0] = 1.0;
                         v[1] = -1.0;
                         MatStencil row, col[n];
                         row.c = 0;
@@ -316,7 +360,7 @@ namespace numPDE
                         col[1].j = j + j_1;
                         col[1].k = k + k_1;
 
-                        MatSetValuesStencil(A, 1, &row, n, col, v, INSERT_VALUES);
+                        MatSetValuesStencil(this->A, 1, &row, n, col, v, INSERT_VALUES);
                     }
         }
 
@@ -325,6 +369,7 @@ namespace numPDE
          */
         auto build_int_A()
         {
+            const T inv_h2 = 1.0 / (r_const.h * r_const.h);
             PetscInt    ip{}, jp{}, kp{};
             PetscScalar v[7]; // Use one array, max size is 7
             MatStencil  row, col[7];
@@ -355,43 +400,43 @@ namespace numPDE
                             row.k      = kp;
 
                             // Center
-                            v[n]     = -6.0;
+                            v[n]     = -6.0 * inv_h2;
                             col[n].i = ip;
                             col[n].j = jp;
                             col[n].k = kp;
                             n++;
 
-                            v[n]     = 1.0;
+                            v[n]     = 1.0* inv_h2;
                             col[n].i = ip - 1;
                             col[n].j = jp;
                             col[n].k = kp;
                             n++;
 
-                            v[n]     = 1.0;
+                            v[n]     = 1.0* inv_h2;
                             col[n].i = ip + 1;
                             col[n].j = jp;
                             col[n].k = kp;
                             n++;
 
-                            v[n]     = 1.0;
+                            v[n]     = 1.0* inv_h2;
                             col[n].i = ip;
                             col[n].j = jp - 1;
                             col[n].k = kp;
                             n++;
 
-                            v[n]     = 1.0;
+                            v[n]     = 1.0* inv_h2;
                             col[n].i = ip;
                             col[n].j = jp + 1;
                             col[n].k = kp;
                             n++;
 
-                            v[n]     = 1.0;
+                            v[n]     = 1.0* inv_h2;
                             col[n].i = ip;
                             col[n].j = jp;
                             col[n].k = kp - 1;
                             n++;
 
-                            v[n]     = 1.0;
+                            v[n]     = 1.0* inv_h2;
                             col[n].i = ip;
                             col[n].j = jp;
                             col[n].k = kp + 1;
@@ -433,7 +478,7 @@ int main(int argc, char** argv)
     if (N < 2) N = 8;
     std::size_t nx = N, ny = N, nz = N;
 
-    Real L = std::numbers::pi;
+    Real L = 1; //*std::numbers::pi;
     Real h = L / (nx - 1);
 
     // ----------------------------------------------------------
@@ -457,9 +502,9 @@ int main(int argc, char** argv)
     const auto& [xs, ys, zs]    = decomp.xStart();
     const auto& [xm, ym, zm]    = decomp.xSize();
 
-    auto P   = numPDE::make_scalar_field<Real, N_DIMS>(sizeWG);
-    auto f   = P;
-    auto P_h = P;
+    auto P_ex   = numPDE::make_scalar_field<Real, N_DIMS>(sizeWG);
+    auto f   = P_ex;
+    auto P_h = P_ex;
 
     std::random_device rd;
     std::mt19937       gen(rd());
@@ -467,72 +512,100 @@ int main(int argc, char** argv)
     std::uniform_real_distribution<Real> dist(-1e-3, +1e-3);
 
     auto Lx = L, Ly = L, Lz = L;
-    auto exact_sol_poly = [=](double x, double y, double z) -> Real
-    {
-        double Ax = x * x - Lx * x;
-        double By = y * y - Ly * y;
-        double Cz = z * z - Lz * z;
+    using FunType = numPDE::PressureBC<>::Function;
+
+    // Polynomial exact solution
+    FunType exact_sol_poly = [=](const std::vector<Real>& pos) -> Real {
+        Real x = pos[0], y = pos[1], z = pos[2];
+        Real Ax = x * x - Lx * x;
+        Real By = y * y - Ly * y;
+        Real Cz = z * z - Lz * z;
         return Ax * By * Cz ;
     };
 
-    auto forcing_poly = [=](double x, double y, double z) -> Real
-    {
-        double Ax = x * x - Lx * x;
-        double By = y * y - Ly * y;
-        double Cz = z * z - Lz * z;
+    // Corresponding forcing term
+    FunType forcing_poly = [=](const std::vector<Real>& pos) -> Real {
+        Real x = pos[0], y = pos[1], z = pos[2];
+        Real Ax = x * x - Lx * x;
+        Real By = y * y - Ly * y;
+        Real Cz = z * z - Lz * z;
         return 2.0 * (By * Cz + Ax * Cz + Ax * By);
     };
-    auto u_ex = [](std::vector<Real>& pos) -> Real
-    { return std::cos(pos[0]) * std::cos(pos[1]) * std::cos(pos[2]); };
 
-    auto forc = [&u_ex](std::vector<Real>& pos) -> Real { return -3 * u_ex(pos); };
+    // Cosine-based exact solution
+    FunType u_ex_harm= [](const std::vector<Real>& pos) -> Real {
+        return std::cos(pos[0]) * std::cos(pos[1]) * std::cos(pos[2]);
+    };
 
+    // Corresponding forcing term
+    FunType forc_harm = [&u_ex_harm](const std::vector<Real>& pos) -> Real {
+        return -3 * u_ex_harm(pos);
+    };
+
+    // Generic manufactured solution (example)
+    FunType uex_GenDir = [](const std::vector<Real>& pos) -> Real {
+        Real x = pos[0], y = pos[1], z = pos[2];
+        return 3 * x * x;
+    };
+
+    // Corresponding Laplacian or forcing term
+    FunType forc_GenDir = [](const std::vector<Real>& pos) -> Real {
+        (void)pos; // silence unused var warning if not used
+        return 6;
+    };
+
+
+    auto u_ex = exact_sol_poly;
+    auto forc = forcing_poly; 
     // Initialize the velocity field
-    for (auto [k, j, i] : P.all_elems())
+    for (auto [k, j, i] : P_ex.all_elems())
     {
         Real              x   = h * static_cast<Real>(i + gxs);
         Real              y   = h * static_cast<Real>(j + gys);
         Real              z   = h * static_cast<Real>(k + gzs);
         std::vector<Real> pos = {x, y, z};
-        P(i, j, k)            =  exact_sol_poly(x, y, z); // u_ex(pos);//
-        f(i, j, k)            =  forcing_poly(x, y, z);   // forc(pos);//
+        P_ex(i, j, k)            = u_ex(pos);//  
+        f(i, j, k)               = forc(pos);//  
     }
 
-    decomp.exchange_ghosts(P);
+    decomp.exchange_ghosts(P_ex);
 
     // ----------------------------------------------------------
     // 4. Create system: ∇² u = f
     // ----------------------------------------------------------
     numPDE::PressureBC<Real> Bcs;
-    auto                     g_ = [](std::vector<Real> const& pos) -> Real { return 1.; };
+    auto&                     g_ = u_ex; //[](std::vector<Real> const& pos) -> Real { return 0.1; };
     Bcs.g_north                 = g_;
     Bcs.g_south                 = g_;
     Bcs.g_east                  = g_;
     Bcs.g_west                  = g_;
     Bcs.g_top                   = g_;
     Bcs.g_bottom                = g_;
-    Bcs.BC_NORTH  = numPDE::DirHomo;
-    Bcs.BC_SOUTH  = numPDE::DirHomo;
-    Bcs.BC_EAST   = numPDE::DirHomo;
-    Bcs.BC_WEST   = numPDE::DirHomo;
-    Bcs.BC_TOP    = numPDE::DirHomo;
-    Bcs.BC_BOTTOM = numPDE::DirHomo;
+    Bcs.BC_NORTH  = numPDE::Dirichlet;
+    Bcs.BC_SOUTH  = numPDE::Dirichlet;
+    Bcs.BC_EAST   = numPDE::Dirichlet;
+    Bcs.BC_WEST   = numPDE::Dirichlet;
+    Bcs.BC_TOP    = numPDE::Dirichlet;
+    Bcs.BC_BOTTOM = numPDE::Dirichlet;
 
     numPDE::Constants<Real>       constants;
-    numPDE::MGLaplaceSolver<Real> mg(decomp, Bcs, constants);
-    f = f * h*h;
-    mg.solve(f);
-    decomp.PETScVec_to_tensor(mg.x_h, P_h);
+    constants.h = h;
 
-    P = P_h - P;
-    writer.write(P, "output/sol", h);
+    numPDE::MGLaplaceSolver<Real> mg(decomp, Bcs, constants);
+
+    myUtilities::ChronoTimer time("Solve time");
+    mg.solve(f);
+    if(!decomp.rank())
+        time.print_time();
+
+    decomp.PETScVec_to_tensor(mg.x_h, P_h);
 
     Real max_err = 0.0;
     Real L2err   = 0.0;
 
-    for (auto [k, j, i] : P.int_elems())
+    for (auto [k, j, i] : P_ex.int_elems())
     {
-        const Real abs_err = std::abs(P(i, j, k) - P_h(i, j, k));
+        const Real abs_err = std::abs(P_ex(i, j, k) - P_h(i, j, k));
         L2err += abs_err * abs_err; // accumulate squared error
         if (abs_err > max_err)
         {
@@ -557,6 +630,10 @@ int main(int argc, char** argv)
         std::cout << "L2  err  " << std::scientific << std::setprecision(4) << glob_L2 << "\n";
     }
 
+    writer.write(P_h, "output/p_h", h);
+    writer.write(P_ex, "output/p_ex", h);
+    P_ex = P_h - P_ex;
+    writer.write(P_ex, "output/diff", h);
     Vec residual;
     VecDuplicate(mg.b, &residual);
     MatMult(mg.A, mg.x_h, residual);

@@ -8,8 +8,7 @@
 #include <iostream>
 #include <memory.h>
 #include <string>
-
-using namespace ::std;
+using std::string, std::cout, std::min, std::max, std::endl;
 
 class C2Decomp
 {
@@ -30,14 +29,14 @@ class C2Decomp
     // parameters for 2D Cartesian Topology
     int dims[2], coord[2];
     int periodic[2];
+    // Defining neighboring blocks
+    int neighbor[3][6];
 
   public:
     MPI_Comm DECOMP_2D_COMM_CART_X, DECOMP_2D_COMM_CART_Y, DECOMP_2D_COMM_CART_Z;
     MPI_Comm DECOMP_2D_COMM_ROW, DECOMP_2D_COMM_COL;
 
   private:
-    // Defining neighboring blocks
-    int neighbor[3][6];
     // Flags for periodic condition in 3D
     bool periodicX, periodicY, periodicZ;
 
