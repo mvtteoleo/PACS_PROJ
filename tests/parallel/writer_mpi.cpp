@@ -32,7 +32,7 @@ int main(int argc, char* argv[])
     std::size_t nx = 4, ny = N, nz = N;
 
     /*
-    */
+     */
     NewDecomp<> decomp(argc, argv);
 
     decomp.initialize_decomp(nx, ny, nz);
@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
 
     field.fill_val(decomp.rank());
     decomp.exchange_ghosts(field);
-        VTKStructuredWriter<NewDecomp<>, numPDE::Tensor<double, 3, 3>> writer(decomp);
+    VTKStructuredWriter<NewDecomp<>, numPDE::Tensor<double, 3, 3>> writer(decomp);
     // VTKStructuredWriter<PETScDecomp<>, numPDE::Tensor<double, 3, 3>> writer(decomp);
     writer.write(field, "output/field", 1);
 

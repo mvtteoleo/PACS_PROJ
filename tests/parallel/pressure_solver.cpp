@@ -38,7 +38,7 @@ int main(int argc, char* argv[])
     bc.BC_WEST                 = numPDE::NeuHomo;
     bc.BC_TOP                  = numPDE::NeuHomo;
     bc.BC_BOTTOM               = numPDE::NeuHomo;
-    Real                    Lx = 1; //2*M_PI;
+    Real                    Lx = 1; // 2*M_PI;
     Real                    h  = Lx / (nx - 1);
     Real                    Ly = h * (ny - 1), Lz = h * (nz - 1);
     numPDE::Constants<Real> csts;
@@ -98,8 +98,8 @@ int main(int argc, char* argv[])
         return sum;
     };
 
-    auto exact_sol =  exact_sol_harm; // exact_sol_poly;//
-    auto forcing   = forcing_harm;    // forcing_poly ; //
+    auto exact_sol = exact_sol_harm; // exact_sol_poly;//
+    auto forcing   = forcing_harm;   // forcing_poly ; //
 
     for (auto [kp, jp, ip] : P.all_elems())
     {

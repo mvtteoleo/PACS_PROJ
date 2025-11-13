@@ -4,7 +4,7 @@
  *
  *
  *
- */ 
+ */
 #include "../../header/MY_LIB.hpp"
 #include "../../header/decompose.hpp"
 #include "../../header/pvts_writer.hpp"
@@ -22,6 +22,7 @@
 #include <petscvec.h>
 #include <random>
 #include <vector>
+bool VERBOOSE = false;
 
 #if 0
 int main (int argc, char *argv[]) {
@@ -67,17 +68,17 @@ namespace numPDE
             apply_bc_to_A();
             MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
             MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
-            KSPCreate(PETSC_COMM_WORLD, &ksp);
-            KSPSetOperators(ksp, A, A);
-            KSPSetType(ksp, KSPCG);
-
-            KSPSetTolerances(ksp, 1e-10, 1e-10, PETSC_DEFAULT, PETSC_DEFAULT);
-            /*
-            */
-            KSPGetPC(ksp, &pc);
-            PCSetType(pc, PCMG);
-
-            KSPSetFromOptions(ksp);
+                KSPCreate(PETSC_COMM_WORLD, &ksp);
+                KSPSetOperators(ksp, A, A);
+            if (this->MG_solver)
+            {
+                KSPGetPC(ksp, &pc);
+                PCSetType(pc, PCGAMG);
+                KSPSetType(ksp, KSPCG);
+                KSPSetTolerances(ksp, 1e-10, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);
+                KSPSetFromOptions(ksp);
+                KSPSetUp(ksp);
+            }
         }
 
         auto apply_bc_to_A()
@@ -90,38 +91,27 @@ namespace numPDE
         auto solve(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
         {
             r_dec.tensor_to_PETScVec(b_t, this->b);
+            //             if constexpr (NEEDS_UPDATE_BC == true)
+            //             {
+            //                 update_bc_on_b();
+            //                 VecAssemblyBegin(b);
+            //                 VecAssemblyEnd(b);
+            //             }
             if constexpr (NEEDS_UPDATE_BC == true)
             {
+                // 2️⃣ Apply BCs
                 update_bc_on_b();
+
+                // 3️⃣ Assemble
+                VecAssemblyBegin(b);
+                VecAssemblyEnd(b);
             }
             // Attach nullspace
             if (all_neumann_bc() == true)
             {
-                if(!r_dec.rank())
-                    std::cout << "Nullspace activated\n";
+                if (!r_dec.rank()) std::cout << "Nullspace activated\n";
                 MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_TRUE, 0, NULL, &nullspace);
                 MatSetNullSpace(A, nullspace);
-
-            /*
-          // ENSURE COMPATIBILITY: ∫f dΩ = ∫g d∂Ω
-                // For homogeneous Neumann: ∫f dΩ must be 0
-                PetscScalar rhs_sum;
-                VecSum(b, &rhs_sum);
-                
-                PetscInt local_size, global_size;
-                VecGetLocalSize(b, &local_size);
-                VecGetSize(b, &global_size);
-                
-                if (std::abs(rhs_sum) > 1e-12) {
-                    PetscScalar adjustment = -rhs_sum / global_size;
-                    VecShift(b, adjustment);
-                    if (!r_dec.rank()) {
-                        std::cout << "RHS compatibility adjustment: sum was " 
-                                 << rhs_sum << ", adding " << adjustment << " to each point\n";
-                    }
-                }
-                */
-
             }
             KSPSolve(ksp, b, x_h);
         }
@@ -141,7 +131,6 @@ namespace numPDE
             for (auto side : enum_range<numPDE::SIDES>())
                 if (is_side(side, r_dec))
                 {
-                    printf("Uodate bc on side : %d, from rank %d\n", static_cast<int>(side), r_dec.rank());
                     update_bc_b_impl(side);
                 }
         }
@@ -152,9 +141,8 @@ namespace numPDE
             auto [xm, ym, zm]        = r_dec.xSize();
             const auto& [nx, ny, nz] = r_dec.get_global_sizes();
             BC                               bc{};
-            typename PressureBC<T>::Function fun;
+            typename PressureBC<T>::Function fun{};
 
-            printf("Updating SIDE impl\n");
             if (side == SIDES::NORTH)
             {
 
@@ -200,17 +188,11 @@ namespace numPDE
             }
             if (bc == DirHomo or bc == NeuHomo)
             {
-                if(!r_dec.rank())
-                    printf("\tHomogeneus bcs\n");
-
                 constexpr auto f_0 = [](std::vector<T> const& pos) -> T { return 0; };
                 set_fun_on_bounds(xs, xm, ys, ym, zs, zm, f_0);
             }
             else if (bc == Dirichlet or bc == Neumann)
             {
-                if(!r_dec.rank())
-                    printf("\tNon homo bcs\n");
-
                 set_fun_on_bounds(xs, xm, ys, ym, zs, zm, fun);
             }
             else if (!r_dec.rank())
@@ -228,7 +210,7 @@ namespace numPDE
                         // OT debacle
                         using IT         = typename PressureBC<T>::input_type;
                         auto pos         = IT{i * r_const.h, j * r_const.h, k * r_const.h};
-                        bAsTens[k][j][i] = static_cast<PetscScalar>(fun(pos) );
+                        bAsTens[k][j][i] = static_cast<PetscScalar>(fun(pos));
                     }
 
             DMDAVecRestoreArray(r_dec.da, this->b, &bAsTens);
@@ -240,7 +222,7 @@ namespace numPDE
             auto [xm, ym, zm]        = r_dec.xSize();
             const auto& [nx, ny, nz] = r_dec.get_global_sizes();
             BC                      bc{};
-            std::array<PetscInt, 6> stencil = {0, 0, 0, 0, 0, 0};
+            std::array<PetscInt, 6> stencil      = {0, 0, 0, 0, 0, 0};
             auto& [i_1, j_1, k_1, i_2, j_2, k_2] = stencil;
 
             if (side == SIDES::NORTH)
@@ -323,7 +305,6 @@ namespace numPDE
                         col[0].i = i;
                         col[0].j = j;
                         col[0].k = k;
-                        // Insert the row (either 1-point BC or 7-point stencil)
                         MatSetValuesStencil(this->A, 1, &row, n, col, v, INSERT_VALUES);
                     }
         }
@@ -332,7 +313,7 @@ namespace numPDE
          * of the II order => Third order accurate Neumann BCs
          */
         auto neumann_on_A(PetscInt xs_, PetscInt xm_, PetscInt ys_, PetscInt ym_, PetscInt zs_,
-                          PetscInt zm_, std::array<PetscInt, 6> &stencil)
+                          PetscInt zm_, std::array<PetscInt, 6>& stencil)
         {
             const auto& [i_1, j_1, k_1, i_2, j_2, k_2] = stencil;
 
@@ -369,7 +350,7 @@ namespace numPDE
          */
         auto build_int_A()
         {
-            const T inv_h2 = 1.0 / (r_const.h * r_const.h);
+            const T     inv_h2 = 1.0 / (r_const.h * r_const.h);
             PetscInt    ip{}, jp{}, kp{};
             PetscScalar v[7]; // Use one array, max size is 7
             MatStencil  row, col[7];
@@ -406,37 +387,37 @@ namespace numPDE
                             col[n].k = kp;
                             n++;
 
-                            v[n]     = 1.0* inv_h2;
+                            v[n]     = 1.0 * inv_h2;
                             col[n].i = ip - 1;
                             col[n].j = jp;
                             col[n].k = kp;
                             n++;
 
-                            v[n]     = 1.0* inv_h2;
+                            v[n]     = 1.0 * inv_h2;
                             col[n].i = ip + 1;
                             col[n].j = jp;
                             col[n].k = kp;
                             n++;
 
-                            v[n]     = 1.0* inv_h2;
+                            v[n]     = 1.0 * inv_h2;
                             col[n].i = ip;
                             col[n].j = jp - 1;
                             col[n].k = kp;
                             n++;
 
-                            v[n]     = 1.0* inv_h2;
+                            v[n]     = 1.0 * inv_h2;
                             col[n].i = ip;
                             col[n].j = jp + 1;
                             col[n].k = kp;
                             n++;
 
-                            v[n]     = 1.0* inv_h2;
+                            v[n]     = 1.0 * inv_h2;
                             col[n].i = ip;
                             col[n].j = jp;
                             col[n].k = kp - 1;
                             n++;
 
-                            v[n]     = 1.0* inv_h2;
+                            v[n]     = 1.0 * inv_h2;
                             col[n].i = ip;
                             col[n].j = jp;
                             col[n].k = kp + 1;
@@ -459,6 +440,7 @@ namespace numPDE
         KSP          ksp;
         PC           pc;
         MatNullSpace nullspace{};
+        bool MG_solver{false};
     };
 }; // namespace numPDE
 
@@ -478,7 +460,7 @@ int main(int argc, char** argv)
     if (N < 2) N = 8;
     std::size_t nx = N, ny = N, nz = N;
 
-    Real L = 1; //*std::numbers::pi;
+    Real L = 1 * std::numbers::pi;
     Real h = L / (nx - 1);
 
     // ----------------------------------------------------------
@@ -497,14 +479,15 @@ int main(int argc, char** argv)
 
     std::array<int, 3> sizeWG{decomp.dimsWithGhosts()};
     std::array<int, 3> size{decomp.xSize()};
+
     const auto& [gxs, gys, gzs] = xStartWG;
     const auto& [gxm, gym, gzm] = sizeWG;
     const auto& [xs, ys, zs]    = decomp.xStart();
     const auto& [xm, ym, zm]    = decomp.xSize();
 
-    auto P_ex   = numPDE::make_scalar_field<Real, N_DIMS>(sizeWG);
-    auto f   = P_ex;
-    auto P_h = P_ex;
+    auto P_ex = numPDE::make_scalar_field<Real, N_DIMS>(sizeWG);
+    auto f    = P_ex;
+    auto P_h  = P_ex;
 
     std::random_device rd;
     std::mt19937       gen(rd());
@@ -515,16 +498,18 @@ int main(int argc, char** argv)
     using FunType = numPDE::PressureBC<>::Function;
 
     // Polynomial exact solution
-    FunType exact_sol_poly = [=](const std::vector<Real>& pos) -> Real {
+    FunType exact_sol_poly = [=](const std::vector<Real>& pos) -> Real
+    {
         Real x = pos[0], y = pos[1], z = pos[2];
         Real Ax = x * x - Lx * x;
         Real By = y * y - Ly * y;
         Real Cz = z * z - Lz * z;
-        return Ax * By * Cz ;
+        return Ax * By * Cz + 1;
     };
 
     // Corresponding forcing term
-    FunType forcing_poly = [=](const std::vector<Real>& pos) -> Real {
+    FunType forcing_poly = [=](const std::vector<Real>& pos) -> Real
+    {
         Real x = pos[0], y = pos[1], z = pos[2];
         Real Ax = x * x - Lx * x;
         Real By = y * y - Ly * y;
@@ -533,30 +518,29 @@ int main(int argc, char** argv)
     };
 
     // Cosine-based exact solution
-    FunType u_ex_harm= [](const std::vector<Real>& pos) -> Real {
-        return std::cos(pos[0]) * std::cos(pos[1]) * std::cos(pos[2]);
-    };
+    FunType u_ex_harm = [](const std::vector<Real>& pos) -> Real
+    { return std::cos(pos[0]) * std::cos(pos[1]) * std::cos(pos[2]); };
 
     // Corresponding forcing term
-    FunType forc_harm = [&u_ex_harm](const std::vector<Real>& pos) -> Real {
-        return -3 * u_ex_harm(pos);
-    };
+    FunType forc_harm = [&u_ex_harm](const std::vector<Real>& pos) -> Real
+    { return -3 * u_ex_harm(pos); };
 
     // Generic manufactured solution (example)
-    FunType uex_GenDir = [](const std::vector<Real>& pos) -> Real {
+    FunType uex_GenDir = [](const std::vector<Real>& pos) -> Real
+    {
         Real x = pos[0], y = pos[1], z = pos[2];
-        return 3 * x * x;
+        return x * x + y * y + z * z;
     };
 
     // Corresponding Laplacian or forcing term
-    FunType forc_GenDir = [](const std::vector<Real>& pos) -> Real {
-        (void)pos; // silence unused var warning if not used
+    FunType forc_GenDir = [](const std::vector<Real>& pos) -> Real
+    {
+        (void) pos; // silence unused var warning if not used
         return 6;
     };
 
-
-    auto u_ex = exact_sol_poly;
-    auto forc = forcing_poly; 
+    auto u_ex =u_ex_harm;  // exact_sol_poly; // uex_GenDir;  //
+    auto forc =forc_harm; // forcing_poly;   // forc_GenDir; //
     // Initialize the velocity field
     for (auto [k, j, i] : P_ex.all_elems())
     {
@@ -564,8 +548,8 @@ int main(int argc, char** argv)
         Real              y   = h * static_cast<Real>(j + gys);
         Real              z   = h * static_cast<Real>(k + gzs);
         std::vector<Real> pos = {x, y, z};
-        P_ex(i, j, k)            = u_ex(pos);//  
-        f(i, j, k)               = forc(pos);//  
+        P_ex(i, j, k)         = u_ex(pos); //
+        f(i, j, k)            = forc(pos); //
     }
 
     decomp.exchange_ghosts(P_ex);
@@ -574,31 +558,53 @@ int main(int argc, char** argv)
     // 4. Create system: ∇² u = f
     // ----------------------------------------------------------
     numPDE::PressureBC<Real> Bcs;
-    auto&                     g_ = u_ex; //[](std::vector<Real> const& pos) -> Real { return 0.1; };
+    auto&                    g_ = u_ex; //[](std::vector<Real> const& pos) -> Real { return 0.1; };
     Bcs.g_north                 = g_;
     Bcs.g_south                 = g_;
     Bcs.g_east                  = g_;
     Bcs.g_west                  = g_;
     Bcs.g_top                   = g_;
     Bcs.g_bottom                = g_;
-    Bcs.BC_NORTH  = numPDE::Dirichlet;
-    Bcs.BC_SOUTH  = numPDE::Dirichlet;
-    Bcs.BC_EAST   = numPDE::Dirichlet;
-    Bcs.BC_WEST   = numPDE::Dirichlet;
-    Bcs.BC_TOP    = numPDE::Dirichlet;
-    Bcs.BC_BOTTOM = numPDE::Dirichlet;
+    Bcs.BC_NORTH                = numPDE::NeuHomo;
+    Bcs.BC_SOUTH                = numPDE::NeuHomo;
+    Bcs.BC_EAST                 = numPDE::NeuHomo;
+    Bcs.BC_WEST                 = numPDE::NeuHomo;
+    Bcs.BC_TOP                  = numPDE::NeuHomo;
+    Bcs.BC_BOTTOM               = numPDE::NeuHomo;
 
-    numPDE::Constants<Real>       constants;
+    numPDE::Constants<Real> constants;
     constants.h = h;
 
     numPDE::MGLaplaceSolver<Real> mg(decomp, Bcs, constants);
 
     myUtilities::ChronoTimer time("Solve time");
+
     mg.solve(f);
-    if(!decomp.rank())
-        time.print_time();
+    if (VERBOOSE)
+    {
+        std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << std::endl;
+        MatView(mg.A, PETSC_VIEWER_STDOUT_WORLD);
+        std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << std::endl;
+        VecView(mg.b, PETSC_VIEWER_STDOUT_WORLD);
+        std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << std::endl;
+        VecView(mg.x_h, PETSC_VIEWER_STDOUT_WORLD);
+        std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << std::endl;
+    }
+    if (!decomp.rank()) time.print_time();
 
     decomp.PETScVec_to_tensor(mg.x_h, P_h);
+
+    if (VERBOOSE)
+        for (auto i : P_h.all_linear_elements())
+            std::cout << P_h[i] << "\n";
 
     Real max_err = 0.0;
     Real L2err   = 0.0;

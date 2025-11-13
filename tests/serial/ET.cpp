@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
 
     /*
      */
-    numPDE::MyVec<Real>          test({1, 1, 1});
+    numPDE::MyVec<Real>        test({1, 1, 1});
     numPDE::Tensor<Real, 3, 3> S;
     numPDE::Tensor<Real, 4, 3> V(
         [&]
