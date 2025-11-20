@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<VTKFile type="PStructuredGrid" version="0.1" byte_order="LittleEndian">
+  <PStructuredGrid WholeExtent="0 99 0 99 0 99"
+                   GhostLevel="1">
+    <PPoints>
+      <PDataArray type="Float32" NumberOfComponents="3"/>
+    </PPoints>
+    <PPointData Scalars="scalar">
+      <PDataArray Name="scalar" type="Float32"/>
+    </PPointData>
+    <Piece Extent="0 99 0 34 0 50" Source="p_ex_0000.vts"/>
+    <Piece Extent="0 99 33 67 0 50" Source="p_ex_0001.vts"/>
+    <Piece Extent="0 99 66 99 0 50" Source="p_ex_0002.vts"/>
+    <Piece Extent="0 99 0 34 49 99" Source="p_ex_0003.vts"/>
+    <Piece Extent="0 99 33 67 49 99" Source="p_ex_0004.vts"/>
+    <Piece Extent="0 99 66 99 49 99" Source="p_ex_0005.vts"/>
+  </PStructuredGrid>
+</VTKFile>

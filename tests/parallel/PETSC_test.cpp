@@ -22,7 +22,7 @@
 #include <petscvec.h>
 #include <random>
 #include <vector>
-bool VERBOOSE = false;
+bool VERBOOSE = true;
 
 #if 0
 int main (int argc, char *argv[]) {
@@ -47,7 +47,8 @@ namespace numPDE
         {
 
             // this->build_local_dm();
-            DM& r_da = r_dec.da;
+            // DM& r_da = r_dec.da;
+            DM& r_da = this->da;
             DMCreateMatrix(r_da, &A);
             DMCreateGlobalVector(r_da, &x_h);
             DMCreateGlobalVector(r_da, &b);
@@ -284,7 +285,6 @@ namespace numPDE
 
             if (bc == DirHomo or bc == Dirichlet)
             {
-                dirich_on_A(xs, xm, ys, ym, zs, zm);
             }
             else if (bc == NeuHomo or bc == Neumann)
             {
@@ -294,28 +294,6 @@ namespace numPDE
                 std::cerr << "The BC for the MGLaplace solver are not compatible \n";
         }
 
-        auto dirich_on_A(PetscInt xs_, PetscInt xm_, PetscInt ys_, PetscInt ym_, PetscInt zs_,
-                         PetscInt zm_)
-        {
-            for (PetscInt k = zs_; k < zs_ + zm_; ++k)
-                for (PetscInt j = ys_; j < ys_ + ym_; ++j)
-                    for (PetscInt i = xs_; i < xs_ + xm_; ++i)
-                    {
-
-                        constexpr PetscInt n    = 1;
-                        PetscScalar        v[n] = {1.0};
-                        MatStencil         row, col[n];
-                        row.c = 0;
-                        row.i = i;
-                        row.j = j;
-                        row.k = k;
-
-                        col[0].i = i;
-                        col[0].j = j;
-                        col[0].k = k;
-                        MatSetValuesStencil(this->A, 1, &row, n, col, v, INSERT_VALUES);
-                    }
-        }
         /*
          * Modify the A matrix in order to impose the Neumann BCs with a polynomial shape function
          * of the II order => Third order accurate Neumann BCs
@@ -355,86 +333,93 @@ namespace numPDE
         }
 
         /*
-         * Builds the "internal" part of the linear system
+         * Builds the "internal" part of the linear system.
          */
         auto build_int_A()
         {
-            const T     inv_h2 = 1.0 / (r_const.h * r_const.h);
+            constexpr T inv_h2 = 1.0; // (r_const.h * r_const.h);
             PetscInt    ip{}, jp{}, kp{};
             PetscScalar v[7]; // Use one array, max size is 7
             MatStencil  row, col[7];
-            row.c                    = 0;
-            const auto& [xs, ys, zs] = r_dec.xStart();
-            const auto& [xm, ym, zm] = r_dec.xSize();
+            row.c = 0;
 
-            const auto& [gxs, gys, gzs] = r_dec.xStartWGhosts();
-            const auto& [gxm, gym, gzm] = r_dec.dimsWithGhosts();
-
+            // Build it from the "small" dmda directly.
+            PetscInt xs, ys, zs, xm, ym, zm;
+            DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
             const auto& [nx, ny, nz] = r_dec.get_global_sizes();
 
             for (kp = zs; kp < zs + zm; kp++)
                 for (jp = ys; jp < ys + ym; jp++)
                     for (ip = xs; ip < xs + xm; ip++)
                     {
-                        if (ip == 0 || ip == nx - 1 || jp == 0 || jp == ny - 1 || kp == 0 ||
-                            kp == nz - 1)
+                        PetscInt n = 0;
+                        row.i      = ip;
+                        row.j      = jp;
+                        row.k      = kp;
+
+                        // Center
+                        v[n]     = -6.0 * inv_h2;
+                        col[n].i = ip;
+                        col[n].j = jp;
+                        col[n].k = kp;
+                        n++;
+
+                        if (ip > 0)
                         {
-
-                            continue;
-                        }
-                        else
-                        {
-                            PetscInt n = 0;
-                            row.i      = ip;
-                            row.j      = jp;
-                            row.k      = kp;
-
-                            // Center
-                            v[n]     = -6.0 * inv_h2;
-                            col[n].i = ip;
-                            col[n].j = jp;
-                            col[n].k = kp;
-                            n++;
-
                             v[n]     = 1.0 * inv_h2;
                             col[n].i = ip - 1;
                             col[n].j = jp;
                             col[n].k = kp;
                             n++;
+                        }
 
+                        if (ip < nx - 2)
+                        {
                             v[n]     = 1.0 * inv_h2;
                             col[n].i = ip + 1;
                             col[n].j = jp;
                             col[n].k = kp;
                             n++;
+                        }
 
+                        if (jp > 0)
+                        {
                             v[n]     = 1.0 * inv_h2;
                             col[n].i = ip;
                             col[n].j = jp - 1;
                             col[n].k = kp;
                             n++;
+                        }
 
+                        if (jp < ny - 2)
+                        {
                             v[n]     = 1.0 * inv_h2;
                             col[n].i = ip;
                             col[n].j = jp + 1;
                             col[n].k = kp;
                             n++;
+                        }
 
+                        if (kp > 0)
+                        {
                             v[n]     = 1.0 * inv_h2;
                             col[n].i = ip;
                             col[n].j = jp;
                             col[n].k = kp - 1;
                             n++;
+                        }
 
+                        if (kp < nz - 2)
+                        {
                             v[n]     = 1.0 * inv_h2;
                             col[n].i = ip;
                             col[n].j = jp;
                             col[n].k = kp + 1;
                             n++;
-
-                            // Insert the row (either 1-point BC or 7-point stencil)
-                            MatSetValuesStencil(A, 1, &row, n, col, v, INSERT_VALUES);
                         }
+
+                        // Insert the row (either 1-point BC or 7-point stencil)
+                        MatSetValuesStencil(A, 1, &row, n, col, v, INSERT_VALUES);
                     }
         }
 
