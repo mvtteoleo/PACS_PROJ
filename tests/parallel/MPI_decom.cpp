@@ -1,4 +1,4 @@
-#define TEST 2
+#define TEST 3
 #include "../../header/MY_LIB.hpp"
 #include "../../header/my_2Decomp/MPI_types.hpp"
 #include <algorithm>
@@ -10,6 +10,11 @@
 #include <cstring>
 #include <iostream>
 #include <mpi.h>
+#include <petscdm.h>
+#include <petscdmda.h>
+#include <petscksp.h>
+#include <petscsys.h>
+#include <petscvec.h>
 #include <random>
 #include <sys/types.h>
 #include <tuple>
@@ -18,17 +23,21 @@
 // using Real = u_int8_t;
 using Real = double;
 
+size_t constexpr sum_1_n(size_t N) { return size_t{N * (N + 1) / 2}; };
+
 int main(int argc, char* argv[])
 {
     // Test to handle the MPI communications and boundary exchange
     constexpr std::size_t N_DIMS = 3;
     std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
-    std::size_t nx = N, ny = N, nz = N;
-    // PETScDecomp<Real> decomp(argc, argv, nx, ny, nz);
+    std::size_t       nx = N, ny = N, nz = N;
+    PETScDecomp<Real> decomp(argc, argv, nx, ny, nz);
 
+    /*
     NewDecomp<Real> decomp(argc, argv);
     decomp.initialize_decomp(nx, ny, nz);
+    */
 
     const auto& neighbors = decomp.get_neighbors();
 #if TEST == 1
@@ -93,17 +102,14 @@ int main(int argc, char* argv[])
 
             std::cout << std::endl;
 
-<<<<<<< HEAD
             for (auto i : decomp.ySize())
                 std::cout << i << " ";
             std::cout << std::endl;
             for (auto i : decomp.zSize())
                 std::cout << i << " ";
             std::cout << std::endl;
-=======
             for (auto i : decomp.xStart())
                 std::cout << i << " ";
->>>>>>> VTK_writer
 
             std::cout << "Dim w ghosts: ";
             for (auto i : decomp.dimsWithGhosts())
@@ -293,6 +299,58 @@ int main(int argc, char* argv[])
                     //
                     //  if (!decomp.rank()) std::cout << "\n";
                     //  if (!decomp.rank()) std::cout << P(i, j, k) << " " << P.at(i, j, k);
+
+#elif TEST == 3
+    PetscErrorCode ierr;
+    DM             da;
+    PetscInt       RANK = static_cast<PetscInt>(decomp.rank() + 1);
+
+    PetscInt P = decomp.totRank(); // number of MPI ranks
+    PetscInt lz[P];                // local sizes in z-direction
+
+    // Fill lz so proc r owns r+1 elements
+    for (PetscInt r = 0; r < P; r++)
+        lz[r] = r + 1;
+
+    // size_t N_elems = sum_1_n(decomp.totRank());
+    PetscInt N_elems = sum_1_n(P);
+
+    ierr = DMDACreate3d(PETSC_COMM_WORLD,                                     //
+                        DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, // Bounds
+                        DMDA_STENCIL_STAR, 1, 1, N_elems,                     // global sizes
+                        1, 1, P,                                              // Px=1, Py=1, Pz=P
+                        1, 1,                                                 // dof, stencilwidth
+                        NULL, NULL, lz, // ownership ranges (only z is distributed)
+                        &da);
+    DMView(da, PETSC_VIEWER_STDOUT_WORLD);
+
+    CHKERRQ(ierr);
+    DMSetUp(da);
+
+    PetscInt xs, ys, zs, xm, ym, zm;
+    DMDAGetCorners(da, &xs, &ys, &zs, &xm, &ym, &zm);
+    for (int r = 0; r < decomp.totRank(); ++r)
+    {
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (decomp.rank() == r)
+        {
+            std::cout << std::endl;
+            std::cout << std::endl;
+            std::cout << std::endl;
+            std::cout << "Rank " << r << ":\n";
+
+            std::cout << "xs : " << xs << "\n";
+            std::cout << "ys : " << ys << "\n";
+            std::cout << "zs : " << zs << "\n";
+            std::cout << "xm : " << xm << "\n";
+            std::cout << "ym : " << ym << "\n";
+            std::cout << "zm : " << zm << "\n";
+            std::cout << std::endl;
+            std::cout << std::endl;
+            std::cout << std::endl;
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
 
 #endif
 

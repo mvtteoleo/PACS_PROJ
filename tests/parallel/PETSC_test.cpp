@@ -45,9 +45,12 @@ namespace numPDE
                         numPDE::Constants<T>& constants)
             : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
         {
-            DMCreateMatrix(decomp.da, &A);
-            DMCreateGlobalVector(decomp.da, &x_h);
-            DMCreateGlobalVector(decomp.da, &b);
+
+            // this->build_local_dm();
+            DM& r_da = r_dec.da;
+            DMCreateMatrix(r_da, &A);
+            DMCreateGlobalVector(r_da, &x_h);
+            DMCreateGlobalVector(r_da, &b);
             this->build_linear_system();
         }
         MGLaplaceSolver(MGLaplaceSolver&&)                 = default;
@@ -62,23 +65,41 @@ namespace numPDE
             VecDestroy(&b);
             MatDestroy(&A);
         }
+        void build_local_dm()
+        {
+            PetscErrorCode ierr;
+
+            const auto& [pRows, pCols] = r_dec.get_process_grid();
+            const auto& [nx, ny, nz]   = r_dec.get_global_sizes();
+            ierr                       = DMDACreate3d(r_dec.get_cart_comm(), // Cartesian comm
+                                                      DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED, DM_BOUNDARY_GHOSTED,
+                                                      DMDA_STENCIL_BOX, nx - 2, ny - 2, nz - 2, // global grid
+                                                      PETSC_DECIDE, // Px (1/auto)
+                                                      pCols, pRows,
+                                                      1, // dof = 1 scalar field
+                                                      1, // stencil width = 1
+                                                      NULL, NULL, NULL, &this->da);
+        }
         auto build_linear_system()
         {
             build_int_A();
             apply_bc_to_A();
+
             MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
             MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
-                KSPCreate(PETSC_COMM_WORLD, &ksp);
-                KSPSetOperators(ksp, A, A);
+
+            KSPCreate(PETSC_COMM_WORLD, &ksp);
+            KSPSetOperators(ksp, A, A);
+
+            KSPGetPC(ksp, &pc);
             if (this->MG_solver)
             {
-                KSPGetPC(ksp, &pc);
-                PCSetType(pc, PCGAMG);
-                KSPSetType(ksp, KSPCG);
-                KSPSetTolerances(ksp, 1e-10, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);
-                KSPSetFromOptions(ksp);
-                KSPSetUp(ksp);
+                //     PCSetType(pc, PCMG);
+                //     KSPSetType(ksp, KSPCG);
             }
+            KSPSetTolerances(ksp, 1e-10, 1e-10, PETSC_DEFAULT, 3e5);
+            KSPSetFromOptions(ksp);
+            KSPSetUp(ksp);
         }
 
         auto apply_bc_to_A()
@@ -91,20 +112,10 @@ namespace numPDE
         auto solve(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
         {
             r_dec.tensor_to_PETScVec(b_t, this->b);
-            //             if constexpr (NEEDS_UPDATE_BC == true)
-            //             {
-            //                 update_bc_on_b();
-            //                 VecAssemblyBegin(b);
-            //                 VecAssemblyEnd(b);
-            //             }
             if constexpr (NEEDS_UPDATE_BC == true)
             {
                 // 2️⃣ Apply BCs
                 update_bc_on_b();
-
-                // 3️⃣ Assemble
-                VecAssemblyBegin(b);
-                VecAssemblyEnd(b);
             }
             // Attach nullspace
             if (all_neumann_bc() == true)
@@ -133,6 +144,10 @@ namespace numPDE
                 {
                     update_bc_b_impl(side);
                 }
+
+            // 3️⃣ Assemble
+            VecAssemblyBegin(b);
+            VecAssemblyEnd(b);
         }
 
         auto update_bc_b_impl(SIDES side)
@@ -222,56 +237,49 @@ namespace numPDE
             auto [xm, ym, zm]        = r_dec.xSize();
             const auto& [nx, ny, nz] = r_dec.get_global_sizes();
             BC                      bc{};
-            std::array<PetscInt, 6> stencil      = {0, 0, 0, 0, 0, 0};
-            auto& [i_1, j_1, k_1, i_2, j_2, k_2] = stencil;
+            std::array<PetscInt, 3> stencil{};
 
             if (side == SIDES::NORTH)
             {
-                xs  = nx - 1;
-                xm  = 1;
-                bc  = r_BCs.BC_NORTH;
-                i_1 = -1;
-                i_2 = -2;
+                xs      = nx - 1;
+                xm      = 1;
+                bc      = r_BCs.BC_NORTH;
+                stencil = {-1, 0, 0};
             }
             else if (side == SIDES::SOUTH)
             {
-                xs  = 0;
-                xm  = 1;
-                bc  = r_BCs.BC_SOUTH;
-                i_1 = 1;
-                i_2 = 2;
+                xs      = 0;
+                xm      = 1;
+                bc      = r_BCs.BC_SOUTH;
+                stencil = {1, 0, 0};
             }
             else if (side == SIDES::EAST)
             {
-                ys  = 0;
-                ym  = 1;
-                bc  = r_BCs.BC_EAST;
-                j_1 = 1;
-                j_2 = 2;
+                ys      = 0;
+                ym      = 1;
+                bc      = r_BCs.BC_EAST;
+                stencil = {0, 1, 0};
             }
             else if (side == SIDES::WEST)
             {
-                ys  = ny - 1;
-                ym  = 1;
-                bc  = r_BCs.BC_WEST;
-                j_1 = -1;
-                j_2 = -2;
+                ys      = ny - 1;
+                ym      = 1;
+                bc      = r_BCs.BC_WEST;
+                stencil = {0, -1, 0};
             }
             else if (side == SIDES::BOTTOM)
             {
-                zs  = 0;
-                zm  = 1;
-                bc  = r_BCs.BC_BOTTOM;
-                k_1 = 1;
-                k_2 = 2;
+                zs      = 0;
+                zm      = 1;
+                bc      = r_BCs.BC_BOTTOM;
+                stencil = {0, 0, 1};
             }
             else if (side == SIDES::TOP)
             {
-                zs  = nz - 1;
-                zm  = 1;
-                bc  = r_BCs.BC_TOP;
-                k_1 = -1;
-                k_2 = -2;
+                zs      = nz - 1;
+                zm      = 1;
+                bc      = r_BCs.BC_TOP;
+                stencil = {0, 0, -1};
             }
 
             if (bc == DirHomo or bc == Dirichlet)
@@ -313,9 +321,10 @@ namespace numPDE
          * of the II order => Third order accurate Neumann BCs
          */
         auto neumann_on_A(PetscInt xs_, PetscInt xm_, PetscInt ys_, PetscInt ym_, PetscInt zs_,
-                          PetscInt zm_, std::array<PetscInt, 6>& stencil)
+                          PetscInt zm_, std::array<PetscInt, 3>& stencil)
         {
-            const auto& [i_1, j_1, k_1, i_2, j_2, k_2] = stencil;
+            const auto& [i_1, j_1, k_1] = stencil;
+            const auto inv_h            = 1.0; /// r_const.h;
 
             for (PetscInt k = zs_; k < zs_ + zm_; ++k)
                 for (PetscInt j = ys_; j < ys_ + ym_; ++j)
@@ -324,8 +333,8 @@ namespace numPDE
 
                         constexpr int n = 2;
                         PetscScalar   v[n];
-                        v[0] = 1.0;
-                        v[1] = -1.0;
+                        v[0] = 1.0 * inv_h;
+                        v[1] = -1.0 * inv_h;
                         MatStencil row, col[n];
                         row.c = 0;
 
@@ -437,10 +446,11 @@ namespace numPDE
       public:
         Mat          A;
         Vec          x_h, b;
+        DM           da;
         KSP          ksp;
         PC           pc;
         MatNullSpace nullspace{};
-        bool MG_solver{false};
+        bool         MG_solver{true};
     };
 }; // namespace numPDE
 
@@ -460,7 +470,7 @@ int main(int argc, char** argv)
     if (N < 2) N = 8;
     std::size_t nx = N, ny = N, nz = N;
 
-    Real L = 1 * std::numbers::pi;
+    Real L = 1; //* std::numbers::pi;
     Real h = L / (nx - 1);
 
     // ----------------------------------------------------------
@@ -517,13 +527,46 @@ int main(int argc, char** argv)
         return 2.0 * (By * Cz + Ax * Cz + Ax * By);
     };
 
+    Real                                   scale     = 1;
+    std::vector<std::tuple<int, int, int>> harmonics = {
+        {1, 0, 0} //, {2, 1, 1}, {1, 2, 1}, {1, 1, 2} // Add as many as you like
+    };
     // Cosine-based exact solution
-    FunType u_ex_harm = [](const std::vector<Real>& pos) -> Real
-    { return std::cos(pos[0]) * std::cos(pos[1]) * std::cos(pos[2]); };
+    FunType u_ex_harm = [&](const std::vector<Real>& pos) -> Real
+    {
+        Real x = pos[0], y = pos[1], z = pos[2];
+        Real sum = 0.0;
 
-    // Corresponding forcing term
-    FunType forc_harm = [&u_ex_harm](const std::vector<Real>& pos) -> Real
-    { return -3 * u_ex_harm(pos); };
+        for (auto [wx, wy, wz] : harmonics)
+        {
+            sum += scale * std::cos(wx * std::numbers::pi * x / Lx) *
+                   std::cos(wy * std::numbers::pi * y / Ly) *
+                   std::cos(wz * std::numbers::pi * z / Lz);
+        }
+        return sum;
+    };
+
+    // Forcing term f(x,y,z) = -Δu
+    FunType forc_harm = [=](const std::vector<Real>& pos) -> Real
+    {
+        Real x = pos[0], y = pos[1], z = pos[2];
+        Real sum = 0.0;
+
+        for (const auto& [wx, wy, wz] : harmonics)
+        {
+            Real u = scale * std::cos(wx * std::numbers::pi * x / Lx) *
+                     std::cos(wy * std::numbers::pi * y / Ly) *
+                     std::cos(wz * std::numbers::pi * z / Lz);
+
+            // Laplacian coefficient for cos(wx*pi x/Lx) etc:
+            Real coeff = -(std::numbers::pi * std::numbers::pi) *
+                         ((wx * wx) / (Lx * Lx) + (wy * wy) / (Ly * Ly) + (wz * wz) / (Lz * Lz));
+
+            sum += coeff * u;
+        }
+
+        return sum;
+    };
 
     // Generic manufactured solution (example)
     FunType uex_GenDir = [](const std::vector<Real>& pos) -> Real
@@ -539,8 +582,8 @@ int main(int argc, char** argv)
         return 6;
     };
 
-    auto u_ex =u_ex_harm;  // exact_sol_poly; // uex_GenDir;  //
-    auto forc =forc_harm; // forcing_poly;   // forc_GenDir; //
+    auto u_ex = u_ex_harm; // uex_GenDir;  //exact_sol_poly; //
+    auto forc = forc_harm; // forc_GenDir; //forcing_poly;   //
     // Initialize the velocity field
     for (auto [k, j, i] : P_ex.all_elems())
     {
@@ -552,7 +595,7 @@ int main(int argc, char** argv)
         f(i, j, k)            = forc(pos); //
     }
 
-    decomp.exchange_ghosts(P_ex);
+    // decomp.exchange_ghosts(P_ex);
 
     // ----------------------------------------------------------
     // 4. Create system: ∇² u = f
@@ -565,12 +608,12 @@ int main(int argc, char** argv)
     Bcs.g_west                  = g_;
     Bcs.g_top                   = g_;
     Bcs.g_bottom                = g_;
-    Bcs.BC_NORTH                = numPDE::NeuHomo;
-    Bcs.BC_SOUTH                = numPDE::NeuHomo;
-    Bcs.BC_EAST                 = numPDE::NeuHomo;
-    Bcs.BC_WEST                 = numPDE::NeuHomo;
-    Bcs.BC_TOP                  = numPDE::NeuHomo;
-    Bcs.BC_BOTTOM               = numPDE::NeuHomo;
+    Bcs.BC_NORTH                = numPDE::Dirichlet;
+    Bcs.BC_SOUTH                = numPDE::Dirichlet;
+    Bcs.BC_EAST                 = numPDE::Dirichlet;
+    Bcs.BC_WEST                 = numPDE::Dirichlet;
+    Bcs.BC_TOP                  = numPDE::Dirichlet;
+    Bcs.BC_BOTTOM               = numPDE::Dirichlet;
 
     numPDE::Constants<Real> constants;
     constants.h = h;
@@ -609,9 +652,15 @@ int main(int argc, char** argv)
     Real max_err = 0.0;
     Real L2err   = 0.0;
 
+    Real offset{0}; // {P_ex(0, 1, 1) - P_h(0, 1, 1)};
+
+    MPI_Bcast(&offset, 1, mpi_get_type<Real>(), 0, MPI_COMM_WORLD);
+
+    std::cout << "offset : " << offset << "\n";
+
     for (auto [k, j, i] : P_ex.int_elems())
     {
-        const Real abs_err = std::abs(P_ex(i, j, k) - P_h(i, j, k));
+        const Real abs_err = std::abs(P_ex(i, j, k) - P_h(i, j, k) - offset);
         L2err += abs_err * abs_err; // accumulate squared error
         if (abs_err > max_err)
         {
@@ -635,6 +684,22 @@ int main(int argc, char** argv)
         std::cout << "Max err  " << std::scientific << std::setprecision(4) << glob_max << "\n";
         std::cout << "L2  err  " << std::scientific << std::setprecision(4) << glob_L2 << "\n";
     }
+
+    Vec ux; // vector holding u_exact on grid (DMDA ordering)
+    VecDuplicate(mg.b, &ux);
+    decomp.tensor_to_PETScVec(P_ex, ux);
+
+    Vec r;
+    VecDuplicate(mg.b, &r);
+    MatMult(mg.A, ux, r);   // r = A * u_exact
+    VecAXPY(r, -1.0, mg.b); // r = A*u_exact - b
+
+    PetscReal norm_r;
+    VecNorm(r, NORM_INFINITY, &norm_r);
+    if (!decomp.rank()) std::cout << "Infinity norm of A*u_exact - b = " << norm_r << std::endl;
+
+    VecDestroy(&r);
+    VecDestroy(&ux);
 
     writer.write(P_h, "output/p_h", h);
     writer.write(P_ex, "output/p_ex", h);
