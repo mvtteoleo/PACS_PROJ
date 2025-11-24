@@ -1,10 +1,3 @@
-/*
- * Nota che ad ora  funziona con DirHomo e  Dirichlet se g_ = 0, il lifting funziona ad ora.
- * => Solve homogeneus problems and then lift per ora. Deve funzionare...
- *
- *
- *
- */
 #include "../../header/MY_LIB.hpp"
 #include "../../header/decompose.hpp"
 #include "../../header/pvts_writer.hpp"
@@ -21,6 +14,7 @@
 #include <petscsys.h>
 #include <petscvec.h>
 #include <random>
+#include <ranges>
 #include <vector>
 bool VERBOOSE = true;
 
@@ -36,6 +30,16 @@ int main (int argc, char *argv[]) {
 #elif 1
 namespace numPDE
 {
+    /*
+     * The solver works for equation in the shape of : Lap(u) = f.
+     *
+     * The matrix A is made of integers so that the stencil is modified to be
+     * u_{-i} -2 u + u_{+i} = h*h*f.
+     * BCs are imposed on the rhs
+     * Neumann   => rhs += h*fun(pos)
+     * Dirichlet => rhs -= fun(pos)
+     *
+     */
     template <typename T = double>
     class MGLaplaceSolver
     {
@@ -45,13 +49,31 @@ namespace numPDE
                         numPDE::Constants<T>& constants)
             : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
         {
+            PetscInt xs, ys, zs, xm, ym, zm;
+            DMDAGetCorners(r_dec.da, &xs, &ys, &zs, &xm, &ym, &zm);
+            for (int r = 0; r < r_dec.totRank(); ++r)
+            {
+                MPI_Barrier(MPI_COMM_WORLD);
+                if (r_dec.rank() == r)
+                {
+                    std::cout << std::endl;
+                    std::cout << "Complete DM " << std::endl;
+                    std::cout << std::endl;
+                    std::cout << "Rank " << r << ":\n";
 
-            // this->build_local_dm();
-            // DM& r_da = r_dec.da;
-            DM& r_da = this->da;
-            DMCreateMatrix(r_da, &A);
-            DMCreateGlobalVector(r_da, &x_h);
-            DMCreateGlobalVector(r_da, &b);
+                    std::cout << "xs : " << xs << "\n";
+                    std::cout << "ys : " << ys << "\n";
+                    std::cout << "zs : " << zs << "\n";
+                    std::cout << "xm : " << xm << "\n";
+                    std::cout << "ym : " << ym << "\n";
+                    std::cout << "zm : " << zm << "\n";
+                    std::cout << std::endl;
+                    std::cout << std::endl;
+                    std::cout << std::endl;
+                }
+                MPI_Barrier(MPI_COMM_WORLD);
+            }
+            this->build_local_dm();
             this->build_linear_system();
         }
         MGLaplaceSolver(MGLaplaceSolver&&)                 = default;
@@ -66,26 +88,118 @@ namespace numPDE
             VecDestroy(&b);
             MatDestroy(&A);
         }
-        void build_local_dm()
+        auto build_local_dm()
         {
             PetscErrorCode ierr;
+            const auto& [pz, py] = r_dec.get_process_grid();
+            // Setup new global sizes
+            const auto& [nx, ny, nz] = r_dec.get_global_sizes();
+            PetscInt NxLoc{nx - 2};
+            PetscInt NyLoc{ny - 2};
+            PetscInt NzLoc{nz - 2};
+            // Setup new local sizes
 
-            const auto& [pRows, pCols] = r_dec.get_process_grid();
-            const auto& [nx, ny, nz]   = r_dec.get_global_sizes();
-            ierr                       = DMDACreate3d(r_dec.get_cart_comm(), // Cartesian comm
-                                                      DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED, DM_BOUNDARY_GHOSTED,
-                                                      DMDA_STENCIL_BOX, nx - 2, ny - 2, nz - 2, // global grid
-                                                      PETSC_DECIDE, // Px (1/auto)
-                                                      pCols, pRows,
-                                                      1, // dof = 1 scalar field
-                                                      1, // stencil width = 1
-                                                      NULL, NULL, NULL, &this->da);
+            std::array<PetscInt, 1> lx{{NxLoc}};
+            std::vector<PetscInt>   ly(py);
+            std::vector<PetscInt>   lz(pz);
+
+            std::array<int, 3> new_dims;
+            if (!r_dec.rank()) printf("Starting to iterate over the ranks\n");
+
+            auto const& neigs = r_dec.get_neighbors();
+
+            int                TOP_r{0};
+            std::array<int, 2> T_info;
+            auto& [T_next, zl] = T_info;
+            for (auto const k : std::ranges::views::iota(0, pz))
+            {
+                if (r_dec.rank() == TOP_r)
+                {
+                    // Extract W_info
+                    T_next = neigs[neighbour_directions::TOP];
+                    DMDAGetCorners(r_dec.da, NULL, NULL, NULL, NULL, NULL, &zl);
+                    zl -= static_cast<int>(is_side(SIDES::TOP, r_dec) +
+                                           is_side(SIDES::BOTTOM, r_dec));
+                }
+                // B_cast(Information once)
+                MPI_Bcast(T_info.data(), T_info.size(), MPI_INT, TOP_r, MPI_COMM_WORLD);
+
+                // Set W_info where they need to be set
+                lz[k] = zl;
+                TOP_r = T_next;
+            }
+
+            // MPI wants integers as rank identifiers
+            int                WEST_r{0};
+            std::array<int, 2> W_info;
+            auto& [W_next, yl] = W_info;
+            for (auto const j : std::ranges::views::iota(0, py))
+            {
+                if (r_dec.rank() == WEST_r)
+                {
+                    // Extract W_info
+                    W_next = neigs[neighbour_directions::LEFT];
+                    DMDAGetCorners(r_dec.da, NULL, NULL, NULL, NULL, &yl, NULL);
+                    yl -=
+                        static_cast<int>(is_side(SIDES::WEST, r_dec) + is_side(SIDES::EAST, r_dec));
+                }
+                // B_cast(Information once)
+                MPI_Bcast(W_info.data(), W_info.size(), MPI_INT, WEST_r, MPI_COMM_WORLD);
+
+                // Set W_info where they need to be set
+                ly[j]  = yl;
+                WEST_r = W_next;
+            }
+            MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Barrier(MPI_COMM_WORLD);
+
+            ierr = DMDACreate3d(r_dec.get_cart_comm(), // Cartesian comm
+                                DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED, DM_BOUNDARY_GHOSTED,
+                                DMDA_STENCIL_BOX, NxLoc, NyLoc, NzLoc, // local grid
+                                1, py, pz,                             // Nprocs
+                                1,                                     // dof = 1 scalar field
+                                2,                                     // stencil width
+                                lx.data(), ly.data(), lz.data(),       // Local sizes
+                                &this->da);
+            DMSetUp(this->da); // WARNING THIS IS SUPER NECESSARY!
+            PetscInt xs, ys, zs, xm, ym, zm;
+            DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
+            for (int r = 0; r < r_dec.totRank(); ++r)
+            {
+                MPI_Barrier(MPI_COMM_WORLD);
+                if (r_dec.rank() == r)
+                {
+                    std::cout << std::endl;
+                    std::cout << "Small DM " << std::endl;
+                    std::cout << std::endl;
+                    std::cout << "Rank " << r << ":\n";
+
+                    std::cout << "xs : " << xs << "\n";
+                    std::cout << "ys : " << ys << "\n";
+                    std::cout << "zs : " << zs << "\n";
+                    std::cout << "xm : " << xm << "\n";
+                    std::cout << "ym : " << ym << "\n";
+                    std::cout << "zm : " << zm << "\n";
+                    std::cout << std::endl;
+                    std::cout << std::endl;
+                    std::cout << std::endl;
+                }
+                MPI_Barrier(MPI_COMM_WORLD);
+            }
         }
+
         auto build_linear_system()
         {
+            // Needed steps to initialize the linear system components
+            DMSetUp(this->da);
+            DMCreateMatrix(this->da, &A);
+            DMCreateGlobalVector(this->da, &x_h);
+            DMCreateGlobalVector(this->da, &b);
+
             build_int_A();
             apply_bc_to_A();
 
+            // Finalize the Matrix assembly
             MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
             MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
 
@@ -95,8 +209,8 @@ namespace numPDE
             KSPGetPC(ksp, &pc);
             if (this->MG_solver)
             {
-                //     PCSetType(pc, PCMG);
-                //     KSPSetType(ksp, KSPCG);
+                PCSetType(pc, PCMG);
+                KSPSetType(ksp, KSPGMRES);
             }
             KSPSetTolerances(ksp, 1e-10, 1e-10, PETSC_DEFAULT, 3e5);
             KSPSetFromOptions(ksp);
@@ -106,13 +220,17 @@ namespace numPDE
         auto apply_bc_to_A()
         {
             for (auto side : enum_range<numPDE::SIDES>())
-                if (is_side(side, r_dec)) apply_BC_A_impl(side);
+                if (is_side(side, r_dec))
+                {
+                    apply_BC_A_impl(side);
+                }
         };
 
         template <bool NEEDS_UPDATE_BC = true, TypeIndex TYPE>
         auto solve(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
         {
-            r_dec.tensor_to_PETScVec(b_t, this->b);
+            // Transfer from b_t to this->b
+            this->load_into_rhs(b_t);
             if constexpr (NEEDS_UPDATE_BC == true)
             {
                 // 2️⃣ Apply BCs
@@ -126,6 +244,63 @@ namespace numPDE
                 MatSetNullSpace(A, nullspace);
             }
             KSPSolve(ksp, b, x_h);
+        }
+
+        template <TypeIndex TYPE>
+        auto load_into_rhs(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
+        {
+            PetscScalar*** bAsTens;
+            DMDAVecGetArray(this->da, this->b, &bAsTens);
+
+            PetscInt xs, ys, zs, xm, ym, zm;
+            DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
+            const auto& [nx, ny, nz] = r_dec.get_global_sizes();
+
+            const T h_2 = r_const.h * r_const.h;
+
+            for (auto [k, j, i] : b_t.int_elems())
+            {
+                // The tensor is the Master, the elements in b are handled by PETSc
+                // WARNING
+                // -1 Because the domain is restricted!!
+                const PetscInt gi = i + xs - 1;
+                const PetscInt gj = j + ys - 1;
+                const PetscInt gk = k + zs - 1;
+                // bAsTens[gk][gj][gi] = static_cast<PetscScalar>(r_BCs.f(pos) * h_2);
+                bAsTens[gk][gj][gi] = static_cast<PetscScalar>(b_t(i, j, k) * h_2);
+            }
+            DMDAVecRestoreArray(this->da, this->b, &bAsTens);
+            VecAssemblyBegin(this->b);
+            VecAssemblyEnd(this->b);
+        }
+
+        template <TypeIndex TYPE>
+        auto write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t)
+        {
+            PetscScalar*** bAsTens;
+            DMDAVecGetArray(this->da, this->b, &bAsTens);
+
+            PetscInt xs, ys, zs, xm, ym, zm;
+            DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
+            const auto& [nx, ny, nz] = r_dec.get_global_sizes();
+
+            const T h_2 = r_const.h * r_const.h;
+
+            for (auto [k, j, i] : b_t.int_elems())
+            {
+                // The tensor is the Master, the elements in b are handled by PETSc
+                // WARNING
+                // -1 Because the domain is restricted!!
+                // -1 Because the int_elems are from 1 to N-1 !!
+                const PetscInt gi = i + xs - 1;
+                const PetscInt gj = j + ys - 1;
+                const PetscInt gk = k + zs - 1;
+                // bAsTens[gk][gj][gi] = static_cast<PetscScalar>(r_BCs.f(pos) * h_2);
+                b_t(i, j, k) = bAsTens[gk][gj][gi];
+            }
+            DMDAVecRestoreArray(this->da, this->b, &bAsTens);
+            VecAssemblyBegin(this->b);
+            VecAssemblyEnd(this->b);
         }
 
         bool all_neumann_bc() const
@@ -151,98 +326,106 @@ namespace numPDE
             VecAssemblyEnd(b);
         }
 
-        auto update_bc_b_impl(SIDES side)
+        auto update_bc_b_impl(SIDES const& side)
         {
-            auto [xs, ys, zs]        = r_dec.xStart();
-            auto [xm, ym, zm]        = r_dec.xSize();
+            PetscInt xs, ys, zs, xm, ym, zm;
+            DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
             const auto& [nx, ny, nz] = r_dec.get_global_sizes();
             BC                               bc{};
             typename PressureBC<T>::Function fun{};
 
+            std::array<int, 3> offset{{1, 1, 1}};
+
             if (side == SIDES::NORTH)
             {
-
-                xs  = nx - 1;
-                xm  = 1;
-                bc  = r_BCs.BC_NORTH;
-                fun = r_BCs.g_north;
+                xs        = nx - 3;
+                xm        = 1;
+                bc        = r_BCs.BC_NORTH;
+                fun       = r_BCs.g_north;
+                offset[0] = 2;
             }
             else if (side == SIDES::SOUTH)
             {
-                xs  = 0;
-                xm  = 1;
-                bc  = r_BCs.BC_SOUTH;
-                fun = r_BCs.g_south;
+                xs        = 0;
+                xm        = 1;
+                bc        = r_BCs.BC_SOUTH;
+                fun       = r_BCs.g_south;
+                offset[0] = 0;
             }
             else if (side == SIDES::EAST)
             {
-                ys  = 0;
-                ym  = 1;
-                bc  = r_BCs.BC_EAST;
-                fun = r_BCs.g_east;
+                ys        = 0;
+                ym        = 1;
+                bc        = r_BCs.BC_EAST;
+                fun       = r_BCs.g_east;
+                offset[1] = 0;
             }
             else if (side == SIDES::WEST)
             {
-                ys  = ny - 1;
-                ym  = 1;
-                bc  = r_BCs.BC_WEST;
-                fun = r_BCs.g_west;
+                ys        = ny - 3;
+                ym        = 1;
+                bc        = r_BCs.BC_WEST;
+                fun       = r_BCs.g_west;
+                offset[1] = 2;
             }
             else if (side == SIDES::TOP)
             {
-                zs  = nz - 1;
-                zm  = 1;
-                bc  = r_BCs.BC_TOP;
-                fun = r_BCs.g_top;
+                zs        = nz - 3;
+                zm        = 1;
+                bc        = r_BCs.BC_TOP;
+                fun       = r_BCs.g_top;
+                offset[2] = 2;
             }
             else if (side == SIDES::BOTTOM)
             {
-                zs  = 0;
-                zm  = 1;
-                bc  = r_BCs.BC_BOTTOM;
-                fun = r_BCs.g_bottom;
+                zs        = 0;
+                zm        = 1;
+                bc        = r_BCs.BC_BOTTOM;
+                fun       = r_BCs.g_bottom;
+                offset[2] = 0;
             }
             if (bc == DirHomo or bc == NeuHomo)
             {
-                constexpr auto f_0 = [](std::vector<T> const& pos) -> T { return 0; };
-                set_fun_on_bounds(xs, xm, ys, ym, zs, zm, f_0);
+                // Do nothing, the rhs does not need modifications
             }
             else if (bc == Dirichlet or bc == Neumann)
             {
-                set_fun_on_bounds(xs, xm, ys, ym, zs, zm, fun);
+                const T        scale = (bc == BC::Dirichlet) ? -1.0 : r_const.h;
+                PetscScalar*** bAsTens;
+                DMDAVecGetArray(this->da, this->b, &bAsTens);
+                for (PetscInt k = zs; k < zs + zm; ++k)
+                    for (PetscInt j = ys; j < ys + ym; ++j)
+                        for (PetscInt i = xs; i < xs + xm; ++i)
+                        {
+                            using IT = typename PressureBC<T>::input_type;
+                            // TODO Fix so that the position is actually correct without problems
+                            // due to the staggering
+                            const auto i_g{i + offset[0]};
+                            const auto j_g{j + offset[1]};
+                            const auto k_g{k + offset[2]};
+
+                            const auto pos = IT{i_g * r_const.h, j_g * r_const.h, k_g * r_const.h};
+                            bAsTens[k][j][i] += static_cast<PetscScalar>(fun(pos) * scale);
+                        }
+
+                DMDAVecRestoreArray(this->da, this->b, &bAsTens);
             }
             else if (!r_dec.rank())
                 std::cerr << "The BC for the MGLaplace solver are not compatible \n";
         }
-        auto set_fun_on_bounds(PetscInt xs_, PetscInt xm_, PetscInt ys_, PetscInt ym_, PetscInt zs_,
-                               PetscInt zm_, auto fun)
-        {
-            PetscScalar*** bAsTens;
-            DMDAVecGetArray(r_dec.da, this->b, &bAsTens);
-            for (PetscInt k = zs_; k < zs_ + zm_; ++k)
-                for (PetscInt j = ys_; j < ys_ + ym_; ++j)
-                    for (PetscInt i = xs_; i < xs_ + xm_; ++i)
-                    {
-                        // OT debacle
-                        using IT         = typename PressureBC<T>::input_type;
-                        auto pos         = IT{i * r_const.h, j * r_const.h, k * r_const.h};
-                        bAsTens[k][j][i] = static_cast<PetscScalar>(fun(pos));
-                    }
 
-            DMDAVecRestoreArray(r_dec.da, this->b, &bAsTens);
-        }
-
-        auto apply_BC_A_impl(SIDES side)
+        auto apply_BC_A_impl(SIDES const& side)
         {
-            auto [xs, ys, zs]        = r_dec.xStart();
-            auto [xm, ym, zm]        = r_dec.xSize();
+            PetscInt xs, ys, zs, xm, ym, zm;
+            DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
             const auto& [nx, ny, nz] = r_dec.get_global_sizes();
             BC                      bc{};
             std::array<PetscInt, 3> stencil{};
 
             if (side == SIDES::NORTH)
             {
-                xs      = nx - 1;
+                // Local size is N-2, but 0 index => -3
+                xs      = nx - 3;
                 xm      = 1;
                 bc      = r_BCs.BC_NORTH;
                 stencil = {-1, 0, 0};
@@ -263,7 +446,7 @@ namespace numPDE
             }
             else if (side == SIDES::WEST)
             {
-                ys      = ny - 1;
+                ys      = ny - 3;
                 ym      = 1;
                 bc      = r_BCs.BC_WEST;
                 stencil = {0, -1, 0};
@@ -277,7 +460,7 @@ namespace numPDE
             }
             else if (side == SIDES::TOP)
             {
-                zs      = nz - 1;
+                zs      = nz - 3;
                 zm      = 1;
                 bc      = r_BCs.BC_TOP;
                 stencil = {0, 0, -1};
@@ -285,6 +468,7 @@ namespace numPDE
 
             if (bc == DirHomo or bc == Dirichlet)
             {
+                // The matrix does not need any modifications.
             }
             else if (bc == NeuHomo or bc == Neumann)
             {
@@ -302,18 +486,16 @@ namespace numPDE
                           PetscInt zm_, std::array<PetscInt, 3>& stencil)
         {
             const auto& [i_1, j_1, k_1] = stencil;
-            const auto inv_h            = 1.0; /// r_const.h;
+
+            constexpr int     n    = 1;
+            const PetscScalar v[n] = {1.0};
+            MatStencil        row, col[n];
 
             for (PetscInt k = zs_; k < zs_ + zm_; ++k)
                 for (PetscInt j = ys_; j < ys_ + ym_; ++j)
                     for (PetscInt i = xs_; i < xs_ + xm_; ++i)
                     {
 
-                        constexpr int n = 2;
-                        PetscScalar   v[n];
-                        v[0] = 1.0 * inv_h;
-                        v[1] = -1.0 * inv_h;
-                        MatStencil row, col[n];
                         row.c = 0;
 
                         row.i = i;
@@ -324,12 +506,11 @@ namespace numPDE
                         col[0].j = j;
                         col[0].k = k;
 
-                        col[1].i = i + i_1;
-                        col[1].j = j + j_1;
-                        col[1].k = k + k_1;
-
-                        MatSetValuesStencil(this->A, 1, &row, n, col, v, INSERT_VALUES);
+                        MatSetValuesStencil(this->A, 1, &row, n, col, v, ADD_VALUES);
                     }
+            // Allows to change mode of modify the matrix (ADD_VALUES to INSERT_VALUES)
+            MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY);
+            MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY);
         }
 
         /*
@@ -337,7 +518,6 @@ namespace numPDE
          */
         auto build_int_A()
         {
-            constexpr T inv_h2 = 1.0; // (r_const.h * r_const.h);
             PetscInt    ip{}, jp{}, kp{};
             PetscScalar v[7]; // Use one array, max size is 7
             MatStencil  row, col[7];
@@ -358,7 +538,7 @@ namespace numPDE
                         row.k      = kp;
 
                         // Center
-                        v[n]     = -6.0 * inv_h2;
+                        v[n]     = -6.0;
                         col[n].i = ip;
                         col[n].j = jp;
                         col[n].k = kp;
@@ -366,16 +546,16 @@ namespace numPDE
 
                         if (ip > 0)
                         {
-                            v[n]     = 1.0 * inv_h2;
+                            v[n]     = 1.0;
                             col[n].i = ip - 1;
                             col[n].j = jp;
                             col[n].k = kp;
                             n++;
                         }
 
-                        if (ip < nx - 2)
+                        if (ip < nx - 3)
                         {
-                            v[n]     = 1.0 * inv_h2;
+                            v[n]     = 1.0;
                             col[n].i = ip + 1;
                             col[n].j = jp;
                             col[n].k = kp;
@@ -384,16 +564,16 @@ namespace numPDE
 
                         if (jp > 0)
                         {
-                            v[n]     = 1.0 * inv_h2;
+                            v[n]     = 1.0;
                             col[n].i = ip;
                             col[n].j = jp - 1;
                             col[n].k = kp;
                             n++;
                         }
 
-                        if (jp < ny - 2)
+                        if (jp < ny - 3)
                         {
-                            v[n]     = 1.0 * inv_h2;
+                            v[n]     = 1.0;
                             col[n].i = ip;
                             col[n].j = jp + 1;
                             col[n].k = kp;
@@ -402,16 +582,16 @@ namespace numPDE
 
                         if (kp > 0)
                         {
-                            v[n]     = 1.0 * inv_h2;
+                            v[n]     = 1.0;
                             col[n].i = ip;
                             col[n].j = jp;
                             col[n].k = kp - 1;
                             n++;
                         }
 
-                        if (kp < nz - 2)
+                        if (kp < nz - 3)
                         {
-                            v[n]     = 1.0 * inv_h2;
+                            v[n]     = 1.0;
                             col[n].i = ip;
                             col[n].j = jp;
                             col[n].k = kp + 1;
@@ -421,6 +601,9 @@ namespace numPDE
                         // Insert the row (either 1-point BC or 7-point stencil)
                         MatSetValuesStencil(A, 1, &row, n, col, v, INSERT_VALUES);
                     }
+            // Allows to change mode of modify the matrix (ADD_VALUES to INSERT_VALUES)
+            MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY);
+            MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY);
         }
 
       private:
@@ -499,7 +682,7 @@ int main(int argc, char** argv)
         Real Ax = x * x - Lx * x;
         Real By = y * y - Ly * y;
         Real Cz = z * z - Lz * z;
-        return Ax * By * Cz + 1;
+        return Ax * By * Cz + 0;
     };
 
     // Corresponding forcing term
@@ -567,8 +750,8 @@ int main(int argc, char** argv)
         return 6;
     };
 
-    auto u_ex = u_ex_harm; // uex_GenDir;  //exact_sol_poly; //
-    auto forc = forc_harm; // forc_GenDir; //forcing_poly;   //
+    auto u_ex = u_ex_harm; //exact_sol_poly; // uex_GenDir;  //
+    auto forc = forc_harm; //forcing_poly;   // forc_GenDir; //
     // Initialize the velocity field
     for (auto [k, j, i] : P_ex.all_elems())
     {
@@ -628,7 +811,10 @@ int main(int argc, char** argv)
     }
     if (!decomp.rank()) time.print_time();
 
-    decomp.PETScVec_to_tensor(mg.x_h, P_h);
+    /*
+     *
+     */
+    mg.write_sol_on_ghosted_tensor(P_h);
 
     if (VERBOOSE)
         for (auto i : P_h.all_linear_elements())
@@ -637,15 +823,9 @@ int main(int argc, char** argv)
     Real max_err = 0.0;
     Real L2err   = 0.0;
 
-    Real offset{0}; // {P_ex(0, 1, 1) - P_h(0, 1, 1)};
-
-    MPI_Bcast(&offset, 1, mpi_get_type<Real>(), 0, MPI_COMM_WORLD);
-
-    std::cout << "offset : " << offset << "\n";
-
     for (auto [k, j, i] : P_ex.int_elems())
     {
-        const Real abs_err = std::abs(P_ex(i, j, k) - P_h(i, j, k) - offset);
+        const Real abs_err = std::abs(P_ex(i, j, k) - P_h(i, j, k));
         L2err += abs_err * abs_err; // accumulate squared error
         if (abs_err > max_err)
         {
@@ -670,6 +850,7 @@ int main(int argc, char** argv)
         std::cout << "L2  err  " << std::scientific << std::setprecision(4) << glob_L2 << "\n";
     }
 
+    /*
     Vec ux; // vector holding u_exact on grid (DMDA ordering)
     VecDuplicate(mg.b, &ux);
     decomp.tensor_to_PETScVec(P_ex, ux);
@@ -685,6 +866,7 @@ int main(int argc, char** argv)
 
     VecDestroy(&r);
     VecDestroy(&ux);
+    */
 
     writer.write(P_h, "output/p_h", h);
     writer.write(P_ex, "output/p_ex", h);

@@ -2,7 +2,7 @@
 # Compiler and Flags
 CXX       := mpic++
 MPICXX    := mpic++
-CPPFLAGS  := -Iheader -Isrc -I. 
+CPPFLAGS  := -Wall -Wextra -pedantic -fopenmp -std=c++23  -Iheader -Isrc -I. 
 LDLIBS   := -lfftw3 -lm -lboost_iostreams -lboost_system #-lfftw3_mpi 
 
 
@@ -11,14 +11,14 @@ NIX_LDFLAGS  := -L$(patsubst %/include,%/lib,$(FFTW_INCLUDE_DIR)) -L$(PETSC_DIR)
 NIX_LDLIBS   := -lpetsc
 
 # Append Nix flags to the project's default flags
-CPPFLAGS += $(NIX_CPPFLAGS)
+CPPFLAGS += $(NIX_CPPFLAGS) 
 LDFLAGS  += $(NIX_LDFLAGS)
 LDLIBS   += $(NIX_LDLIBS) 
 
 
 # Optimization flags
-DEBUG_FLAGS := -O0 -g  -Wall -Wextra -pedantic -fopenmp -std=c++23 -on_error_attach_debugger
-OPT_FLAGS := -O3 -Wall -Wextra -pedantic -fopenmp  -std=c++23
+DEBUG_FLAGS := -O0 -g  
+OPT_FLAGS := -O3 
 
 GEN_FLAGS   := $(DEBUG_FLAGS)
 C2DEC_FLAGS := $(DEBUG_FLAGS)

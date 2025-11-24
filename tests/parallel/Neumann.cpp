@@ -9,7 +9,7 @@ int main(int argc, char** argv)
 
     // Grid sizes
     PetscInt    Nx = 34, Ny = 3, Nz = 3; // global including boundaries
-    PetscScalar hx = 1.0 , hy = 1.0 , hz = 1.0 ;
+    PetscScalar hx = 1.0, hy = 1.0, hz = 1.0;
 
     // Create 3D DMDA
     DM da;
@@ -52,7 +52,7 @@ int main(int argc, char** argv)
 
     // Helper lambda to map (i,j,k) -> compact interior index
     auto interiorIndex = [Nx, Ny](PetscInt i, PetscInt j, PetscInt k)
-        { return (i - 1) + (Nx - 2) * ((j - 1) + (Ny - 2) * (k - 1)); };
+    { return (i - 1) + (Nx - 2) * ((j - 1) + (Ny - 2) * (k - 1)); };
 
     // Assemble interior Laplace stencil
     for (PetscInt k = iz_start; k < iz_end; ++k)
@@ -116,27 +116,25 @@ int main(int argc, char** argv)
             }
 
     PetscInt                   row = 0;
-    std::array<PetscInt, 1>    cols {{Nx - 3}};
-    std::array<PetscScalar, 1> vals {{1}};
+    std::array<PetscInt, 1>    cols{{Nx - 3}};
+    std::array<PetscScalar, 1> vals{{1}};
 
     PetscInt n = 1;
     MatSetValues(A, 1, &row, n, cols.data(), vals.data(), INSERT_VALUES);
-
-
 
     // Switch the matrix into ADD mode
     MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY);
     MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY);
 
     PetscInt rstart, rend;
-MatGetOwnershipRange(A, &rstart, &rend);
+    MatGetOwnershipRange(A, &rstart, &rend);
 
-if (row >= rstart && row < rend)
-{
-    // Now ADD values is allowed
-    cols[0] = 0;
-    MatSetValues(A, 1, &row, n, cols.data(), vals.data(), ADD_VALUES);
-}
+    if (row >= rstart && row < rend)
+    {
+        // Now ADD values is allowed
+        cols[0] = 0;
+        MatSetValues(A, 1, &row, n, cols.data(), vals.data(), ADD_VALUES);
+    }
 
     // Finalize again
     MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);

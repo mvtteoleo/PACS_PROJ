@@ -667,8 +667,8 @@ class PETScDecomp : public Communicator<T>
                 }
 
         DMDAVecRestoreArray(da, P_vec, &bAsTens);
-VecAssemblyBegin(P_vec);
-VecAssemblyEnd(P_vec);
+        VecAssemblyBegin(P_vec);
+        VecAssemblyEnd(P_vec);
     }
 
     template <numPDE::TypeIndex TYPE = numPDE::ROW_MAJOR>
@@ -693,8 +693,8 @@ VecAssemblyEnd(P_vec);
                 }
 
         DMDAVecRestoreArray(da, P_vec, &bAsTens);
-VecAssemblyBegin(P_vec);
-VecAssemblyEnd(P_vec);
+        VecAssemblyBegin(P_vec);
+        VecAssemblyEnd(P_vec);
     }
 
     ~PETScDecomp()
@@ -705,5 +705,4 @@ VecAssemblyEnd(P_vec);
 
   private:
 };
-
 
