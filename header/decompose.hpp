@@ -1,7 +1,7 @@
 #pragma once
 
-#include "compiler_directives.hpp"
 #include "../deps/2Decomp_C/C2Decomp.hpp"
+#include "compiler_directives.hpp"
 #include "my_2Decomp/MPI_types.hpp"
 
 #include <algorithm>
@@ -15,13 +15,13 @@
 #include <iostream>
 #include <memory>
 #include <mpi.h>
+#include <ranges>
 #include <span>
 #include <stdexcept>
 #include <sys/types.h>
 #include <tuple>
 #include <type_traits>
 #include <vector>
-#include <ranges>
 
 #include "my_2Decomp/MPI_types.hpp"
 #include "tensors.hpp"
@@ -33,10 +33,10 @@ enum neighbour_directions
     RIGHT  = 2, // y = y_min
     LEFT   = 3, // y = y_MAX
     FRONT  = 4, // x = x_MAX
-    BACK   = 5,  // x = x_min
+    BACK   = 5, // x = x_min
 
     begin = TOP,
-    end = BACK,
+    end   = BACK,
 };
 
 template <typename T = double>
@@ -340,7 +340,6 @@ class Communicator
         MPI_Cart_shift(cart_comm, 0, 1, &this->neighbors[neighbour_directions::BOTTOM],
                        &this->neighbors[neighbour_directions::TOP]); // top, bottom
 
-
         MPI_Barrier(MPI_COMM_WORLD);
     }
 };
@@ -583,10 +582,7 @@ class PETScDecomp : public Communicator<T>
         this->init_loal_sizes();
     }
 
-    auto init_loal_sizes()
-    {
-        DMDAGetCorners(da, &xs, &ys, &zs, &xm, &ym, &zm);
-    }
+    auto init_loal_sizes() { DMDAGetCorners(da, &xs, &ys, &zs, &xm, &ym, &zm); }
 
     auto xStart() const
     {
@@ -705,4 +701,3 @@ class PETScDecomp : public Communicator<T>
 
   private:
 };
-

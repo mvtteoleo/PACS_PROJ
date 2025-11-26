@@ -134,9 +134,10 @@ void C2Decomp::decompInfoInit()
     // verify the global size can actually be distributed as pencils
     if (nx < dims[0] || ny < dims[0] || ny < dims[1] || nz < dims[1])
     {
-        errorcode  = 6;
-        std::string msg = "Invalid 2D processor grid. \n Make sure that min(nx, ny) > p_row and min(ny, "
-                     "nz) >= p_col.";
+        errorcode = 6;
+        std::string msg =
+            "Invalid 2D processor grid. \n Make sure that min(nx, ny) > p_row and min(ny, "
+            "nz) >= p_col.";
         decomp2DAbort(errorcode, msg);
     }
 

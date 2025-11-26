@@ -21,7 +21,7 @@ struct VTKStructuredWriter
     /*
      * Writes a pvts file for a simple scalar field
      */
-    void write(const Tensor& field, const std::string& base, double h=1) const
+    void write(const Tensor& field, const std::string& base, double h = 1) const
     {
         int  rank = decomp.rank();
         auto dims = field.get_sizes(); // Local point dimensions (nx, ny, nz)
