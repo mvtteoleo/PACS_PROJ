@@ -9,6 +9,25 @@
 
 namespace numPDE
 {
+    struct SideInfo
+    {
+        BC bc;
+
+        using FunType = PressureBC<>::Function;
+        FunType  fun;
+        std::array<int, 3> stencil;
+        std::array<int, 3> offset;
+        int xs, ys, zs; // Modified start indices
+        int xm, ym, zm; // Modified extents (always 1 for boundary layer)
+        auto iterate_side() const 
+        {
+            auto x_range = std::views::iota(xs, xs+xm);
+            auto y_range = std::views::iota(ys, ys+ym);
+            auto z_range = std::views::iota(zs, zs+zm);
+            return std::ranges::views::cartesian_product(z_range, y_range, x_range);
+        }
+
+    };
      /*
      * The solver works for equation in the shape of : Lap(u) = f.
      *
@@ -74,13 +93,17 @@ namespace numPDE
         auto apply_bc_to_A();
         auto apply_BC_A_impl(SIDES const& side);
         auto update_bc_b_impl(SIDES const& side);
-        auto neumann_on_A(PetscInt xs_, PetscInt xm_, PetscInt ys_, PetscInt ym_, PetscInt zs_,
-                          PetscInt zm_, std::array<PetscInt, 3>& stencil);
+        auto get_side_info(SIDES const& side) const -> SideInfo;
+        auto neumann_on_A(SideInfo const& infos);
+
 
         PETScDecomp<T>& r_dec;
         PressureBC<T>&  r_BCs;
         Constants<T>&   r_const;
+
     };
+
+
 } // namespace numPDE
 
 #include "MG_laplace_solver_impl.hpp"

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "MG_laplace_solver.hpp"
+#include "pde_helper.hpp"
 namespace numPDE
 {
 
@@ -279,65 +281,25 @@ namespace numPDE
     template <typename T>
     auto MGLaplaceSolver<T>::apply_BC_A_impl(SIDES const& side)
     {
-        PetscInt xs, ys, zs, xm, ym, zm;
-        DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
-        const auto& [nx, ny, nz] = r_dec.get_global_sizes();
-        BC                      bc{};
-        std::array<PetscInt, 3> stencil{};
+        auto info       = this->get_side_info(side);
+        const auto&  bc = info.bc;
+        const auto&  stencil = info.stencil;
 
-        if (side == SIDES::NORTH)
-        {
-            xs      = nx - 3;
-            xm      = 1;
-            bc      = r_BCs.BC_NORTH;
-            stencil = {-1, 0, 0};
-        }
-        else if (side == SIDES::SOUTH)
-        {
-            xs      = 0;
-            xm      = 1;
-            bc      = r_BCs.BC_SOUTH;
-            stencil = {1, 0, 0};
-        }
-        else if (side == SIDES::EAST)
-        {
-            ys      = 0;
-            ym      = 1;
-            bc      = r_BCs.BC_EAST;
-            stencil = {0, 1, 0};
-        }
-        else if (side == SIDES::WEST)
-        {
-            ys      = ny - 3;
-            ym      = 1;
-            bc      = r_BCs.BC_WEST;
-            stencil = {0, -1, 0};
-        }
-        else if (side == SIDES::BOTTOM)
-        {
-            zs      = 0;
-            zm      = 1;
-            bc      = r_BCs.BC_BOTTOM;
-            stencil = {0, 0, 1};
-        }
-        else if (side == SIDES::TOP)
-        {
-            zs      = nz - 3;
-            zm      = 1;
-            bc      = r_BCs.BC_TOP;
-            stencil = {0, 0, -1};
-        }
 
         if (bc == NeuHomo or bc == Neumann)
         {
-            neumann_on_A(xs, xm, ys, ym, zs, zm, stencil);
+            neumann_on_A(info);
+        }
+         /* No modification required */
+        else if (bc == DirHomo or bc == Dirichlet) {  return; }
+        else 
+        {
+            if(!r_dec.rank()) std::cerr << "BC imposition not supported for this type!\n";
         }
     }
 
     template <typename T>
-    auto MGLaplaceSolver<T>::neumann_on_A(PetscInt xs_, PetscInt xm_, PetscInt ys_, PetscInt ym_,
-                                          PetscInt zs_, PetscInt zm_,
-                                          std::array<PetscInt, 3>& stencil)
+    auto MGLaplaceSolver<T>::neumann_on_A(SideInfo const& info)
     {
         const PetscScalar v[1] = {1.0};
         MatStencil        row, col[1];
@@ -346,20 +308,18 @@ namespace numPDE
         row.c    = 0;
         col[0].c = 0;
 
-        for (PetscInt k = zs_; k < zs_ + zm_; ++k)
-            for (PetscInt j = ys_; j < ys_ + ym_; ++j)
-                for (PetscInt i = xs_; i < xs_ + xm_; ++i)
-                {
-                    // Explicit assignment prevents axis swapping
-                    row.i    = i;
-                    row.j    = j;
-                    row.k    = k;
-                    col[0].i = i;
-                    col[0].j = j;
-                    col[0].k = k;
+        for (auto [k, j, i] : info.iterate_side())
+        {
+            // Explicit assignment prevents axis swapping
+            row.i    = i;
+            row.j    = j;
+            row.k    = k;
+            col[0].i = i;
+            col[0].j = j;
+            col[0].k = k;
 
-                    MatSetValuesStencil(this->A, 1, &row, 1, col, v, ADD_VALUES);
-                }
+            MatSetValuesStencil(this->A, 1, &row, 1, col, v, ADD_VALUES);
+        }
     }
 
     template <typename T>
@@ -375,76 +335,24 @@ namespace numPDE
     template <typename T>
     auto MGLaplaceSolver<T>::update_bc_b_impl(SIDES const& side)
     {
-        PetscInt xs, ys, zs, xm, ym, zm;
-        DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
-        const auto& [nx, ny, nz] = r_dec.get_global_sizes();
-        BC                               bc{};
-        typename PressureBC<T>::Function fun{};
-        std::array<int, 3>               offset{{1, 1, 1}};
+        auto info       = this->get_side_info(side);
+        const auto&  bc = info.bc;
+        const auto&  stencil = info.stencil;
+        const auto& offset = info.offset;
 
-        if (side == SIDES::NORTH)
-        {
-            xs        = nx - 3;
-            xm        = 1;
-            bc        = r_BCs.BC_NORTH;
-            fun       = r_BCs.g_north;
-            offset[0] = 2;
-        }
-        else if (side == SIDES::SOUTH)
-        {
-            xs        = 0;
-            xm        = 1;
-            bc        = r_BCs.BC_SOUTH;
-            fun       = r_BCs.g_south;
-            offset[0] = 0;
-        }
-        else if (side == SIDES::EAST)
-        {
-            ys        = 0;
-            ym        = 1;
-            bc        = r_BCs.BC_EAST;
-            fun       = r_BCs.g_east;
-            offset[1] = 0;
-        }
-        else if (side == SIDES::WEST)
-        {
-            ys        = ny - 3;
-            ym        = 1;
-            bc        = r_BCs.BC_WEST;
-            fun       = r_BCs.g_west;
-            offset[1] = 2;
-        }
-        else if (side == SIDES::TOP)
-        {
-            zs        = nz - 3;
-            zm        = 1;
-            bc        = r_BCs.BC_TOP;
-            fun       = r_BCs.g_top;
-            offset[2] = 2;
-        }
-        else if (side == SIDES::BOTTOM)
-        {
-            zs        = 0;
-            zm        = 1;
-            bc        = r_BCs.BC_BOTTOM;
-            fun       = r_BCs.g_bottom;
-            offset[2] = 0;
-        }
 
         if (bc == Dirichlet or bc == Neumann)
         {
             const T        scale = (bc == BC::Dirichlet) ? -1.0 : r_const.h;
             PetscScalar*** bAsTens;
             DMDAVecGetArray(this->da, this->b, &bAsTens);
-            for (PetscInt k = zs; k < zs + zm; ++k)
-                for (PetscInt j = ys; j < ys + ym; ++j)
-                    for (PetscInt i = xs; i < xs + xm; ++i)
-                    {
-                        const auto pos =
-                            std::vector<T>{(i + offset[0]) * r_const.h, (j + offset[1]) * r_const.h,
-                                           (k + offset[2]) * r_const.h};
-                        bAsTens[k][j][i] += scale * static_cast<PetscScalar>(fun(pos));
-                    }
+            for(auto [k, j, i] : info.iterate_side())
+                {
+                    const auto pos =
+                        std::vector<T>{(i + offset[0]) * r_const.h, (j + offset[1]) * r_const.h,
+                                       (k + offset[2]) * r_const.h};
+                    bAsTens[k][j][i] += scale * static_cast<PetscScalar>(info.fun(pos));
+                }
             DMDAVecRestoreArray(this->da, this->b, &bAsTens);
         }
     }
@@ -534,4 +442,77 @@ namespace numPDE
         DMDAVecRestoreArray(this->da, this->b, &bAsTens);
     }
 
+template <typename T>
+auto MGLaplaceSolver<T>::get_side_info(SIDES const& side) const -> SideInfo
+{
+    SideInfo info{};
+
+    // Get the current rank's local corner and extent info
+    DMDAGetCorners(this->da, &info.xs, &info.ys, &info.zs, &info.xm, &info.ym, &info.zm);
+    
+    const auto& [nx, ny, nz] = r_dec.get_global_sizes();
+
+    // Default offset for internal points
+    info.offset = {1, 1, 1};
+
+    // --- Side-Specific Logic ---
+    // We only modify the start/extent in the dimension orthogonal to the boundary 
+    // and set the extent to 1 for the boundary layer.
+    
+    if (side == SIDES::NORTH) // x = L_x boundary (i=N-1)
+    {
+        info.xs     = nx - 3;
+        info.xm     = 1;
+        info.bc     = r_BCs.BC_NORTH;
+        info.fun    = r_BCs.g_north;
+        info.stencil = {-1, 0, 0};
+        info.offset[0] = 2; // Position relative to ghost point: i=N-2 is offset by 2 from i=N-4
+    }
+    else if (side == SIDES::SOUTH) // x = 0 boundary (i=0)
+    {
+        info.xs     = 0;
+        info.xm     = 1;
+        info.bc     = r_BCs.BC_SOUTH;
+        info.fun    = r_BCs.g_south;
+        info.stencil = {1, 0, 0};
+        info.offset[0] = 0; // Position relative to ghost point: i=1 is offset by 0 from i=1
+    }
+    else if (side == SIDES::EAST) // y = L_y boundary (j=N-1)
+    {
+        info.ys     = ny - 3; // Corrected: use ny
+        info.ym     = 1;
+        info.bc     = r_BCs.BC_EAST;
+        info.fun    = r_BCs.g_east;
+        info.stencil = {0, -1, 0};
+        info.offset[1] = 2; // Corrected: use offset[1]
+    }
+    else if (side == SIDES::WEST) // y = 0 boundary (j=0)
+    {
+        info.ys     = 0;
+        info.ym     = 1;
+        info.bc     = r_BCs.BC_WEST;
+        info.fun    = r_BCs.g_west;
+        info.stencil = {0, 1, 0};
+        info.offset[1] = 0; // Corrected: use offset[1]
+    }
+    else if (side == SIDES::TOP) // z = L_z boundary (k=N-1)
+    {
+        info.zs     = nz - 3; // Corrected: use nz
+        info.zm     = 1;
+        info.bc     = r_BCs.BC_TOP;
+        info.fun    = r_BCs.g_top;
+        info.stencil = {0, 0, -1};
+        info.offset[2] = 2; // Corrected: use offset[2]
+    }
+    else if (side == SIDES::BOTTOM) // z = 0 boundary (k=0)
+    {
+        info.zs     = 0;
+        info.zm     = 1;
+        info.bc     = r_BCs.BC_BOTTOM;
+        info.fun    = r_BCs.g_bottom;
+        info.stencil = {0, 0, 1};
+        info.offset[2] = 0; // Corrected: use offset[2]
+    }
+    return info;
+}
 } // namespace numPDE
