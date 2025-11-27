@@ -77,9 +77,9 @@ class Communicator
                 MPI_Comm_free(&cart_comm);
                 cart_comm = MPI_COMM_NULL;
             }
+        }
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Finalize();
-        }
     }
 
     int         rank() const { return mpi_rank; }

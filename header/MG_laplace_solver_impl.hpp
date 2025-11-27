@@ -81,12 +81,13 @@ namespace numPDE
                             DM_BOUNDARY_GHOSTED, DMDA_STENCIL_BOX, NxLoc, NyLoc, NzLoc, 1, py, pz,
                             1, 2, lx.data(), ly.data(), lz.data(), &this->da);
         DMSetUp(this->da);
+        MPI_Barrier(MPI_COMM_WORLD);
     }
 
     template <typename T>
     auto MGLaplaceSolver<T>::build_linear_system()
     {
-        DMSetUp(this->da);
+        MPI_Barrier(MPI_COMM_WORLD);
         DMCreateMatrix(this->da, &A);
         DMCreateGlobalVector(this->da, &x_h);
         DMCreateGlobalVector(this->da, &b);
@@ -94,8 +95,6 @@ namespace numPDE
         build_int_A();
         apply_bc_to_A();
 
-        MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
-        MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
 
         KSPCreate(PETSC_COMM_WORLD, &ksp);
         KSPSetOperators(ksp, A, A);
@@ -256,15 +255,25 @@ namespace numPDE
 
                     MatSetValuesStencil(A, 1, &row, n, col, v, INSERT_VALUES);
                 }
-        MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY);
-        MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY);
     }
 
     template <typename T>
     auto MGLaplaceSolver<T>::apply_bc_to_A()
     {
-        for (auto side : enum_range<numPDE::SIDES>())
-            if (is_side(side, r_dec)) apply_BC_A_impl(side);
+            // Allows to change mode of modify the matrix (ADD_VALUES to INSERT_VALUES)
+            MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY);
+            MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY);
+            for (auto side : enum_range<numPDE::SIDES>())
+                if (is_side(side, r_dec))
+                {
+                    apply_BC_A_impl(side);
+                }
+        
+            // Finalize the Matrix assembly
+            MPI_Barrier(MPI_COMM_WORLD);
+            MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
+            MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
+
     }
 
     template <typename T>
@@ -351,8 +360,6 @@ namespace numPDE
 
                     MatSetValuesStencil(this->A, 1, &row, 1, col, v, ADD_VALUES);
                 }
-        MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY);
-        MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY);
     }
 
     template <typename T>
