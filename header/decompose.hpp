@@ -56,7 +56,13 @@ class Communicator
   public:
     Communicator(int argc, char** argv)
     {
-        MPI_Init(&argc, &argv);
+        // Check if MPI is already active
+        int is_initialized{0};
+        MPI_Initialized(&is_initialized);
+
+        if(!static_cast<bool>(is_initialized))
+           {MPI_Init(&argc, &argv);}
+
         MPI_Comm_size(MPI_COMM_WORLD, &tot_rank);
         MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
         this->split_rank_cartesian();
@@ -71,9 +77,9 @@ class Communicator
                 MPI_Comm_free(&cart_comm);
                 cart_comm = MPI_COMM_NULL;
             }
-        }
         MPI_Barrier(MPI_COMM_WORLD);
         MPI_Finalize();
+        }
     }
 
     int         rank() const { return mpi_rank; }
