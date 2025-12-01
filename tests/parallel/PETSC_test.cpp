@@ -152,12 +152,12 @@ int main(int argc, char** argv)
     Bcs.g_top     = g_;
     Bcs.g_bottom  = g_;
 
-    Bcs.BC_NORTH  = numPDE::NeuHomo;
-    Bcs.BC_SOUTH  = numPDE::NeuHomo;
-    Bcs.BC_EAST   = numPDE::NeuHomo;
-    Bcs.BC_WEST   = numPDE::NeuHomo;
-    Bcs.BC_TOP    = numPDE::NeuHomo;
-    Bcs.BC_BOTTOM = numPDE::NeuHomo;
+    Bcs.BC_NORTH  = numPDE::Dirichlet;
+    Bcs.BC_SOUTH  = numPDE::Dirichlet;
+    Bcs.BC_EAST   = numPDE::Dirichlet;
+    Bcs.BC_WEST   = numPDE::Dirichlet;
+    Bcs.BC_TOP    = numPDE::Dirichlet;
+    Bcs.BC_BOTTOM = numPDE::Dirichlet;
     Bcs.f         = forc;
     Bcs.u_ex      = u_ex;
 
