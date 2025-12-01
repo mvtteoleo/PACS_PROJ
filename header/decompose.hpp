@@ -704,6 +704,19 @@ class PETScDecomp : public Communicator<T>
         DMDestroy(&da);
         PetscFinalize();
     }
-
-  private:
 };
+
+#include <concepts>
+#include <type_traits>
+#include <array>
+
+template <typename L, typename T = double>
+concept Decomposer = std::derived_from<L, Communicator<T>> &&
+    requires(L d)
+{
+    { d.xStart() }         -> std::convertible_to<std::array<int, 3>>;
+    { d.xStartWGhosts() }  -> std::convertible_to<std::array<int, 3>>;
+    { d.xSize() }          -> std::convertible_to<std::array<int, 3>>;
+    { d.dimsWithGhosts() } -> std::convertible_to<std::array<int, 3>>;
+};
+

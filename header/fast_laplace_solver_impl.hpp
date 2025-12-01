@@ -105,7 +105,12 @@ namespace numPDE
     template <typename T>
     auto FastLaplaceSolver<T>::solve(bool verbose)
     {
-        P.emplace(numPDE::make_scalar_field<T, 3>(r_dec.xSize()));
+
+        // Check if the P tensor is already been used/allocated
+        if (!P.has_value())
+        {
+            P.emplace(numPDE::make_scalar_field<T, 3>(r_dec.xSize()));
+        }
         const auto& xstrt = r_dec.xStart();
         const auto& is    = xstrt[0];
         const auto& js    = xstrt[1];
@@ -341,6 +346,22 @@ namespace numPDE
             std::cout << "L2  err  " << std::scientific << std::setprecision(4)
                       << std::sqrt(glob_L2) << "\n";
         }
+    }
+
+
+    template <typename T>
+    void FastLaplaceSolver<T>::pressure_correct(numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR> &divU,
+                                                bool verbose)
+    {
+        // Check if the P tensor is already been used/allocated else allocate it 
+        if (!P.has_value()) { P.emplace(numPDE::make_scalar_field<T, 3>(r_dec.xSize())); }
+        
+        // Write on the local tensor P
+        std::cout << "Devi ancora implementarlo";
+        
+            
+        // Solve overriding on P
+        this->solve(P.value(), P.value(), verbose);
     }
 
 } // namespace numPDE

@@ -61,8 +61,11 @@ namespace numPDE
         template <bool NEEDS_UPDATE_BC = true, TypeIndex TYPE>
         auto solve(numPDE::Tensor<T, 3, 3, TYPE> const& b_t);
 
-        auto check_sol();
+        template<TypeIndex TYPE>
+        void pressure_correct(numPDE::Tensor<T, 3, 3, TYPE> &divU, bool verbose = false);
 
+        auto check_sol();
+  
         template <TypeIndex TYPE>
         auto write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t);
 
@@ -73,7 +76,7 @@ namespace numPDE
         auto update_bc_on_b();
         bool all_neumann_bc() const;
 
-        // Public members (PETSc objects often need direct access)
+        // Public members (PETSc objects, Just pointers and then allocation/deallocation has to handled manually )
         Mat          A;
         Vec          x_h, b;
         DM           da;

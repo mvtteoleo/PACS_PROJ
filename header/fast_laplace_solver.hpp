@@ -26,6 +26,8 @@ namespace numPDE
         void solve(const numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& in,
                    numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& out, bool verbose = false);
 
+        void pressure_correct(numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR> &divU, bool verbose=false);
+
         auto check_sol();
 
       private:

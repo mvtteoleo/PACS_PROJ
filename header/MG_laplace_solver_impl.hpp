@@ -2,6 +2,7 @@
 
 #include "MG_laplace_solver.hpp"
 #include "pde_helper.hpp"
+#include "tensors.hpp"
 namespace numPDE
 {
 
@@ -515,4 +516,12 @@ auto MGLaplaceSolver<T>::get_side_info(SIDES const& side) const -> SideInfo
     }
     return info;
 }
+    template <typename T, TypeIndex TYPE>
+    void MGLaplaceSolver<T>::pressure_correct(numPDE::Tensor<T, 3, 3, TYPE> &divU, bool verbose)
+    {
+        // Write divU on the rhs
+        // Solve
+        // Write the solution back on divU
+        std::cout << "Devi ancora implementarlo";
+    }
 } // namespace numPDE
