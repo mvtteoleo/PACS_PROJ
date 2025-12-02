@@ -61,10 +61,8 @@ class Communicator
         int is_initialized{0};
         MPI_Initialized(&is_initialized);
 
-        if (!static_cast<bool>(is_initialized))
-        {
-            MPI_Init(&argc, &argv);
-        }
+        if (!is_initialized) { MPI_Init(&argc, &argv); }
+        else { release_mpi_ownership(); }
 
         MPI_Comm_size(MPI_COMM_WORLD, &tot_rank);
         MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);

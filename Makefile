@@ -2,7 +2,7 @@
 # Compiler and Flags
 CXX       := mpic++
 MPICXX    := mpic++
-CPPFLAGS  := -Wall -Wextra -pedantic -fopenmp -std=c++23  -Iheader -Isrc -I.  -fconcepts-diagnostics-depth=2
+CPPFLAGS  := -Wall -Wextra -pedantic -fopenmp -std=c++23  -Iheader -Isrc -I.  
 LDLIBS   := -lfftw3 -lm -lboost_iostreams -lboost_system #-lfftw3_mpi 
 
 
