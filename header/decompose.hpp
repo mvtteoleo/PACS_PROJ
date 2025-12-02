@@ -707,7 +707,7 @@ class PETScDecomp : public Communicator<T>
     ~PETScDecomp()
     {
         DMDestroy(&da);
-        PetscFinalize();
+        if(this->m_owns_mpi_lifecycle) { PetscFinalize(); }
     }
 };
 
