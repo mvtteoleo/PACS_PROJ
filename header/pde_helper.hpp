@@ -1,4 +1,5 @@
 #pragma once
+#include "decompose.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -98,24 +99,24 @@ constexpr auto enum_range()
 template <typename COMM>
 bool is_side(numPDE::SIDES const side, COMM const& r_dec)
 {
-    const auto [xs, ys, zs]  = r_dec.xStart();
-    const auto [xm, ym, zm]  = r_dec.xSize();
-    const auto& [nx, ny, nz] = r_dec.get_global_sizes();
+    const auto strt  = r_dec.xStart();
+    const auto size  = r_dec.xSize();
+    const auto glob_size = r_dec.get_global_sizes();
 
     switch (side)
     {
         case numPDE::SIDES::NORTH:
-            return (xs + xm == nx);
+            return (strt[0] + size[0] == glob_size[0]);
         case numPDE::SIDES::SOUTH:
-            return (xs == 0);
+            return (strt[0] == 0);
         case numPDE::SIDES::EAST:
-            return (ys == 0);
+            return (strt[1] == 0);
         case numPDE::SIDES::WEST:
-            return (ys + ym == ny);
+            return (strt[1] + size[1] == glob_size[1]);
         case numPDE::SIDES::BOTTOM:
-            return (zs == 0);
+            return (strt[2] == 0);
         case numPDE::SIDES::TOP:
-            return (zm + zs == nz);
+            return (strt[2] + size[2] == glob_size[2]);
         default:
             std::cerr << "Invalid side specified — check numPDE::SIDES.\n";
             return false;

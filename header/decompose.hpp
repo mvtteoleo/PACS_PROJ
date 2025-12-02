@@ -50,8 +50,9 @@ class Communicator
     std::array<int, 6> neighbors{};
     MPI_Comm           cart_comm{MPI_COMM_NULL};
     // Global sizes
-    size_t Nx{}, Ny{}, Nz{};
-    bool   m_owns_mpi_lifecycle = true;
+    std::array<size_t, 3> glob_sizes{{0, 0, 0}};
+    size_t &              Nx{glob_sizes[0]}, Ny{glob_sizes[1]}, Nz{glob_sizes[2]};
+    bool                  m_owns_mpi_lifecycle = true;
 
   public:
     Communicator(int argc, char** argv)
@@ -60,8 +61,10 @@ class Communicator
         int is_initialized{0};
         MPI_Initialized(&is_initialized);
 
-        if(!static_cast<bool>(is_initialized))
-           {MPI_Init(&argc, &argv);}
+        if (!static_cast<bool>(is_initialized))
+        {
+            MPI_Init(&argc, &argv);
+        }
 
         MPI_Comm_size(MPI_COMM_WORLD, &tot_rank);
         MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
@@ -77,9 +80,9 @@ class Communicator
                 MPI_Comm_free(&cart_comm);
                 cart_comm = MPI_COMM_NULL;
             }
+            MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Finalize();
         }
-        MPI_Barrier(MPI_COMM_WORLD);
-        MPI_Finalize();
     }
 
     int         rank() const { return mpi_rank; }
@@ -94,7 +97,7 @@ class Communicator
 
     auto get_process_grid() const { return dims; }
 
-    auto get_global_sizes() const { return std::make_tuple(this->Nx, this->Ny, this->Nz); }
+    auto get_global_sizes() const { return glob_sizes; }
 
     void release_mpi_ownership() { m_owns_mpi_lifecycle = false; }
     template <typename Ts>
@@ -104,6 +107,7 @@ class Communicator
         this->Nx = static_cast<size_t>(nx);
         this->Ny = static_cast<size_t>(ny);
         this->Nz = static_cast<size_t>(nz);
+        return;
     }
 
     template <typename U, size_t RANK, size_t N_DIMS>
@@ -558,8 +562,8 @@ class PETScDecomp : public Communicator<T>
 {
   public:
     // PETSc communicator
-    DM       da;
-    PetscInt xs, ys, zs, xm, ym, zm;
+    DM                      da;
+    std::array<PetscInt, 3> start, size;
 
     template <typename Ts>
         requires std::is_integral_v<Ts>
@@ -588,19 +592,18 @@ class PETScDecomp : public Communicator<T>
         this->init_loal_sizes();
     }
 
-    auto init_loal_sizes() { DMDAGetCorners(da, &xs, &ys, &zs, &xm, &ym, &zm); }
-
-    auto xStart() const
+    auto init_loal_sizes()
     {
-        return std::array<int, 3>{
-            {static_cast<int>(xs), static_cast<int>(ys), static_cast<int>(zs)}};
+        PetscInt xs, ys, zs, xm, ym, zm;
+        DMDAGetCorners(da, &xs, &ys, &zs, &xm, &ym, &zm);
+        this->start = {xs, ys, zs};
+        this->size  = {xm, ym, zm};
     }
 
-    auto xSize() const
-    {
-        return std::array<int, 3>{
-            {static_cast<int>(xm), static_cast<int>(ym), static_cast<int>(zm)}};
-    }
+    auto xStart() const { return this->start; }
+
+    auto xSize() const { return this->size; }
+
     std::array<int, 3> xStartWGhosts() const
     {
         std::array<int, 3> start_w_ghosts;
@@ -653,7 +656,9 @@ class PETScDecomp : public Communicator<T>
         PetscScalar*** bAsTens;
         DMDAVecGetArray(da, P_vec, &bAsTens);
 
-        auto [gxs, gys, gzs] = this->xStartWGhosts();
+        auto [gxs, gys, gzs]     = this->xStartWGhosts();
+        const auto& [xs, ys, zs] = this->start;
+        const auto& [xm, ym, zm] = this->size;
         // Assign using global indexing for PETSc array and local for the
         // numPDE tensor.
         // WARNING Avoid the std::copy_n for the contiguos elements in the x direction, PETSc does
@@ -679,7 +684,9 @@ class PETScDecomp : public Communicator<T>
         PetscScalar*** bAsTens;
         DMDAVecGetArray(da, P_vec, &bAsTens);
 
-        auto [gxs, gys, gzs] = this->xStartWGhosts();
+        const auto& [xs, ys, zs] = this->start;
+        const auto& [xm, ym, zm] = this->size;
+        auto [gxs, gys, gzs]     = this->xStartWGhosts();
         // Assign using global indexing for PETSc array and local for the
         // numPDE tensor.
         // WARNING Avoid the std::copy_n for the contiguos elements in the x direction, PETSc does
@@ -706,17 +713,14 @@ class PETScDecomp : public Communicator<T>
     }
 };
 
+#include <array>
 #include <concepts>
 #include <type_traits>
-#include <array>
 
 template <typename L, typename T = double>
-concept Decomposer = std::derived_from<L, Communicator<T>> &&
-    requires(L d)
-{
-    { d.xStart() }         -> std::convertible_to<std::array<int, 3>>;
-    { d.xStartWGhosts() }  -> std::convertible_to<std::array<int, 3>>;
-    { d.xSize() }          -> std::convertible_to<std::array<int, 3>>;
-    { d.dimsWithGhosts() } -> std::convertible_to<std::array<int, 3>>;
+concept Decomposer = std::derived_from<L, Communicator<T>> && requires(L d) {
+    { d.xStart() } ;
+    { d.xStartWGhosts() } ;
+    { d.xSize() } ;
+    { d.dimsWithGhosts() } ;
 };
-

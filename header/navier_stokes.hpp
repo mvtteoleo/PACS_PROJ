@@ -1,6 +1,7 @@
 #pragma once
 #include "decompose.hpp"
 #include "laplace_solver.hpp"
+#include "tensorExpressionTemplates.hpp"
 #include "tensors.hpp"
 #include <algorithm>
 #include <array>
@@ -25,7 +26,7 @@ namespace numPDE
     {
         NS_problem(NS_input<T>& inputs, Decomp& decomp)
             : r_inps(inputs), r_cstns(inputs.constants), r_dec(decomp),
-              fastLapSolver(decomp, inputs.p_BC, inputs.constants){};
+              pSolver(decomp, inputs.p_BC, inputs.constants){};
 
         using ScalF = numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>;
         using VecF  = numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>;
@@ -34,9 +35,13 @@ namespace numPDE
 
             const auto&         h  = r_cstns.h;
             const auto&         Re = r_cstns.Re;
-            numPDE::MyVec<T, 3>  ris;
-            numPDE::MyVec<T, 3> Ux, Uy,Uz;
+            numPDE::MyVec<T, 3> ris;
+            numPDE::MyVec<T, 3> Ux, Uy, Uz;
+            numPDE::MyVec<T, 3> lap, dU_dx, dU_dy, dU_dz, Conv;
+        
 
+        /*
+        */
             const auto& C   = h_U(i, j, k);     // center (i,j,k)
             const auto& E   = h_U(i + 1, j, k); // east
             const auto& W   = h_U(i - 1, j, k); // west
@@ -55,29 +60,28 @@ namespace numPDE
             const auto& ST = h_U.at(1, i, j - 1, k + 1);
 
             // --- Laplacian  ---
-            auto lap = (E + W + N + S + Top + B - 6.0 * C) / (h * h * Re);
+            lap = (E + W + N + S + Top + B - 6.0 * C) / (h * h * Re);
 
-
-            auto dU_dx = (E - W) / (2 * h);
-            auto dU_dy = (N - S) / (2 * h);
-            auto dU_dz = (Top - B) / (2 * h);
+            dU_dx = (E - W) / (2*h);
+            dU_dy = (N - S) / (2*h);
+            dU_dz = (Top - B)/(2*h);
             // --- Nonlinear convective terms (u · ∇)u etc. at center ---
             // Ui on [x, y, z] to leverage the ET
             Ux[0] = C[0];
-            Ux[1] =   0.25 * (C[0] + W[0] + N[0] + NW);
-            Ux[2] =   0.25 * (C[0] + W[0] + Top[0] + WT);
+            Ux[1] = 0.25 * (C[0] + W[0] + N[0] + NW);
+            Ux[2] = 0.25 * (C[0] + W[0] + Top[0] + WT);
 
-            Uy[0] =   0.25 * (C[1] + S[1] + E[1] + SE);
+            Uy[0] = 0.25 * (C[1] + S[1] + E[1] + SE);
             Uy[1] = C[1];
-            Uy[2] =     0.25 * (C[1] + S[1] + Top[1] + ST);
-                                
-            Uz[0] =   0.25 * (C[2] + B[2] + E[2] + EB);
-            Uz[1] =   0.25 * (C[2] + B[2] + N[2] + NB);
+            Uy[2] = 0.25 * (C[1] + S[1] + Top[1] + ST);
+
+            Uz[0] = 0.25 * (C[2] + B[2] + E[2] + EB);
+            Uz[1] = 0.25 * (C[2] + B[2] + N[2] + NB);
             Uz[2] = C[2];
 
-            auto Conv = dU_dx * Ux + dU_dy * Uy + dU_dz * Uz;
+             Conv = dU_dx * Ux + dU_dy * Uy + dU_dz * Uz;
 
-            ris = lap / Re - Conv;
+            ris =  lap / Re- Conv ;
             return ris;
         }
 
@@ -423,9 +427,8 @@ namespace numPDE
         const T       c1 = a21, c2 = 2.0 / 3.0, b3 = 0.75;
         T             t = 0;
 
-        Decomp&        r_dec;
+        Decomp& r_dec;
         PSolver pSolver;
     };
 
 }; // namespace numPDE
-

@@ -46,7 +46,9 @@ int main(int argc, char* argv[])
     inputs.constants.dt    = dt;
     inputs.constants.T_max = Tmax;
 
-    numPDE::NS_problem<Real> ns(inputs, decomposer);
+
+
+    numPDE::NS_problem<Real, numPDE::FastLaplaceSolver<Real>, NewDecomp<Real>> ns(inputs, decomposer);
 
     auto [V_new, P_new] = ns.solve(V, P);
 

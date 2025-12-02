@@ -1,4 +1,5 @@
 #pragma once
+#include "pde_helper.hpp"
 #include <execution>
 #include <iomanip>
 #include <mpi.h>
@@ -348,20 +349,37 @@ namespace numPDE
         }
     }
 
-
     template <typename T>
-    void FastLaplaceSolver<T>::pressure_correct(numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR> &divU,
-                                                bool verbose)
+    void FastLaplaceSolver<T>::pressure_correct(numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& divU,
+                                                T t_curr,
+                                                bool                                        verbose)
     {
-        // Check if the P tensor is already been used/allocated else allocate it 
-        if (!P.has_value()) { P.emplace(numPDE::make_scalar_field<T, 3>(r_dec.xSize())); }
-        
+        // Check if the P tensor is already been used/allocated else allocate it
+        if (!P.has_value())
+        {
+            P.emplace(numPDE::make_scalar_field<T, 3>(r_dec.xSize()));
+        }
+
+        // Handle the ghost points (Missing for the pressure solver data structure)
+        // If I am on the side I need to write the value of divU
+        // else I need the +1 to skip the ghost point
+        const int i_c = (is_side(SIDES::SOUTH, r_dec)) ? 0 : 1;
+        const int j_c = (is_side(SIDES::EAST, r_dec)) ? 0 : 1;
+        const int k_c = (is_side(SIDES::BOTTOM, r_dec)) ? 0 : 1;
         // Write on the local tensor P
-        std::cout << "Devi ancora implementarlo";
-        
-            
+        for (auto [k, j, i] : P->all_elems())
+        {
+            (*P)(i, j, k) = divU(i + i_c, j + j_c, k + k_c);
+        }
+
         // Solve overriding on P
         this->solve(P.value(), P.value(), verbose);
+
+        // Write on the ghosted tensor divU
+        for (auto [k, j, i] : P->all_elems())
+        {
+            divU(i + i_c, j + j_c, k + k_c) = (*P)(i, j, k);
+        }
     }
 
 } // namespace numPDE

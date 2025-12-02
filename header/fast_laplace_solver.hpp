@@ -14,7 +14,7 @@ namespace numPDE
     class FastLaplaceSolver
     {
       public:
-        using type_value = T;
+        using value_type = T;
 
         FastLaplaceSolver(NewDecomp<T>& decomp, PressureBC<T>& Bcs, Constants<T>& constants);
         ~FastLaplaceSolver();
@@ -26,7 +26,10 @@ namespace numPDE
         void solve(const numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& in,
                    numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& out, bool verbose = false);
 
-        void pressure_correct(numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR> &divU, bool verbose=false);
+        void pressure_correct(){return;};
+        void pressure_correct(numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& divU,
+                              T t_curr =0,
+                              bool                                        verbose = false);
 
         auto check_sol();
 

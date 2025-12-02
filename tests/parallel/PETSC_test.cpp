@@ -1,6 +1,9 @@
 #include "../../header/MY_LIB.hpp"
+#include "../../header/compiler_directives.hpp"
 #include "../../header/decompose.hpp"
+#include "../../header/pde_helper.hpp"
 #include "../../header/pvts_writer.hpp"
+#include "../../header/tensors.hpp"
 #include "petscdmda.h"
 #include <algorithm>
 #include <array>
@@ -8,6 +11,7 @@
 #include <cstddef>
 #include <iostream>
 #include <numbers>
+#include <petsc.h>
 #include <petscdm.h>
 #include <petscdmda.h>
 #include <petscksp.h>
@@ -16,13 +20,6 @@
 #include <random>
 #include <ranges>
 #include <vector>
-#include "../../header/compiler_directives.hpp"
-#include "../../header/decompose.hpp"
-#include "../../header/pde_helper.hpp"
-#include "../../header/tensors.hpp"
-#include <petsc.h>
-#include <petscdmda.h>
-#include <petscksp.h>
 
 bool VERBOOSE = false;
 
@@ -144,13 +141,13 @@ int main(int argc, char** argv)
     // ----------------------------------------------------------
     numPDE::PressureBC<Real> Bcs;
 
-    auto& g_      = u_ex; //[](std::vector<Real> const& pos) -> Real { return 0.1; };
-    Bcs.g_north   = g_;
-    Bcs.g_south   = g_;
-    Bcs.g_east    = g_;
-    Bcs.g_west    = g_;
-    Bcs.g_top     = g_;
-    Bcs.g_bottom  = g_;
+    auto& g_     = u_ex; //[](std::vector<Real> const& pos) -> Real { return 0.1; };
+    Bcs.g_north  = g_;
+    Bcs.g_south  = g_;
+    Bcs.g_east   = g_;
+    Bcs.g_west   = g_;
+    Bcs.g_top    = g_;
+    Bcs.g_bottom = g_;
 
     Bcs.BC_NORTH  = numPDE::NeuHomo;
     Bcs.BC_SOUTH  = numPDE::NeuHomo;

@@ -3,6 +3,7 @@
 #include "MG_laplace_solver.hpp"
 #include "pde_helper.hpp"
 #include "tensors.hpp"
+#include <cstddef>
 namespace numPDE
 {
 
@@ -23,6 +24,7 @@ namespace numPDE
         VecDestroy(&x_h);
         VecDestroy(&b);
         MatDestroy(&A);
+        DMDestroy(&da);
     }
 
     template <typename T>
@@ -97,7 +99,6 @@ namespace numPDE
 
         build_int_A();
         apply_bc_to_A();
-
 
         KSPCreate(PETSC_COMM_WORLD, &ksp);
         KSPSetOperators(ksp, A, A);
@@ -263,39 +264,40 @@ namespace numPDE
     template <typename T>
     auto MGLaplaceSolver<T>::apply_bc_to_A()
     {
-            // Allows to change mode of modify the matrix (ADD_VALUES to INSERT_VALUES)
-            MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY);
-            MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY);
-            for (auto side : enum_range<numPDE::SIDES>())
-                if (is_side(side, r_dec))
-                {
-                    apply_BC_A_impl(side);
-                }
-        
-            // Finalize the Matrix assembly
-            MPI_Barrier(MPI_COMM_WORLD);
-            MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
-            MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
+        // Allows to change mode of modify the matrix (ADD_VALUES to INSERT_VALUES)
+        MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY);
+        MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY);
+        for (auto side : enum_range<numPDE::SIDES>())
+            if (is_side(side, r_dec))
+            {
+                apply_BC_A_impl(side);
+            }
 
+        // Finalize the Matrix assembly
+        MPI_Barrier(MPI_COMM_WORLD);
+        MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
+        MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
     }
 
     template <typename T>
     auto MGLaplaceSolver<T>::apply_BC_A_impl(SIDES const& side)
     {
-        auto info       = this->get_side_info(side);
-        const auto&  bc = info.bc;
-        const auto&  stencil = info.stencil;
-
+        auto        info    = this->get_side_info(side);
+        const auto& bc      = info.bc;
+        const auto& stencil = info.stencil;
 
         if (bc == NeuHomo or bc == Neumann)
         {
             neumann_on_A(info);
         }
-         /* No modification required */
-        else if (bc == DirHomo or bc == Dirichlet) {  return; }
-        else 
+        /* No modification required */
+        else if (bc == DirHomo or bc == Dirichlet)
         {
-            if(!r_dec.rank()) std::cerr << "BC imposition not supported for this type!\n";
+            return;
+        }
+        else
+        {
+            if (!r_dec.rank()) std::cerr << "BC imposition not supported for this type!\n";
         }
     }
 
@@ -336,24 +338,23 @@ namespace numPDE
     template <typename T>
     auto MGLaplaceSolver<T>::update_bc_b_impl(SIDES const& side)
     {
-        auto info       = this->get_side_info(side);
-        const auto&  bc = info.bc;
-        const auto&  stencil = info.stencil;
-        const auto& offset = info.offset;
-
+        auto        info    = this->get_side_info(side);
+        const auto& bc      = info.bc;
+        const auto& stencil = info.stencil;
+        const auto& offset  = info.offset;
 
         if (bc == Dirichlet or bc == Neumann)
         {
             const T        scale = (bc == BC::Dirichlet) ? -1.0 : r_const.h;
             PetscScalar*** bAsTens;
             DMDAVecGetArray(this->da, this->b, &bAsTens);
-            for(auto [k, j, i] : info.iterate_side())
-                {
-                    const auto pos =
-                        std::vector<T>{(i + offset[0]) * r_const.h, (j + offset[1]) * r_const.h,
-                                       (k + offset[2]) * r_const.h};
-                    bAsTens[k][j][i] += scale * static_cast<PetscScalar>(info.fun(pos));
-                }
+            for (auto [k, j, i] : info.iterate_side())
+            {
+                const auto pos =
+                    std::vector<T>{(i + offset[0]) * r_const.h, (j + offset[1]) * r_const.h,
+                                   (k + offset[2]) * r_const.h};
+                bAsTens[k][j][i] += scale * static_cast<PetscScalar>(info.fun(pos));
+            }
             DMDAVecRestoreArray(this->da, this->b, &bAsTens);
         }
     }
@@ -403,6 +404,79 @@ namespace numPDE
     }
 
     template <typename T>
+    auto MGLaplaceSolver<T>::get_side_info(SIDES const& side) const -> SideInfo
+    {
+        SideInfo info{};
+
+        // Get the current rank's local corner and extent info
+        DMDAGetCorners(this->da, &info.xs, &info.ys, &info.zs, &info.xm, &info.ym, &info.zm);
+
+        const auto& [nx, ny, nz] = r_dec.get_global_sizes();
+
+        // Default offset for internal points
+        info.offset = {1, 1, 1};
+
+        // --- Side-Specific Logic ---
+        // We only modify the start/extent in the dimension orthogonal to the boundary
+        // and set the extent to 1 for the boundary layer.
+
+        if (side == SIDES::NORTH) // x = L_x boundary (i=N-1)
+        {
+            info.xs        = nx - 3;
+            info.xm        = 1;
+            info.bc        = r_BCs.BC_NORTH;
+            info.fun       = r_BCs.g_north;
+            info.stencil   = {-1, 0, 0};
+            info.offset[0] = 2; // Position relative to ghost point: i=N-2 is offset by 2 from i=N-4
+        }
+        else if (side == SIDES::SOUTH) // x = 0 boundary (i=0)
+        {
+            info.xs        = 0;
+            info.xm        = 1;
+            info.bc        = r_BCs.BC_SOUTH;
+            info.fun       = r_BCs.g_south;
+            info.stencil   = {1, 0, 0};
+            info.offset[0] = 0; // Position relative to ghost point: i=1 is offset by 0 from i=1
+        }
+        else if (side == SIDES::EAST) // y = L_y boundary (j=N-1)
+        {
+            info.ys        = ny - 3; // Corrected: use ny
+            info.ym        = 1;
+            info.bc        = r_BCs.BC_EAST;
+            info.fun       = r_BCs.g_east;
+            info.stencil   = {0, -1, 0};
+            info.offset[1] = 2; // Corrected: use offset[1]
+        }
+        else if (side == SIDES::WEST) // y = 0 boundary (j=0)
+        {
+            info.ys        = 0;
+            info.ym        = 1;
+            info.bc        = r_BCs.BC_WEST;
+            info.fun       = r_BCs.g_west;
+            info.stencil   = {0, 1, 0};
+            info.offset[1] = 0; // Corrected: use offset[1]
+        }
+        else if (side == SIDES::TOP) // z = L_z boundary (k=N-1)
+        {
+            info.zs        = nz - 3; // Corrected: use nz
+            info.zm        = 1;
+            info.bc        = r_BCs.BC_TOP;
+            info.fun       = r_BCs.g_top;
+            info.stencil   = {0, 0, -1};
+            info.offset[2] = 2; // Corrected: use offset[2]
+        }
+        else if (side == SIDES::BOTTOM) // z = 0 boundary (k=0)
+        {
+            info.zs        = 0;
+            info.zm        = 1;
+            info.bc        = r_BCs.BC_BOTTOM;
+            info.fun       = r_BCs.g_bottom;
+            info.stencil   = {0, 0, 1};
+            info.offset[2] = 0; // Corrected: use offset[2]
+        }
+        return info;
+    }
+    template <typename T>
     template <TypeIndex TYPE>
     auto MGLaplaceSolver<T>::load_into_rhs(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
     {
@@ -441,87 +515,155 @@ namespace numPDE
             b_t(i, j, k)      = bAsTens[gk][gj][gi];
         }
         DMDAVecRestoreArray(this->da, this->b, &bAsTens);
+        VecAssemblyBegin(this->b);
+        VecAssemblyEnd(this->b);
     }
 
-template <typename T>
-auto MGLaplaceSolver<T>::get_side_info(SIDES const& side) const -> SideInfo
-{
-    SideInfo info{};
+    // Reconstruct the second order polynomial in (0, phi_b) from (h, phi_1) and (2h, phi_2) so that
+    // is imposed I'(x=0) = G 3 phi_b - 4 phi_1 + phi_2 = -2 G h in our case f = G * h
+    template <typename T>
+    constexpr inline T interp_neumann_2(const T& phi_1, const T& phi_2, const T& f)
+    {
+        return (-2 * f - phi_2 + 4 * phi_1) / 3;
+    }
 
-    // Get the current rank's local corner and extent info
-    DMDAGetCorners(this->da, &info.xs, &info.ys, &info.zs, &info.xm, &info.ym, &info.zm);
-    
-    const auto& [nx, ny, nz] = r_dec.get_global_sizes();
+    template <typename T>
+    constexpr inline T MGLaplaceSolver<T>::apply_bc_helper(BC bc, const T& g_bound,
+                                                           const std::array<T, 2>& vals) const
+    {
+        // Direct forcing (Easy and clean)
+        if (bc == DirHomo or bc == Dirichlet)
+        {
+            return g_bound;
+        }
 
-    // Default offset for internal points
-    info.offset = {1, 1, 1};
+        // Need a free function
+        else if (bc == NeuHomo or bc == Neumann)
+        {
+            T f = g_bound * r_const.h;
+            return interp_neumann_2<T>(vals[0], vals[1], f);
+        }
+        else
+        {
+            if (!r_dec.rank())
+                std::cerr << "Impossible to write the values on the staggered tensor \n";
+            return 1.;
+        }
+    }
+    /*
+     * Need to write the values if the BC is Dirichlet or DirHomo
+     */
+    template <typename T>
+    template <TypeIndex TYPE>
+    auto MGLaplaceSolver<T>::write_boundary_values(numPDE::Tensor<T, 3, 3, TYPE>& divU,
+                                                   const T                        t_curr)
+    {
+        const auto& sizes     = r_dec.xSize();
+        const auto& start     = r_dec.xStart();
+        const auto& globdims  = r_dec.get_global_sizes();
+        const auto& tens_dims = divU.get_sizes();
 
-    // --- Side-Specific Logic ---
-    // We only modify the start/extent in the dimension orthogonal to the boundary 
-    // and set the extent to 1 for the boundary layer.
-    
-    if (side == SIDES::NORTH) // x = L_x boundary (i=N-1)
-    {
-        info.xs     = nx - 3;
-        info.xm     = 1;
-        info.bc     = r_BCs.BC_NORTH;
-        info.fun    = r_BCs.g_north;
-        info.stencil = {-1, 0, 0};
-        info.offset[0] = 2; // Position relative to ghost point: i=N-2 is offset by 2 from i=N-4
+        // Handle the x (For all ranks given the pencil decomposition)
+        const size_t i_max = globdims[0] - 1;
+        const auto   x_max = r_const.h * static_cast<T>(i_max);
+        for (auto k : std::views::iota(0, sizes[2]))
+            for (auto j : std::views::iota(0, sizes[1]))
+            {
+                const auto y       = r_const.h * static_cast<T>(j + start[1]);
+                const auto z       = r_const.h * static_cast<T>(k + start[2]);
+                const T    south_v = r_BCs.g_south({0, y, z, t_curr});
+                const T    north_v = r_BCs.g_north({x_max, y, z, t_curr});
+                // Apply BC on all the elements
+                divU(0, j, k) =
+                    apply_bc_helper(r_BCs.BC_SOUTH, south_v, {divU(1, j, k), divU(2, j, k)});
+
+                divU(i_max, j, k) = apply_bc_helper(r_BCs.BC_NORTH, north_v,
+                                                    {divU(i_max - 1, j, k), divU(i_max - 2, j, k)});
+            }
+
+        if (is_side(SIDES::EAST, r_dec))
+        {
+            constexpr auto   y = 0.0;
+            constexpr size_t j = 0;
+            for (auto k : std::views::iota(0, sizes[2]))
+                for (auto i : std::views::iota(0, sizes[0]))
+                {
+                    const auto x = r_const.h * static_cast<T>(i + start[0]);
+                    const auto z = r_const.h * static_cast<T>(k + start[2]);
+                    // Apply BC on all the elements
+                    const T g_ = r_BCs.g_east({x, y, z, t_curr});
+                    divU(i, j, k) =
+                        apply_bc_helper(r_BCs.BC_EAST, g_, {divU(i, j + 1, k), divU(i, j + 2, k)});
+                }
+        }
+
+        if (is_side(SIDES::WEST, r_dec))
+        {
+            const size_t j_max = tens_dims[1] - 1;
+            const auto   y     = r_const.h * static_cast<T>(globdims[1]);
+            for (auto k : std::views::iota(0, sizes[2]))
+                for (auto i : std::views::iota(0, sizes[0]))
+                {
+                    const auto x = r_const.h * static_cast<T>(i + start[0]);
+                    const auto z = r_const.h * static_cast<T>(k + start[2]);
+                    // Apply BC on all the elements
+                    const T g_        = r_BCs.g_west({x, y, z, t_curr});
+                    divU(i, j_max, k) = apply_bc_helper(
+                        r_BCs.BC_EAST, g_, {divU(i, j_max - 1, k), divU(i, j_max - 2, k)});
+                }
+        }
+
+        if (is_side(SIDES::TOP, r_dec))
+        {
+            const auto k_max = tens_dims[2] - 1;
+            const auto z     = r_const.h * static_cast<T>(globdims[2]);
+
+            for (auto j : std::views::iota(0, sizes[1]))
+                for (auto i : std::views::iota(0, sizes[0]))
+                {
+                    const auto x = r_const.h * static_cast<T>(i + start[0]);
+                    const auto y = r_const.h * static_cast<T>(j + start[1]);
+                    // Apply BC on all the elements
+                    auto g_           = r_BCs.g_top({x, y, z, t_curr});
+                    divU(i, j, k_max) = apply_bc_helper(
+                        r_BCs.BC_TOP, g_, {divU(i, j, k_max - 1), divU(i, j, k_max - 2)});
+                }
+        }
+
+        if (is_side(SIDES::BOTTOM, r_dec))
+        {
+            constexpr size_t k = 0;
+            constexpr T      z = 0.0;
+
+            for (auto j : std::views::iota(0, sizes[1]))
+                for (auto i : std::views::iota(0, sizes[0]))
+                {
+                    const auto x = r_const.h * static_cast<T>(i + start[0]);
+                    const auto y = r_const.h * static_cast<T>(j + start[1]);
+                    // Apply BC on all the elements
+                    auto g_           = r_BCs.g_bottom({x, y, z, t_curr});
+                    divU(i, j, k) = apply_bc_helper(r_BCs.BC_BOTTOM, g_,
+                                                        {divU(i, j, k + 1), divU(i, j, k + 2)});
+                }
+        }
     }
-    else if (side == SIDES::SOUTH) // x = 0 boundary (i=0)
-    {
-        info.xs     = 0;
-        info.xm     = 1;
-        info.bc     = r_BCs.BC_SOUTH;
-        info.fun    = r_BCs.g_south;
-        info.stencil = {1, 0, 0};
-        info.offset[0] = 0; // Position relative to ghost point: i=1 is offset by 0 from i=1
-    }
-    else if (side == SIDES::EAST) // y = L_y boundary (j=N-1)
-    {
-        info.ys     = ny - 3; // Corrected: use ny
-        info.ym     = 1;
-        info.bc     = r_BCs.BC_EAST;
-        info.fun    = r_BCs.g_east;
-        info.stencil = {0, -1, 0};
-        info.offset[1] = 2; // Corrected: use offset[1]
-    }
-    else if (side == SIDES::WEST) // y = 0 boundary (j=0)
-    {
-        info.ys     = 0;
-        info.ym     = 1;
-        info.bc     = r_BCs.BC_WEST;
-        info.fun    = r_BCs.g_west;
-        info.stencil = {0, 1, 0};
-        info.offset[1] = 0; // Corrected: use offset[1]
-    }
-    else if (side == SIDES::TOP) // z = L_z boundary (k=N-1)
-    {
-        info.zs     = nz - 3; // Corrected: use nz
-        info.zm     = 1;
-        info.bc     = r_BCs.BC_TOP;
-        info.fun    = r_BCs.g_top;
-        info.stencil = {0, 0, -1};
-        info.offset[2] = 2; // Corrected: use offset[2]
-    }
-    else if (side == SIDES::BOTTOM) // z = 0 boundary (k=0)
-    {
-        info.zs     = 0;
-        info.zm     = 1;
-        info.bc     = r_BCs.BC_BOTTOM;
-        info.fun    = r_BCs.g_bottom;
-        info.stencil = {0, 0, 1};
-        info.offset[2] = 0; // Corrected: use offset[2]
-    }
-    return info;
-}
-    template <typename T, TypeIndex TYPE>
-    void MGLaplaceSolver<T>::pressure_correct(numPDE::Tensor<T, 3, 3, TYPE> &divU, bool verbose)
+
+    /*
+     * Solves the pressure equation,
+     * writes the solution on boundary nodes
+     * and exchange the values on ghost nodes
+     */
+    template <typename T>
+    void MGLaplaceSolver<T>::pressure_correct(numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& divU, T t_curr,
+                                              bool verbose)
     {
         // Write divU on the rhs
+        this->load_into_rhs(divU);
         // Solve
+        this->solve_impl();
         // Write the solution back on divU
-        std::cout << "Devi ancora implementarlo";
+        this->write_sol_on_ghosted_tensor(divU);
+        this->write_boudary_values(divU, t_curr);
+        r_dec.exchange_ghosts(divU);
     }
 } // namespace numPDE

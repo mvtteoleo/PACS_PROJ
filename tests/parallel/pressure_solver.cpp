@@ -202,7 +202,7 @@ int main(int argc, char** argv)
 
     Real                                   scale     = 1;
     std::vector<std::tuple<int, int, int>> harmonics = {
-        {1, 0, 0} , {2, 1, 1}, {1, 2, 1}, {1, 1, 2} // Add as many as you like
+        {1, 0, 0}, {2, 1, 1}, {1, 2, 1}, {1, 1, 2} // Add as many as you like
     };
     // Cosine-based exact solution
     FunType u_ex_harm = [&](const std::vector<Real>& pos) -> Real
@@ -241,8 +241,8 @@ int main(int argc, char** argv)
         return sum;
     };
 
-    auto u_ex = exact_sol_poly; // u_ex_harm; // 
-    auto forc = forcing_poly;   // forc_harm; // 
+    auto u_ex = exact_sol_poly; // u_ex_harm; //
+    auto forc = forcing_poly;   // forc_harm; //
 
     // ----------------------------------------------------------
     // 4. Create system: ∇² u = f
