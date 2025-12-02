@@ -641,9 +641,9 @@ namespace numPDE
                     const auto x = r_const.h * static_cast<T>(i + start[0]);
                     const auto y = r_const.h * static_cast<T>(j + start[1]);
                     // Apply BC on all the elements
-                    auto g_           = r_BCs.g_bottom({x, y, z, t_curr});
+                    auto g_       = r_BCs.g_bottom({x, y, z, t_curr});
                     divU(i, j, k) = apply_bc_helper(r_BCs.BC_BOTTOM, g_,
-                                                        {divU(i, j, k + 1), divU(i, j, k + 2)});
+                                                    {divU(i, j, k + 1), divU(i, j, k + 2)});
                 }
         }
     }
@@ -654,8 +654,8 @@ namespace numPDE
      * and exchange the values on ghost nodes
      */
     template <typename T>
-    void MGLaplaceSolver<T>::pressure_correct(numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& divU, T t_curr,
-                                              bool verbose)
+    void MGLaplaceSolver<T>::pressure_correct(numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& divU,
+                                              T t_curr, bool verbose)
     {
         // Write divU on the rhs
         this->load_into_rhs(divU);

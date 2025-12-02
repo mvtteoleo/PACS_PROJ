@@ -99,7 +99,138 @@ class C2Decomp
     void best2DGrid(int nProc, int& pRow, int& pCol);
     void FindFactor(int num, int* factors, int& nfact);
 
-    void decomp2DFinalize() { std::cout << "Finalized\n"; }
+    void decomp2DFinalize()
+    {
+        // std::cout << "Freeing C2Decop structures and buffers\n";
+        // --- Free main decomp arrays (if allocated) ---
+        // x1dist, y1dist, y2dist, z2dist
+        if (decompMain.x1dist)
+        {
+            delete[] decompMain.x1dist;
+            decompMain.x1dist = nullptr;
+        }
+        if (decompMain.y1dist)
+        {
+            delete[] decompMain.y1dist;
+            decompMain.y1dist = nullptr;
+        }
+        if (decompMain.y2dist)
+        {
+            delete[] decompMain.y2dist;
+            decompMain.y2dist = nullptr;
+        }
+        if (decompMain.z2dist)
+        {
+            delete[] decompMain.z2dist;
+            decompMain.z2dist = nullptr;
+        }
+
+        // x1cnts, y1cnts, y2cnts, z2cnts
+        if (decompMain.x1cnts)
+        {
+            delete[] decompMain.x1cnts;
+            decompMain.x1cnts = nullptr;
+        }
+        if (decompMain.y1cnts)
+        {
+            delete[] decompMain.y1cnts;
+            decompMain.y1cnts = nullptr;
+        }
+        if (decompMain.y2cnts)
+        {
+            delete[] decompMain.y2cnts;
+            decompMain.y2cnts = nullptr;
+        }
+        if (decompMain.z2cnts)
+        {
+            delete[] decompMain.z2cnts;
+            decompMain.z2cnts = nullptr;
+        }
+
+        // x1disp, y1disp, y2disp, z2disp
+        if (decompMain.x1disp)
+        {
+            delete[] decompMain.x1disp;
+            decompMain.x1disp = nullptr;
+        }
+        if (decompMain.y1disp)
+        {
+            delete[] decompMain.y1disp;
+            decompMain.y1disp = nullptr;
+        }
+        if (decompMain.y2disp)
+        {
+            delete[] decompMain.y2disp;
+            decompMain.y2disp = nullptr;
+        }
+        if (decompMain.z2disp)
+        {
+            delete[] decompMain.z2disp;
+            decompMain.z2disp = nullptr;
+        }
+
+        // Clear counts
+        decompMain.x1count = decompMain.y1count = decompMain.y2count = decompMain.z2count = 0;
+        decompMain.even                                                                   = false;
+
+        // --- Free work buffers used for alltoall/alltoallv ---
+        if (work1_r)
+        {
+            delete[] work1_r;
+            work1_r = nullptr;
+        }
+        if (work2_r)
+        {
+            delete[] work2_r;
+            work2_r = nullptr;
+        }
+        decompBufSize = 0;
+
+        // --- Free / reset x/y/z pencil start/end/size arrays (they are fixed-size ints in class:
+        // just zero them) ---
+        for (int i = 0; i < 3; ++i)
+        {
+            xStart[i] = xEnd[i] = xSize[i] = 0;
+            yStart[i] = yEnd[i] = ySize[i] = 0;
+            zStart[i] = zEnd[i] = zSize[i] = 0;
+        }
+
+        // --- Free MPI communicators safely ---
+        // Helper lambda to free a communicator if it's valid
+        auto freeCommIfValid = [](MPI_Comm& comm)
+        {
+            if (comm != MPI_COMM_NULL)
+            {
+                // MPI_Comm_free requires a pointer to the communicator handle
+                MPI_Comm tmp = comm;
+                MPI_Comm_free(&tmp);
+                // After free, tmp is set to MPI_COMM_NULL by MPI (but ensure our reference is null)
+                comm = MPI_COMM_NULL;
+            }
+        };
+
+        freeCommIfValid(DECOMP_2D_COMM_CART_X);
+        freeCommIfValid(DECOMP_2D_COMM_CART_Y);
+        freeCommIfValid(DECOMP_2D_COMM_CART_Z);
+        freeCommIfValid(DECOMP_2D_COMM_ROW);
+        freeCommIfValid(DECOMP_2D_COMM_COL);
+
+        // --- Reset topology-related integers ---
+        dims[0] = dims[1] = 0;
+        coord[0] = coord[1] = 0;
+        periodic[0] = periodic[1] = 0;
+        periodicX = periodicY = periodicZ = false;
+
+        // --- Reset neighbor info ---
+        for (int d = 0; d < 3; ++d)
+            for (int k = 0; k < 6; ++k)
+                neighbor[d][k] = -1;
+
+        // --- Reset global sizes and mpi info  ---
+        nxGlobal = nyGlobal = nzGlobal = 0;
+        nRank = nProc = 0;
+        myTypeBytes   = 0;
+    };
 
     // Just get it running without the optional decomp for now...
     void transposeX2Y(double* src, double* dst);

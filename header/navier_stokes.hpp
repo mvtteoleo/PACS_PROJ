@@ -38,10 +38,9 @@ namespace numPDE
             numPDE::MyVec<T, 3> ris;
             numPDE::MyVec<T, 3> Ux, Uy, Uz;
             numPDE::MyVec<T, 3> lap, dU_dx, dU_dy, dU_dz, Conv;
-        
 
-        /*
-        */
+            /*
+             */
             const auto& C   = h_U(i, j, k);     // center (i,j,k)
             const auto& E   = h_U(i + 1, j, k); // east
             const auto& W   = h_U(i - 1, j, k); // west
@@ -62,9 +61,9 @@ namespace numPDE
             // --- Laplacian  ---
             lap = (E + W + N + S + Top + B - 6.0 * C) / (h * h * Re);
 
-            dU_dx = (E - W) / (2*h);
-            dU_dy = (N - S) / (2*h);
-            dU_dz = (Top - B)/(2*h);
+            dU_dx = (E - W) / (2 * h);
+            dU_dy = (N - S) / (2 * h);
+            dU_dz = (Top - B) / (2 * h);
             // --- Nonlinear convective terms (u · ∇)u etc. at center ---
             // Ui on [x, y, z] to leverage the ET
             Ux[0] = C[0];
@@ -79,9 +78,9 @@ namespace numPDE
             Uz[1] = 0.25 * (C[2] + B[2] + N[2] + NB);
             Uz[2] = C[2];
 
-             Conv = dU_dx * Ux + dU_dy * Uy + dU_dz * Uz;
+            Conv = dU_dx * Ux + dU_dy * Uy + dU_dz * Uz;
 
-            ris =  lap / Re- Conv ;
+            ris = lap / Re - Conv;
             return ris;
         }
 

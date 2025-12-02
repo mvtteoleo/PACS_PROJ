@@ -1,4 +1,4 @@
-#define TEST 3
+#define TEST 1
 #include "../../header/MY_LIB.hpp"
 #include "../../header/my_2Decomp/MPI_types.hpp"
 #include <algorithm>
@@ -20,81 +20,20 @@
 #include <tuple>
 #include <vector>
 
-// using Real = u_int8_t;
-using Real = double;
-
-size_t constexpr sum_1_n(size_t N) { return size_t{N * (N + 1) / 2}; };
-
-int main(int argc, char* argv[])
+template <Decomposer T>
+void print_vals(T& decomp)
 {
-    // Test to handle the MPI communications and boundary exchange
-    constexpr std::size_t N_DIMS = 3;
-    std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
-    if (N < 2) N = 5;
-    std::size_t       nx = N, ny = N, nz = N;
-    PETScDecomp<Real> decomp(argc, argv, nx, ny, nz);
-
-    /*
-    NewDecomp<Real> decomp(argc, argv);
-    decomp.initialize_decomp(nx, ny, nz);
-    */
-
+        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
     const auto& neighbors = decomp.get_neighbors();
-#if TEST == 1
-    size_t nx, ny, nz;
 
-    std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
-    if (!decomp.rank())
-    { // Only rank 0 generates random values
-        std::random_device rd;
-        std::mt19937       gen(rd());
-
-        std::uniform_int_distribution<size_t> dist(20, 30);
-
-        nx = dist(gen);
-        ny = dist(gen);
-        nz = dist(gen);
-        std::cout << "N values : " << nx << " " << ny << " " << nz << "\n";
-    }
-
-    // nx = 10;
-    // ny = 10;
-    // nz = 10;
-    //  Broadcast to all ranks (convert to an array for simplicity)
-    size_t sizes[3] = {nx, ny, nz};
-    MPI_Bcast(sizes, 3, MPI_UNSIGNED_LONG_LONG, 0, MPI_COMM_WORLD);
-
-    // Copy back to local variables (for ranks > 0, this fills them)
-    nx                  = sizes[0];
-    ny                  = sizes[1];
-    nz                  = sizes[2];
-    bool is_periodic[3] = {false, false, false};
-
-    decomp.initialize_decomp(nx, ny, nz);
-
-    auto data1 = numPDE::make_scalar_field<Real, 3>(decomp.xSize());
-    auto data2 = numPDE::make_scalar_field<Real, 3>(decomp.ySize());
-    auto data3 = numPDE::make_scalar_field<Real, 3>(decomp.zSize());
-
-    Real* u1 = data1.ptr_at(0);
-    Real* u2 = data2.ptr_at(0);
-    Real* u3 = data3.ptr_at(0);
-
-    decomp.transposeX2Y(u1, u2);
-    decomp.transposeY2Z(u2, u3);
-    decomp.transposeZ2Y(u3, u2);
-    decomp.transposeY2X(u2, u1);
-
-    // Print results rank by rank
     for (int r = 0; r < decomp.totRank(); ++r)
     {
         MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
         if (decomp.rank() == r)
         {
-            //  auto [xels, yels, zels] = decomp.globSizes();
-            //  std::cout << "x elems " << xels << "y elems " << yels << "z elems " << zels
-            //            << std::endl;
-            std::cout << "Rank " << r << ":\n";
+            std::cout << "Rank " << r << "\n";
 
             std::cout << "X, Y, Z sizes\n";
             for (auto i : decomp.xSize())
@@ -102,11 +41,6 @@ int main(int argc, char* argv[])
 
             std::cout << std::endl;
 
-            for (auto i : decomp.ySize())
-                std::cout << i << " ";
-            std::cout << std::endl;
-            for (auto i : decomp.zSize())
-                std::cout << i << " ";
             std::cout << std::endl;
             for (auto i : decomp.xStart())
                 std::cout << i << " ";
@@ -125,12 +59,6 @@ int main(int argc, char* argv[])
             std::cout << "\nLeft   : " << left;
 
             std::cout << std::endl;
-            //
-            //  for (auto i : decomp.yStart())
-            //      std::cout << i << " ";
-            //  std::cout << std::endl;
-            //  for (auto i : decomp.zStart())
-            //      std::cout << i << " ";
             std::cout << std::endl;
             std::cout << std::endl;
         }
@@ -138,7 +66,85 @@ int main(int argc, char* argv[])
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+}
 
+// using Real = u_int8_t;
+using Real = double;
+
+size_t constexpr sum_1_n(size_t N) { return size_t{N * (N + 1) / 2}; };
+
+int main(int argc, char* argv[])
+{
+    // Test to handle the MPI communications and boundary exchange
+    constexpr std::size_t N_DIMS = 3;
+    size_t                N      = (argc > 1) ? std::stoul(argv[1]) : 5;
+    if (N < 2) N = 5;
+    std::array<size_t, 3> ns = {N, N, N};
+
+    auto& [nx, ny, nz] = ns;
+
+    PETScDecomp<Real> petsc_dec(argc, argv);
+    NewDecomp<Real>   new_dec(argc, argv);
+    new_dec.release_mpi_ownership();
+
+    const auto& neighbors = petsc_dec.get_neighbors();
+#if TEST == 1
+    if (!petsc_dec.rank())
+    { // Only rank 0 generates random values
+        std::random_device rd;
+        std::mt19937       gen(rd());
+
+        std::uniform_int_distribution<size_t> dist(20, 30);
+
+        nx = dist(gen);
+        ny = dist(gen);
+        nz = dist(gen);
+        std::cout << "N values : " << nx << " " << ny << " " << nz << "\n";
+    }
+    MPI_Bcast(ns.data(), ns.size(), mpi_get_type<size_t>(), 0, MPI_COMM_WORLD);
+
+    petsc_dec.initialize_decomp(nx, ny, nz);
+    new_dec.initialize_decomp(nx, ny, nz);
+
+    // nx = 10;
+    // ny = 10;
+    // nz = 10;
+    //  Broadcast to all ranks (convert to an array for simplicity)
+
+    // Copy back to local variables (for ranks > 0, this fills them)
+    auto data1 = numPDE::make_scalar_field<Real, 3>(petsc_dec.xSize());
+    auto data2 = numPDE::make_scalar_field<Real, 3>(new_dec.ySize());
+    auto data3 = numPDE::make_scalar_field<Real, 3>(new_dec.zSize());
+
+    Real* u1 = data1.ptr_at(0);
+    Real* u2 = data2.ptr_at(0);
+    Real* u3 = data3.ptr_at(0);
+
+    new_dec.transposeX2Y(u1, u2);
+    new_dec.transposeY2Z(u2, u3);
+    new_dec.transposeZ2Y(u3, u2);
+    new_dec.transposeY2X(u2, u1);
+
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+    if(!petsc_dec.rank()) std::cout << "============\n PETSC decomposition\n============\n";
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    print_vals(petsc_dec);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+    if(!new_dec.rank()) std::cout << "============\n NEW_DEC decomposition\n============\n";
+
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    print_vals(new_dec);
 #elif TEST == 2
 
     // Print results rank by rank
@@ -241,117 +247,64 @@ int main(int argc, char* argv[])
                 if (P(j, ny - 1, jp) != static_cast<int>(neighbors[neighbour_directions::RIGHT]))
                     std::cerr << "Problem in the right communication for " << decomp.rank() << "\n";
 
-                    //  MPI_Barrier(MPI_COMM_WORLD);
-                    //  MPI_Barrier(MPI_COMM_WORLD);
-                    //
-                    //  //   Print results rank by rank
-                    //  for (int r = 0; r < decomp.totRank(); ++r)
-                    //  {
-                    //      MPI_Barrier(MPI_COMM_WORLD);
-                    //      if (decomp.rank() == r)
-                    //      {
-                    //          MPI_Barrier(MPI_COMM_WORLD);
-                    //          std::cout << "Rank " << r << ":\n";
-                    //          for (int k = nz - 1; k >= 0; --k)
-                    //          {
-                    //              for (int j = ny - 1; j >= 0; --j)
-                    //                  std::cout << static_cast<int>(V.at(0, 0, j, k)) << " ";
-                    //              std::cout << "\n";
-                    //          }
-                    //          MPI_Barrier(MPI_COMM_WORLD);
-                    //      }
-                    //  }
-                    //
-                    //  MPI_Barrier(MPI_COMM_WORLD);
-                    //  MPI_Barrier(MPI_COMM_WORLD);
-                    //
-                    //  for (int r = 0; r < decomp.totRank(); ++r)
-                    //  {
-                    //      MPI_Barrier(MPI_COMM_WORLD);
-                    //      if (decomp.rank() == r)
-                    //      {
-                    //          std::cout << "Rank " << r << ":\n";
-                    //          for (int k = nz - 1; k >= 0; --k)
-                    //          {
-                    //              for (int j = ny - 1; j >= 0; --j)
-                    //                  std::cout << static_cast<int>(P(0, j, k)) << " ";
-                    //              std::cout << "\n";
-                    //          }
-                    //          MPI_Barrier(MPI_COMM_WORLD);
-                    //          std::cout << std::endl;
-                    //      }
-                    //      MPI_Barrier(MPI_COMM_WORLD);
-                    //  }
-                    //  MPI_Barrier(MPI_COMM_WORLD);
-                    //  MPI_Barrier(MPI_COMM_WORLD);
-                    //
-                    //  int i = 0, j = 0, k = 0;
-                    //  if (!decomp.rank()) std::cout << " TEST \n";
-                    //  auto C = V(i, j, k);
-                    //  if (!decomp.rank())
-                    //      for (int i = 0; i < 3; ++i)
-                    //          std::cout << static_cast<int>(C[i]) << " ";
-                    //
-                    //  if (!decomp.rank()) std::cout << " TEST \n";
-                    //  if (!decomp.rank())
-                    //      for (int l = 0; l < 3; ++l)
-                    //          std::cout << static_cast<int>(V.at(l, i, j, k)) << " ";
-                    //
-                    //  if (!decomp.rank()) std::cout << "\n";
-                    //  if (!decomp.rank()) std::cout << P(i, j, k) << " " << P.at(i, j, k);
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
 
-#elif TEST == 3
-    PetscErrorCode ierr;
-    DM             da;
-    PetscInt       RANK = static_cast<PetscInt>(decomp.rank() + 1);
-
-    PetscInt P = decomp.totRank(); // number of MPI ranks
-    PetscInt lz[P];                // local sizes in z-direction
-
-    // Fill lz so proc r owns r+1 elements
-    for (PetscInt r = 0; r < P; r++)
-        lz[r] = r + 1;
-
-    // size_t N_elems = sum_1_n(decomp.totRank());
-    PetscInt N_elems = sum_1_n(P);
-
-    ierr = DMDACreate3d(PETSC_COMM_WORLD,                                     //
-                        DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, // Bounds
-                        DMDA_STENCIL_STAR, 1, 1, N_elems,                     // global sizes
-                        1, 1, P,                                              // Px=1, Py=1, Pz=P
-                        1, 1,                                                 // dof, stencilwidth
-                        NULL, NULL, lz, // ownership ranges (only z is distributed)
-                        &da);
-    DMView(da, PETSC_VIEWER_STDOUT_WORLD);
-
-    CHKERRQ(ierr);
-    DMSetUp(da);
-
-    PetscInt xs, ys, zs, xm, ym, zm;
-    DMDAGetCorners(da, &xs, &ys, &zs, &xm, &ym, &zm);
+    //   Print results rank by rank
     for (int r = 0; r < decomp.totRank(); ++r)
     {
         MPI_Barrier(MPI_COMM_WORLD);
         if (decomp.rank() == r)
         {
-            std::cout << std::endl;
-            std::cout << std::endl;
-            std::cout << std::endl;
+            MPI_Barrier(MPI_COMM_WORLD);
             std::cout << "Rank " << r << ":\n";
+            for (int k = nz - 1; k >= 0; --k)
+            {
+                for (int j = ny - 1; j >= 0; --j)
+                    std::cout << static_cast<int>(V.at(0, 0, j, k)) << " ";
+                std::cout << "\n";
+            }
+            MPI_Barrier(MPI_COMM_WORLD);
+        }
+    }
 
-            std::cout << "xs : " << xs << "\n";
-            std::cout << "ys : " << ys << "\n";
-            std::cout << "zs : " << zs << "\n";
-            std::cout << "xm : " << xm << "\n";
-            std::cout << "ym : " << ym << "\n";
-            std::cout << "zm : " << zm << "\n";
-            std::cout << std::endl;
-            std::cout << std::endl;
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    for (int r = 0; r < decomp.totRank(); ++r)
+    {
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (decomp.rank() == r)
+        {
+            std::cout << "Rank " << r << ":\n";
+            for (int k = nz - 1; k >= 0; --k)
+            {
+                for (int j = ny - 1; j >= 0; --j)
+                    std::cout << static_cast<int>(P(0, j, k)) << " ";
+                std::cout << "\n";
+            }
+            MPI_Barrier(MPI_COMM_WORLD);
             std::cout << std::endl;
         }
         MPI_Barrier(MPI_COMM_WORLD);
     }
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
 
+    int i = 0, j = 0, k = 0;
+    if (!decomp.rank()) std::cout << " TEST \n";
+    auto C = V(i, j, k);
+    if (!decomp.rank())
+        for (int i = 0; i < 3; ++i)
+            std::cout << static_cast<int>(C[i]) << " ";
+
+    if (!decomp.rank()) std::cout << " TEST \n";
+    if (!decomp.rank())
+        for (int l = 0; l < 3; ++l)
+            std::cout << static_cast<int>(V.at(l, i, j, k)) << " ";
+
+    if (!decomp.rank()) std::cout << "\n";
+    if (!decomp.rank()) std::cout << P(i, j, k) << " " << P.at(i, j, k);
 #endif
 
     return 0;

@@ -351,8 +351,7 @@ namespace numPDE
 
     template <typename T>
     void FastLaplaceSolver<T>::pressure_correct(numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& divU,
-                                                T t_curr,
-                                                bool                                        verbose)
+                                                T t_curr, bool verbose)
     {
         // Check if the P tensor is already been used/allocated else allocate it
         if (!P.has_value())

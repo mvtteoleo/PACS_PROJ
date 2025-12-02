@@ -59,8 +59,9 @@ namespace numPDE
         template <bool NEEDS_UPDATE_BC = true, TypeIndex TYPE>
         auto solve(Tensor<T, 3, 3, TYPE> const& b_t);
 
-        void pressure_correct(){return;};
-        void pressure_correct(Tensor<T, 3, 3, numPDE::ROW_MAJOR>& divU, T t_curr = 0., bool verbose = false);
+        void pressure_correct() { return; };
+        void pressure_correct(Tensor<T, 3, 3, numPDE::ROW_MAJOR>& divU, T t_curr = 0.,
+                              bool verbose = false);
 
         auto check_sol();
 

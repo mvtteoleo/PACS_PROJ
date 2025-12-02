@@ -61,8 +61,14 @@ class Communicator
         int is_initialized{0};
         MPI_Initialized(&is_initialized);
 
-        if (!is_initialized) { MPI_Init(&argc, &argv); }
-        else { release_mpi_ownership(); }
+        if (!is_initialized)
+        {
+            MPI_Init(&argc, &argv);
+        }
+        else
+        {
+            release_mpi_ownership();
+        }
 
         MPI_Comm_size(MPI_COMM_WORLD, &tot_rank);
         MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
@@ -333,8 +339,8 @@ class Communicator
         {
             // auto [bCol, bRow] = best_rank_2D_grid(tot_rank);
             auto [bRow, bCol] = best_rank_2D_grid(tot_rank);
-            dims[0]           = bRow;
-            dims[1]           = bCol;
+            dims[1]           = bRow;
+            dims[0]           = bCol;
         }
         MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -343,9 +349,9 @@ class Communicator
         MPI_Cart_create(MPI_COMM_WORLD, 2, dims.data(), periods, 0, &cart_comm);
 
         this->neighbors.fill(MPI_PROC_NULL);
-        MPI_Cart_shift(cart_comm, 1, 1, &this->neighbors[neighbour_directions::RIGHT],
+        MPI_Cart_shift(cart_comm, 0, 1, &this->neighbors[neighbour_directions::RIGHT],
                        &this->neighbors[neighbour_directions::LEFT]); // left, right
-        MPI_Cart_shift(cart_comm, 0, 1, &this->neighbors[neighbour_directions::BOTTOM],
+        MPI_Cart_shift(cart_comm, 1, 1, &this->neighbors[neighbour_directions::BOTTOM],
                        &this->neighbors[neighbour_directions::TOP]); // top, bottom
 
         MPI_Barrier(MPI_COMM_WORLD);
@@ -563,33 +569,56 @@ class PETScDecomp : public Communicator<T>
     DM                      da;
     std::array<PetscInt, 3> start, size;
 
-    template <typename Ts>
-        requires std::is_integral_v<Ts>
-    PETScDecomp(int argc, char** argv, Ts nx, Ts ny, Ts nz) : Communicator<T>(argc, argv)
+    PETScDecomp(int argc, char** argv) : Communicator<T>(argc, argv)
     {
-        this->release_mpi_ownership();
-        this->load_glob_sizes(nx, ny, nz);
         PetscErrorCode ierr;
         ierr = PetscInitialize(&argc, &argv, NULL, NULL);
         CHKERRABORT(PETSC_COMM_WORLD, ierr);
+    }
 
-        int& pRows = this->dims[0];
-        int& pCols = this->dims[1];
-        ierr       = DMDACreate3d(this->cart_comm, // your Cartesian comm
-                                  DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED, DM_BOUNDARY_GHOSTED,
-                                  DMDA_STENCIL_BOX, nx, ny, nz, // global grid
-                                  PETSC_DECIDE,                 // Px (1/auto)
-                                  pCols,                        // Py (cols)
-                                  pRows,                        // Pz (rows)
-                                  1,                            // dof = 1 scalar field
-                                  1,                            // stencil width = 1
-                                  NULL, NULL, NULL, &this->da);
+    template <typename Ts>
+        requires std::is_integral_v<Ts>
+    PETScDecomp(int argc, char** argv, Ts nx, Ts ny, Ts nz) : PETScDecomp(argc, argv)
+    {
+        initialize_decomp(nx, ny, nz);
+    }
+
+    template <typename Ts>
+        requires std::is_integral_v<Ts>
+    auto initialize_decomp(Ts nx, Ts ny, Ts nz)
+    {
+
+        this->load_glob_sizes(nx, ny, nz);
+        int&           pRows = this->dims[1];
+        int&           pCols = this->dims[0];
+        PetscErrorCode ierr;
+        ierr = DMDACreate3d(this->cart_comm, // your Cartesian comm
+                            DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED, DM_BOUNDARY_GHOSTED,
+                            DMDA_STENCIL_BOX, nx, ny, nz, // global grid
+                            1,                 // Px (1/auto)
+                            pCols,                        // Py (cols)
+                            pRows,                        // Pz (rows)
+                            1,                            // dof = 1 scalar field
+                            1,                            // stencil width = 1
+                            NULL, NULL, NULL, &this->da);
         CHKERRABORT(PETSC_COMM_WORLD, ierr);
         ierr = DMSetUp(this->da);
         CHKERRABORT(PETSC_COMM_WORLD, ierr);
         this->init_loal_sizes();
     }
 
+    PETScDecomp(PETScDecomp&&)                 = default;
+    PETScDecomp(const PETScDecomp&)            = default;
+    PETScDecomp& operator=(PETScDecomp&&)      = default;
+    PETScDecomp& operator=(const PETScDecomp&) = default;
+    ~PETScDecomp()
+    {
+        DMDestroy(&da);
+        if (this->m_owns_mpi_lifecycle)
+        {
+            PetscFinalize();
+        }
+    }
     auto init_loal_sizes()
     {
         PetscInt xs, ys, zs, xm, ym, zm;
@@ -642,11 +671,6 @@ class PETScDecomp : public Communicator<T>
 
         return GhostDims;
     }
-
-    PETScDecomp(PETScDecomp&&)                 = default;
-    PETScDecomp(const PETScDecomp&)            = default;
-    PETScDecomp& operator=(PETScDecomp&&)      = default;
-    PETScDecomp& operator=(const PETScDecomp&) = default;
 
     template <numPDE::TypeIndex TYPE = numPDE::ROW_MAJOR>
     void tensor_to_PETScVec(numPDE::Tensor<T, 3, 3, TYPE> const& Tens, Vec& P_vec)
@@ -703,12 +727,6 @@ class PETScDecomp : public Communicator<T>
         VecAssemblyBegin(P_vec);
         VecAssemblyEnd(P_vec);
     }
-
-    ~PETScDecomp()
-    {
-        DMDestroy(&da);
-        if(this->m_owns_mpi_lifecycle) { PetscFinalize(); }
-    }
 };
 
 #include <array>
@@ -717,8 +735,16 @@ class PETScDecomp : public Communicator<T>
 
 template <typename L, typename T = double>
 concept Decomposer = std::derived_from<L, Communicator<T>> && requires(L d) {
-    { d.xStart() } ;
-    { d.xStartWGhosts() } ;
-    { d.xSize() } ;
-    { d.dimsWithGhosts() } ;
+    {
+        d.xStart()
+    };
+    {
+        d.xStartWGhosts()
+    };
+    {
+        d.xSize()
+    };
+    {
+        d.dimsWithGhosts()
+    };
 };

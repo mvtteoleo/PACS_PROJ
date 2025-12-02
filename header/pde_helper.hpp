@@ -99,8 +99,8 @@ constexpr auto enum_range()
 template <typename COMM>
 bool is_side(numPDE::SIDES const side, COMM const& r_dec)
 {
-    const auto strt  = r_dec.xStart();
-    const auto size  = r_dec.xSize();
+    const auto strt      = r_dec.xStart();
+    const auto size      = r_dec.xSize();
     const auto glob_size = r_dec.get_global_sizes();
 
     switch (side)
