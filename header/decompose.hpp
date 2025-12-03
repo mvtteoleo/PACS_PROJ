@@ -397,18 +397,18 @@ class NewDecomp : public Communicator<T>
         if (pCol != this->dims[1] or pRow != this->dims[0])
         {
             std::cerr << "Warning: Row or column values changed!!\n";
-            this->dims[1] = pRow;
-            this->dims[0] = pCol;
+            this->dims[0] = pRow;
+            this->dims[1] = pCol;
             MPI_Bcast(this->dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
         }
         this->cart_comm = c2d->DECOMP_2D_COMM_CART_X;
 
         this->neighbors[neighbour_directions::BACK]   = c2d->neighbor[0][0];
         this->neighbors[neighbour_directions::FRONT]  = c2d->neighbor[0][1];
-        this->neighbors[neighbour_directions::BOTTOM]  = c2d->neighbor[0][3];
-        this->neighbors[neighbour_directions::TOP]   = c2d->neighbor[0][2];
-        this->neighbors[neighbour_directions::LEFT]    = c2d->neighbor[0][4];
-        this->neighbors[neighbour_directions::RIGHT] = c2d->neighbor[0][5];
+        this->neighbors[neighbour_directions::RIGHT]  = c2d->neighbor[0][3];
+        this->neighbors[neighbour_directions::LEFT]   = c2d->neighbor[0][2];
+        this->neighbors[neighbour_directions::TOP]    = c2d->neighbor[0][4];
+        this->neighbors[neighbour_directions::BOTTOM] = c2d->neighbor[0][5];
         MPI_Barrier(MPI_COMM_WORLD);
     }
     /*
@@ -697,7 +697,7 @@ concept CanBeUnpacked3 =
        });
 
 template <typename L, typename T = double>
-concept Decomposer = std::derived_from<L, Communicator<T>> && requires(L d) {
+concept DecomposeConc = std::derived_from<L, Communicator<T>> && requires(L d) {
     { d.xStart() }           -> CanBeUnpacked3;
     { d.xStartWGhosts() }    -> CanBeUnpacked3;
     { d.xSize() }            -> CanBeUnpacked3;

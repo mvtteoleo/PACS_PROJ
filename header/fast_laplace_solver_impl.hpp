@@ -119,7 +119,7 @@ namespace numPDE
             const T z        = h * static_cast<T>(ks + kp);
             (*P)(ip, jp, kp) = r_BCs.f({x, y, z});
         }
-        this->solve(P.value(), P.value(), verbose);
+        this->solve(*P, *P, verbose);
     }
 
     template <typename T>

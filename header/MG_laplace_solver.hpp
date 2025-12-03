@@ -25,7 +25,9 @@ namespace numPDE
       public:
         using type_value = T;
 
-        MGLaplaceSolver(PETScDecomp<T>& decomp, numPDE::PressureBC<T>& Bcs,
+    // Type alias, going to be substituted by the Concept ASAP
+    using Decomp = PETScDecomp<T>;
+        MGLaplaceSolver(Decomp& decomp, numPDE::PressureBC<T>& Bcs,
                         numPDE::Constants<T>& constants);
 
         // Rule of 5 defaults
@@ -74,10 +76,9 @@ namespace numPDE
         auto apply_bc_to_A();
         auto apply_BC_A_impl(SIDES const& side);
         auto update_bc_b_impl(SIDES const& side);
-        auto neumann_on_A(PetscInt xs_, PetscInt xm_, PetscInt ys_, PetscInt ym_, PetscInt zs_,
-                          PetscInt zm_, std::array<PetscInt, 3>& stencil);
 
-        PETScDecomp<T>& r_dec;
+        auto get_side_infos(const SIDES& side);
+        Decomp& r_dec;
         PressureBC<T>&  r_BCs;
         Constants<T>&   r_const;
     };

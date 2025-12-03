@@ -241,6 +241,7 @@ int main(int argc, char** argv)
         return sum;
     };
 
+    
     auto u_ex = exact_sol_poly; // u_ex_harm; // 
     auto forc = forcing_poly;   // forc_harm; // 
 
