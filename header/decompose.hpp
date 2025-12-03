@@ -62,6 +62,7 @@ class Communicator
 
         if(!static_cast<bool>(is_initialized))
            {MPI_Init(&argc, &argv);}
+        else { release_mpi_ownership(); }
 
         MPI_Comm_size(MPI_COMM_WORLD, &tot_rank);
         MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
@@ -77,9 +78,9 @@ class Communicator
                 MPI_Comm_free(&cart_comm);
                 cart_comm = MPI_COMM_NULL;
             }
+            MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Finalize();
         }
-        MPI_Barrier(MPI_COMM_WORLD);
-        MPI_Finalize();
     }
 
     int         rank() const { return mpi_rank; }
@@ -331,8 +332,8 @@ class Communicator
         {
             // auto [bCol, bRow] = best_rank_2D_grid(tot_rank);
             auto [bRow, bCol] = best_rank_2D_grid(tot_rank);
-            dims[0]           = bRow;
-            dims[1]           = bCol;
+            dims[0]           = bCol;
+            dims[1]           = bRow;
         }
         MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -341,9 +342,9 @@ class Communicator
         MPI_Cart_create(MPI_COMM_WORLD, 2, dims.data(), periods, 0, &cart_comm);
 
         this->neighbors.fill(MPI_PROC_NULL);
-        MPI_Cart_shift(cart_comm, 1, 1, &this->neighbors[neighbour_directions::RIGHT],
+        MPI_Cart_shift(cart_comm, 0, 1, &this->neighbors[neighbour_directions::RIGHT],
                        &this->neighbors[neighbour_directions::LEFT]); // left, right
-        MPI_Cart_shift(cart_comm, 0, 1, &this->neighbors[neighbour_directions::BOTTOM],
+        MPI_Cart_shift(cart_comm, 1, 1, &this->neighbors[neighbour_directions::BOTTOM],
                        &this->neighbors[neighbour_directions::TOP]); // top, bottom
 
         MPI_Barrier(MPI_COMM_WORLD);
@@ -404,10 +405,10 @@ class NewDecomp : public Communicator<T>
 
         this->neighbors[neighbour_directions::BACK]   = c2d->neighbor[0][0];
         this->neighbors[neighbour_directions::FRONT]  = c2d->neighbor[0][1];
-        this->neighbors[neighbour_directions::RIGHT]  = c2d->neighbor[0][3];
-        this->neighbors[neighbour_directions::LEFT]   = c2d->neighbor[0][2];
-        this->neighbors[neighbour_directions::TOP]    = c2d->neighbor[0][4];
-        this->neighbors[neighbour_directions::BOTTOM] = c2d->neighbor[0][5];
+        this->neighbors[neighbour_directions::BOTTOM]  = c2d->neighbor[0][3];
+        this->neighbors[neighbour_directions::TOP]   = c2d->neighbor[0][2];
+        this->neighbors[neighbour_directions::LEFT]    = c2d->neighbor[0][4];
+        this->neighbors[neighbour_directions::RIGHT] = c2d->neighbor[0][5];
         MPI_Barrier(MPI_COMM_WORLD);
     }
     /*
@@ -559,20 +560,43 @@ class PETScDecomp : public Communicator<T>
   public:
     // PETSc communicator
     DM       da;
-    PetscInt xs, ys, zs, xm, ym, zm;
+    std::array<PetscInt, 3> start;
+    std::array<PetscInt, 3> loc_sizes;
 
-    template <typename Ts>
-        requires std::is_integral_v<Ts>
-    PETScDecomp(int argc, char** argv, Ts nx, Ts ny, Ts nz) : Communicator<T>(argc, argv)
+    PETScDecomp(int argc, char** argv) : Communicator<T>(argc, argv)
     {
         this->release_mpi_ownership();
-        this->load_glob_sizes(nx, ny, nz);
+        
+    
         PetscErrorCode ierr;
         ierr = PetscInitialize(&argc, &argv, NULL, NULL);
         CHKERRABORT(PETSC_COMM_WORLD, ierr);
+    }
+    template <typename Ts>
+        requires std::is_integral_v<Ts>
+    PETScDecomp(int argc, char** argv, Ts nx, Ts ny, Ts nz) : PETScDecomp<T>(argc, argv)
+    {
+        this->initialize_decomp(nx, ny, nz);
+    }
+
+
+    ~PETScDecomp()
+    {
+        DMDestroy(&da);
+        PetscFinalize();
+            MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Finalize();
+    }
+
+    template <typename Ts>
+        requires std::is_integral_v<Ts>
+    auto initialize_decomp(Ts nx, Ts ny, Ts nz)
+    {
+        this->load_glob_sizes(nx, ny, nz);
 
         int& pRows = this->dims[0];
         int& pCols = this->dims[1];
+        PetscErrorCode ierr;
         ierr       = DMDACreate3d(this->cart_comm, // your Cartesian comm
                                   DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED, DM_BOUNDARY_GHOSTED,
                                   DMDA_STENCIL_BOX, nx, ny, nz, // global grid
@@ -588,23 +612,32 @@ class PETScDecomp : public Communicator<T>
         this->init_loal_sizes();
     }
 
-    auto init_loal_sizes() { DMDAGetCorners(da, &xs, &ys, &zs, &xm, &ym, &zm); }
+
+    auto init_loal_sizes() {
+    PetscInt xs, ys, zs, xm, ym, zm;
+        DMDAGetCorners(da, &xs, &ys, &zs, &xm, &ym, &zm); 
+        this->start[0] = xs;
+        this->start[1] = ys;
+        this->start[2] = zs;
+        this->loc_sizes[0] = xm;
+        this->loc_sizes[1] = ym;
+        this->loc_sizes[2] = zm;
+    }
 
     auto xStart() const
     {
-        return std::array<int, 3>{
-            {static_cast<int>(xs), static_cast<int>(ys), static_cast<int>(zs)}};
+        return start;
     }
 
     auto xSize() const
     {
-        return std::array<int, 3>{
-            {static_cast<int>(xm), static_cast<int>(ym), static_cast<int>(zm)}};
+        return loc_sizes;
     }
+
     std::array<int, 3> xStartWGhosts() const
     {
         std::array<int, 3> start_w_ghosts;
-        auto               physical_start = this->xStart();
+        const auto&               physical_start = this->xStart();
 
         // X-dimension (index 0): Not decomposed in 2D, so no ghost adjustment
         start_w_ghosts[0] = physical_start[0];
@@ -646,64 +679,27 @@ class PETScDecomp : public Communicator<T>
     PETScDecomp(const PETScDecomp&)            = default;
     PETScDecomp& operator=(PETScDecomp&&)      = default;
     PETScDecomp& operator=(const PETScDecomp&) = default;
+};
 
-    template <numPDE::TypeIndex TYPE = numPDE::ROW_MAJOR>
-    void tensor_to_PETScVec(numPDE::Tensor<T, 3, 3, TYPE> const& Tens, Vec& P_vec)
-    {
-        PetscScalar*** bAsTens;
-        DMDAVecGetArray(da, P_vec, &bAsTens);
 
-        auto [gxs, gys, gzs] = this->xStartWGhosts();
-        // Assign using global indexing for PETSc array and local for the
-        // numPDE tensor.
-        // WARNING Avoid the std::copy_n for the contiguos elements in the x direction, PETSc does
-        // not assure to employ ROWMAJOR layout
-        for (int k = zs; k < zs + zm; ++k)
-            for (int j = ys; j < ys + ym; ++j)
-                for (int i = xs; i < xs + xm; ++i)
-                {
-                    int li           = i - gxs;
-                    int lj           = j - gys;
-                    int lk           = k - gzs;
-                    bAsTens[k][j][i] = static_cast<PetscScalar>(Tens(li, lj, lk));
-                }
+ #include <concepts>
+#include <type_traits>
 
-        DMDAVecRestoreArray(da, P_vec, &bAsTens);
-        VecAssemblyBegin(P_vec);
-        VecAssemblyEnd(P_vec);
-    }
+template<typename X>
+concept CanBeUnpacked3 = 
+       (requires (X x) {
+            std::tuple_size<X>::value == 3;
+       })
+    || (requires (X x) {
+            { x[0] } -> std::convertible_to<int>;
+            { x[1] } -> std::convertible_to<int>;
+            { x[2] } -> std::convertible_to<int>;
+       });
 
-    template <numPDE::TypeIndex TYPE = numPDE::ROW_MAJOR>
-    void PETScVec_to_tensor(Vec const& P_vec, numPDE::Tensor<T, 3, 3, TYPE>& Tens)
-    {
-        PetscScalar*** bAsTens;
-        DMDAVecGetArray(da, P_vec, &bAsTens);
-
-        auto [gxs, gys, gzs] = this->xStartWGhosts();
-        // Assign using global indexing for PETSc array and local for the
-        // numPDE tensor.
-        // WARNING Avoid the std::copy_n for the contiguos elements in the x direction, PETSc does
-        // not assure to employ ROWMAJOR layout
-        for (int k = zs; k < zs + zm; ++k)
-            for (int j = ys; j < ys + ym; ++j)
-                for (int i = xs; i < xs + xm; ++i)
-                {
-                    int li           = i - gxs;
-                    int lj           = j - gys;
-                    int lk           = k - gzs;
-                    Tens(li, lj, lk) = static_cast<T>(bAsTens[k][j][i]);
-                }
-
-        DMDAVecRestoreArray(da, P_vec, &bAsTens);
-        VecAssemblyBegin(P_vec);
-        VecAssemblyEnd(P_vec);
-    }
-
-    ~PETScDecomp()
-    {
-        DMDestroy(&da);
-        PetscFinalize();
-    }
-
-  private:
+template <typename L, typename T = double>
+concept Decomposer = std::derived_from<L, Communicator<T>> && requires(L d) {
+    { d.xStart() }           -> CanBeUnpacked3;
+    { d.xStartWGhosts() }    -> CanBeUnpacked3;
+    { d.xSize() }            -> CanBeUnpacked3;
+    { d.dimsWithGhosts() }   -> CanBeUnpacked3;
 };
