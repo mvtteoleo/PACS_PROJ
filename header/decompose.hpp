@@ -54,6 +54,7 @@ class Communicator
     bool   m_owns_mpi_lifecycle = true;
 
   public:
+    using type_value = T;
     Communicator(int argc, char** argv)
     {
         // Check if MPI is already active

@@ -19,14 +19,14 @@ namespace numPDE
      * Dirichlet => rhs -= fun(pos)
      *
      */
-    template <typename T = double>
+    template <DecomposeConc Decomp>
     class MGLaplaceSolver
     {
       public:
+        using T = Decomp::type_value;
         using type_value = T;
 
     // Type alias, going to be substituted by the Concept ASAP
-    using Decomp = PETScDecomp<T>;
         MGLaplaceSolver(Decomp& decomp, numPDE::PressureBC<T>& Bcs,
                         numPDE::Constants<T>& constants);
 
@@ -82,6 +82,24 @@ namespace numPDE
         PressureBC<T>&  r_BCs;
         Constants<T>&   r_const;
     };
+    
+    auto _range(PetscInt s, PetscInt m) noexcept {return std::views::iota(s, s+m);}
+    struct SideInfo
+    {
+        BC bc;
+        using FunType = PressureBC<>::Function;
+        FunType            fun;
+        std::array<int, 3> offset{{1, 1, 1}};
+        std::array<int, 3> normal{{0, 0, 0}};
+        PetscInt                xs, ys, zs; 
+        PetscInt                xm, ym, zm; 
+        
+        auto k_range() const noexcept{ return _range(this->zs, this->zm);}
+        auto j_range() const noexcept{ return _range(this->ys, this->ym);}
+        auto i_range() const noexcept{ return _range(this->xs, this->xm);}
+    };
 } // namespace numPDE
+
+
 
 #include "MG_laplace_solver_impl.hpp"

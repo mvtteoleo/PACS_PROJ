@@ -1,20 +1,24 @@
 #pragma once
 
 #include "MG_laplace_solver.hpp"
+#include "decompose.hpp"
 namespace numPDE
 {
 
-template <typename T>
-MGLaplaceSolver<T>::MGLaplaceSolver(PETScDecomp<T>& decomp, numPDE::PressureBC<T>& Bcs,
-                                    numPDE::Constants<T>& constants)
+#define MGSOLVER_TEMPLATE template <DecomposeConc Decomp>
+#define MGSOLVER_SCOPE MGLaplaceSolver<Decomp>
+
+template <DecomposeConc Decomp>
+MGLaplaceSolver<Decomp>::MGLaplaceSolver(Decomp& decomp, numPDE::PressureBC<typename Decomp::type_value>& Bcs,
+                                    numPDE::Constants<typename Decomp::type_value>& constants)
 : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
 {
     this->build_local_dm();
     this->build_linear_system();
 }
 
-template <typename T>
-MGLaplaceSolver<T>::~MGLaplaceSolver()
+template <DecomposeConc Decomp>
+MGLaplaceSolver<Decomp>::~MGLaplaceSolver()
 {
     MatNullSpaceDestroy(&nullspace);
     KSPDestroy(&ksp);
@@ -23,8 +27,8 @@ MGLaplaceSolver<T>::~MGLaplaceSolver()
     MatDestroy(&A);
 }
 
-template <typename T>
-auto MGLaplaceSolver<T>::build_local_dm()
+template <DecomposeConc Decomp>
+auto MGLaplaceSolver<Decomp>::build_local_dm()
 {
     PetscErrorCode ierr;
     const auto& [pz, py]     = r_dec.get_process_grid();
@@ -85,8 +89,8 @@ auto MGLaplaceSolver<T>::build_local_dm()
     MPI_Barrier(MPI_COMM_WORLD);
 }
 
-template <typename T>
-auto MGLaplaceSolver<T>::build_linear_system()
+template<DecomposeConc Decomp>
+auto MGLaplaceSolver<Decomp>::build_linear_system()
 {
     MPI_Barrier(MPI_COMM_WORLD);
     DMCreateMatrix(this->da, &A);
@@ -110,25 +114,25 @@ auto MGLaplaceSolver<T>::build_linear_system()
     KSPSetUp(ksp);
 }
 
-template <typename T>
+template<DecomposeConc Decomp>
 template <bool NEEDS_UPDATE_BC>
-auto MGLaplaceSolver<T>::solve()
+auto MGLaplaceSolver<Decomp>::solve()
 {
     this->build_rhs();
     this->solve_impl<NEEDS_UPDATE_BC>();
 }
 
-template <typename T>
+template<DecomposeConc Decomp>
 template <bool NEEDS_UPDATE_BC, TypeIndex TYPE>
-auto MGLaplaceSolver<T>::solve(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
+auto MGLaplaceSolver<Decomp>::solve(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
 {
     this->load_into_rhs(b_t);
     this->solve_impl<NEEDS_UPDATE_BC>();
 }
 
-template <typename T>
+template<DecomposeConc Decomp>
 template <bool NEEDS_UPDATE_BC>
-auto MGLaplaceSolver<T>::solve_impl()
+auto MGLaplaceSolver<Decomp>::solve_impl()
 {
     if constexpr (NEEDS_UPDATE_BC == true)
     {
@@ -147,8 +151,8 @@ auto MGLaplaceSolver<T>::solve_impl()
     if (this->all_neumann_bc()) MatNullSpaceRemove(this->nullspace, this->x_h);
 }
 
-template <typename T>
-auto MGLaplaceSolver<T>::build_rhs()
+template<DecomposeConc Decomp>
+auto MGLaplaceSolver<Decomp>::build_rhs()
 {
     PetscScalar*** bAsTens;
     DMDAVecGetArray(this->da, this->b, &bAsTens);
@@ -171,8 +175,8 @@ auto MGLaplaceSolver<T>::build_rhs()
     VecAssemblyEnd(this->b);
 }
 
-template <typename T>
-auto MGLaplaceSolver<T>::build_int_A()
+template<DecomposeConc Decomp>
+auto MGLaplaceSolver<Decomp>::build_int_A()
 {
     PetscScalar v[7];
     MatStencil  row, col[7];
@@ -258,8 +262,8 @@ auto MGLaplaceSolver<T>::build_int_A()
             }
 }
 
-template <typename T>
-auto MGLaplaceSolver<T>::apply_bc_to_A()
+template<DecomposeConc Decomp>
+auto MGLaplaceSolver<Decomp>::apply_bc_to_A()
 {
     // Allows to change mode of modify the matrix (ADD_VALUES to INSERT_VALUES)
     MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY);
@@ -277,8 +281,8 @@ auto MGLaplaceSolver<T>::apply_bc_to_A()
 
 }
 
-template <typename T>
-auto MGLaplaceSolver<T>::apply_BC_A_impl(SIDES const& side)
+template<DecomposeConc Decomp>
+auto MGLaplaceSolver<Decomp>::apply_BC_A_impl(SIDES const& side)
 {
     auto info = this->get_side_infos(side);
 
@@ -290,9 +294,11 @@ auto MGLaplaceSolver<T>::apply_BC_A_impl(SIDES const& side)
     row.c    = 0;
     col[0].c = 0;
 
-    for (PetscInt k = info.zs; k < info.zs + info.zm; ++k)
-        for (PetscInt j = info.ys; j < info.ys + info.ym; ++j)
-            for (PetscInt i = info.xs; i < info.xs + info.xm; ++i)
+
+        // TODO leverage the -normal attribute to enforce the BCs with a higher order
+    for (auto k : info.k_range())
+        for (auto j : info.j_range())
+            for (auto i : info.i_range())                          
             {
                 row.i    = i;
                 row.j    = j;
@@ -305,8 +311,8 @@ auto MGLaplaceSolver<T>::apply_BC_A_impl(SIDES const& side)
     }
 }
 
-template <typename T>
-auto MGLaplaceSolver<T>::update_bc_on_b()
+template<DecomposeConc Decomp>
+auto MGLaplaceSolver<Decomp>::update_bc_on_b()
 {
     for (auto side : enum_range<numPDE::SIDES>())
     if (is_side(side, r_dec)) update_bc_b_impl(side);
@@ -315,8 +321,8 @@ auto MGLaplaceSolver<T>::update_bc_on_b()
     VecAssemblyEnd(b);
 }
 
-template <typename T>
-auto MGLaplaceSolver<T>::update_bc_b_impl(SIDES const& side)
+template<DecomposeConc Decomp>
+auto MGLaplaceSolver<Decomp>::update_bc_b_impl(SIDES const& side)
 {
 
     auto info = this->get_side_infos(side);
@@ -326,9 +332,9 @@ auto MGLaplaceSolver<T>::update_bc_b_impl(SIDES const& side)
         const T        scale = (info.bc == BC::Dirichlet) ? -1.0 : r_const.h;
         PetscScalar*** bAsTens;
         DMDAVecGetArray(this->da, this->b, &bAsTens);
-        for (PetscInt k = info.zs; k < info.zs + info.zm; ++k)
-            for (PetscInt j = info.ys; j < info.ys + info.ym; ++j)
-                for (PetscInt i = info.xs; i < info.xs + info.xm; ++i)
+        for (auto k : info.k_range())
+            for (auto j : info.j_range())
+                for (auto i : info.i_range())
                 {
                     const auto pos = std::vector<T>{(i + info.offset[0]) * r_const.h,
                         (j + info.offset[1]) * r_const.h,
@@ -339,8 +345,8 @@ auto MGLaplaceSolver<T>::update_bc_b_impl(SIDES const& side)
     }
 }
 
-template <typename T>
-bool MGLaplaceSolver<T>::all_neumann_bc() const
+template<DecomposeConc Decomp>
+bool MGLaplaceSolver<Decomp>::all_neumann_bc() const
 {
     auto is_neumann = [](BC bc) -> bool { return (bc == NeuHomo or bc == Neumann); };
     const std::array<BC, 6> bcs = {r_BCs.BC_BOTTOM, r_BCs.BC_TOP,   r_BCs.BC_EAST,
@@ -348,8 +354,8 @@ bool MGLaplaceSolver<T>::all_neumann_bc() const
     return std::ranges::all_of(bcs, is_neumann);
 }
 
-template <typename T>
-auto MGLaplaceSolver<T>::check_sol()
+template<DecomposeConc Decomp>
+auto MGLaplaceSolver<Decomp>::check_sol()
 {
     PetscScalar*** x_hTens;
     Vec            check;
@@ -382,10 +388,9 @@ auto MGLaplaceSolver<T>::check_sol()
 
     VecDestroy(&check);
 }
-
-template <typename T>
+template<DecomposeConc Decomp>
 template <TypeIndex TYPE>
-auto MGLaplaceSolver<T>::load_into_rhs(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
+auto MGLaplaceSolver<Decomp>::load_into_rhs(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
 {
     PetscScalar*** bAsTens;
     DMDAVecGetArray(this->da, this->b, &bAsTens);
@@ -404,10 +409,9 @@ auto MGLaplaceSolver<T>::load_into_rhs(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
     VecAssemblyBegin(this->b);
     VecAssemblyEnd(this->b);
 }
-
-template <typename T>
+template<DecomposeConc Decomp>
 template <TypeIndex TYPE>
-auto MGLaplaceSolver<T>::write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t)
+auto MGLaplaceSolver<Decomp>::write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t)
 {
     PetscScalar*** bAsTens;
     DMDAVecGetArray(this->da, this->b, &bAsTens);
@@ -424,20 +428,9 @@ auto MGLaplaceSolver<T>::write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYP
     DMDAVecRestoreArray(this->da, this->b, &bAsTens);
 }
 
-template <typename T>
-auto MGLaplaceSolver<T>::get_side_infos(const SIDES& side)
+template<DecomposeConc Decomp>
+auto MGLaplaceSolver<Decomp>::get_side_infos(const SIDES& side)
 {
-
-    struct SideInfo
-    {
-        BC bc;
-        using FunType = PressureBC<>::Function;
-        FunType            fun;
-        std::array<int, 3> offset{{1, 1, 1}};
-        PetscInt                xs, ys, zs; 
-        PetscInt                xm, ym, zm; 
-    };
-
     SideInfo info{};
     DMDAGetCorners(this->da, &info.xs, &info.ys, &info.zs, &info.xm, &info.ym, &info.zm);
     const auto& [nx, ny, nz] = r_dec.get_global_sizes();
@@ -449,6 +442,7 @@ auto MGLaplaceSolver<T>::get_side_infos(const SIDES& side)
         info.bc        = r_BCs.BC_NORTH;
         info.fun       = r_BCs.g_north;
         info.offset[0] = 2;
+        info.normal = {-1, 0, 0};
     }
     else if (side == SIDES::SOUTH)
     {
@@ -457,6 +451,7 @@ auto MGLaplaceSolver<T>::get_side_infos(const SIDES& side)
         info.bc        = r_BCs.BC_SOUTH;
         info.fun       = r_BCs.g_south;
         info.offset[0] = 0;
+        info.normal = {1, 0, 0};
     }
     else if (side == SIDES::EAST)
     {
@@ -465,6 +460,7 @@ auto MGLaplaceSolver<T>::get_side_infos(const SIDES& side)
         info.bc        = r_BCs.BC_EAST;
         info.fun       = r_BCs.g_east;
         info.offset[1] = 0;
+        info.normal = {0, 1, 0};
     }
     else if (side == SIDES::WEST)
     {
@@ -473,6 +469,7 @@ auto MGLaplaceSolver<T>::get_side_infos(const SIDES& side)
         info.bc        = r_BCs.BC_WEST;
         info.fun       = r_BCs.g_west;
         info.offset[1] = 2;
+        info.normal = {0, -1, 0};
     }
     else if (side == SIDES::TOP)
     {
@@ -481,6 +478,7 @@ auto MGLaplaceSolver<T>::get_side_infos(const SIDES& side)
         info.bc        = r_BCs.BC_TOP;
         info.fun       = r_BCs.g_top;
         info.offset[2] = 2;
+        info.normal = {0, 0, -1};
     }
     else if (side == SIDES::BOTTOM)
     {
@@ -489,6 +487,7 @@ auto MGLaplaceSolver<T>::get_side_infos(const SIDES& side)
         info.bc        = r_BCs.BC_BOTTOM;
         info.fun       = r_BCs.g_bottom;
         info.offset[2] = 0;
+        info.normal = {0, 0, 1};
     }
 
     return info;

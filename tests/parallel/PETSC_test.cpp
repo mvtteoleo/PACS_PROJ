@@ -164,7 +164,7 @@ int main(int argc, char** argv)
     numPDE::Constants<Real> constants;
     constants.h = h;
 
-    numPDE::MGLaplaceSolver<Real> mg(decomp, Bcs, constants);
+    numPDE::MGLaplaceSolver<PETScDecomp<Real>> mg(decomp, Bcs, constants);
 
     myUtilities::ChronoTimer time("Solve time");
 
