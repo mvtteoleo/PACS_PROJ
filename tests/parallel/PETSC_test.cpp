@@ -56,7 +56,7 @@ int main(int argc, char** argv)
     // ----------------------------------------------------------
     // 2. PETSc setup (using your communicator)
     // ----------------------------------------------------------
-    PETScDecomp decomp(argc, argv, nx, ny, nz);
+    PETScDecomp<> decomp(argc, argv, nx, ny, nz);
 
     const auto &Lx = L, Ly = L, Lz = L;
     using FunType = numPDE::PressureBC<>::Function;
@@ -142,29 +142,30 @@ int main(int argc, char** argv)
     // ----------------------------------------------------------
     // 4. Create system: ∇² u = f
     // ----------------------------------------------------------
-    numPDE::PressureBC<Real> Bcs;
+    numPDE::PressureBC<Real> bc;
 
     auto& g_      = u_ex; //[](std::vector<Real> const& pos) -> Real { return 0.1; };
-    Bcs.g_north   = g_;
-    Bcs.g_south   = g_;
-    Bcs.g_east    = g_;
-    Bcs.g_west    = g_;
-    Bcs.g_top     = g_;
-    Bcs.g_bottom  = g_;
+    bc.g_north   = g_;
+    bc.g_south   = g_;
+    bc.g_east    = g_;
+    bc.g_west    = g_;
+    bc.g_top     = g_;
+    bc.g_bottom  = g_;
 
-    Bcs.BC_NORTH  = numPDE::NeuHomo;
-    Bcs.BC_SOUTH  = numPDE::NeuHomo;
-    Bcs.BC_EAST   = numPDE::NeuHomo;
-    Bcs.BC_WEST   = numPDE::NeuHomo;
-    Bcs.BC_TOP    = numPDE::NeuHomo;
-    Bcs.BC_BOTTOM = numPDE::NeuHomo;
-    Bcs.f         = forc;
-    Bcs.u_ex      = u_ex;
+    bc.BC_NORTH  = numPDE::NeuHomo;
+    bc.BC_SOUTH  = numPDE::NeuHomo;
+    bc.BC_EAST   = numPDE::NeuHomo;
+    bc.BC_WEST   = numPDE::NeuHomo;
+    bc.BC_TOP    = numPDE::NeuHomo;
+    bc.BC_BOTTOM = numPDE::NeuHomo;
+    bc.f         = forc;
+    bc.u_ex      = u_ex;
+
 
     numPDE::Constants<Real> constants;
     constants.h = h;
 
-    numPDE::MGLaplaceSolver<PETScDecomp<Real>> mg(decomp, Bcs, constants);
+    numPDE::MGLaplaceSolver<PETScDecomp<Real>> mg(decomp, bc, constants);
 
     myUtilities::ChronoTimer time("Solve time");
 

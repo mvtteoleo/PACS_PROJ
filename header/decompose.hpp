@@ -50,7 +50,7 @@ class Communicator
     std::array<int, 6> neighbors{};
     MPI_Comm           cart_comm{MPI_COMM_NULL};
     // Global sizes
-    size_t Nx{}, Ny{}, Nz{};
+    int Nx{}, Ny{}, Nz{};
     bool   m_owns_mpi_lifecycle = true;
 
   public:
@@ -94,6 +94,9 @@ class Communicator
         return out_cart;
     };
 
+    /*
+     * returns [pz, py] Due to Decomp compatibility
+     */
     auto get_process_grid() const { return dims; }
 
     auto get_global_sizes() const { return std::make_tuple(this->Nx, this->Ny, this->Nz); }
@@ -103,9 +106,9 @@ class Communicator
         requires std::is_integral_v<Ts>
     void load_glob_sizes(Ts nx, Ts ny, Ts nz)
     {
-        this->Nx = static_cast<size_t>(nx);
-        this->Ny = static_cast<size_t>(ny);
-        this->Nz = static_cast<size_t>(nz);
+        this->Nx = static_cast<int>(nx);
+        this->Ny = static_cast<int>(ny);
+        this->Nz = static_cast<int>(nz);
     }
 
     template <typename U, size_t RANK, size_t N_DIMS>
@@ -333,20 +336,21 @@ class Communicator
         {
             // auto [bCol, bRow] = best_rank_2D_grid(tot_rank);
             auto [bRow, bCol] = best_rank_2D_grid(tot_rank);
-            dims[0]           = bCol;
-            dims[1]           = bRow;
+            dims[0]           = bRow;
+            dims[1]           = bCol;
         }
         MPI_Bcast(dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
 
         // Cast to int from boolean to handle periodicity
-        int periods[2] = {0, 0};
-        MPI_Cart_create(MPI_COMM_WORLD, 2, dims.data(), periods, 0, &cart_comm);
+        std::array<int, 2> periods = {0, 0};
+
+        MPI_Cart_create(MPI_COMM_WORLD, 2, dims.data(), periods.data(), 0, &cart_comm);
 
         this->neighbors.fill(MPI_PROC_NULL);
-        MPI_Cart_shift(cart_comm, 0, 1, &this->neighbors[neighbour_directions::RIGHT],
-                       &this->neighbors[neighbour_directions::LEFT]); // left, right
-        MPI_Cart_shift(cart_comm, 1, 1, &this->neighbors[neighbour_directions::BOTTOM],
+        MPI_Cart_shift(this->cart_comm, 0, 1, &this->neighbors[neighbour_directions::BOTTOM],
                        &this->neighbors[neighbour_directions::TOP]); // top, bottom
+        MPI_Cart_shift(this->cart_comm, 1, 1, &this->neighbors[neighbour_directions::RIGHT],
+                       &this->neighbors[neighbour_directions::LEFT]); 
 
         MPI_Barrier(MPI_COMM_WORLD);
     }
@@ -393,14 +397,18 @@ class NewDecomp : public Communicator<T>
         // pRow = 0;
         // pCol = 0;
         bool periodicBC[3] = {false, false, false};
-        // TODO add a check to round to the closest neighbour the value of nx, ny, nz global
-        c2d = std::make_unique<C2Decomp>(nx, ny, nz, pRow, pCol, periodicBC);
+        c2d = std::make_unique<C2Decomp>(nx, ny, nz, pCol, pRow, periodicBC);
         if (pCol != this->dims[1] or pRow != this->dims[0])
         {
             std::cerr << "Warning: Row or column values changed!!\n";
             this->dims[0] = pRow;
             this->dims[1] = pCol;
             MPI_Bcast(this->dims.data(), 2, MPI_INT, 0, MPI_COMM_WORLD);
+        }
+        if (this->cart_comm != MPI_COMM_NULL)
+        {
+            MPI_Comm_free(&this->cart_comm);
+            this->cart_comm = MPI_COMM_NULL;
         }
         this->cart_comm = c2d->DECOMP_2D_COMM_CART_X;
 
@@ -561,8 +569,8 @@ class PETScDecomp : public Communicator<T>
   public:
     // PETSc communicator
     DM       da;
-    std::array<PetscInt, 3> start;
-    std::array<PetscInt, 3> loc_sizes;
+    std::array<int, 3> start;
+    std::array<int, 3> loc_sizes;
 
     PETScDecomp(int argc, char** argv) : Communicator<T>(argc, argv)
     {
@@ -595,15 +603,14 @@ class PETScDecomp : public Communicator<T>
     {
         this->load_glob_sizes(nx, ny, nz);
 
-        int& pRows = this->dims[0];
-        int& pCols = this->dims[1];
+        auto [pz, py] = this->get_process_grid();
         PetscErrorCode ierr;
         ierr       = DMDACreate3d(this->cart_comm, // your Cartesian comm
                                   DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED, DM_BOUNDARY_GHOSTED,
                                   DMDA_STENCIL_BOX, nx, ny, nz, // global grid
-                                  PETSC_DECIDE,                 // Px (1/auto)
-                                  pCols,                        // Py (cols)
-                                  pRows,                        // Pz (rows)
+                                  1,                 // Px (1/auto)
+                                  py,                        // Py (cols)
+                                  pz,                        // Pz (rows)
                                   1,                            // dof = 1 scalar field
                                   1,                            // stencil width = 1
                                   NULL, NULL, NULL, &this->da);
@@ -617,12 +624,12 @@ class PETScDecomp : public Communicator<T>
     auto init_loal_sizes() {
     PetscInt xs, ys, zs, xm, ym, zm;
         DMDAGetCorners(da, &xs, &ys, &zs, &xm, &ym, &zm); 
-        this->start[0] = xs;
-        this->start[1] = ys;
-        this->start[2] = zs;
-        this->loc_sizes[0] = xm;
-        this->loc_sizes[1] = ym;
-        this->loc_sizes[2] = zm;
+        this->start[0]    = static_cast<int>(xs);
+        this->start[1]    = static_cast<int>(ys);
+        this->start[2]    = static_cast<int>(zs);
+        this->loc_sizes[0]= static_cast<int>(xm);
+        this->loc_sizes[1]= static_cast<int>(ym);
+        this->loc_sizes[2]= static_cast<int>(zm);
     }
 
     auto xStart() const
@@ -704,3 +711,5 @@ concept DecomposeConc = std::derived_from<L, Communicator<T>> && requires(L d) {
     { d.xSize() }            -> CanBeUnpacked3;
     { d.dimsWithGhosts() }   -> CanBeUnpacked3;
 };
+
+

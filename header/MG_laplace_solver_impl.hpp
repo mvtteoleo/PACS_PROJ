@@ -31,7 +31,8 @@ template <DecomposeConc Decomp>
 auto MGLaplaceSolver<Decomp>::build_local_dm()
 {
     PetscErrorCode ierr;
-    const auto& [pz, py]     = r_dec.get_process_grid();
+     auto [pz, py]     = r_dec.get_process_grid();
+    if(!r_dec.rank()) std::cout << "Pz : " << pz << ", Py : " << py << "\n";
     const auto& [nx, ny, nz] = r_dec.get_global_sizes();
 
     PetscInt NxLoc{nx - 2};
@@ -44,7 +45,6 @@ auto MGLaplaceSolver<Decomp>::build_local_dm()
 
     if (!r_dec.rank()) printf("Starting to iterate over the ranks\n");
 
-    auto const& neigs = r_dec.get_neighbors();
 
     // Exchange Z layout info
     int                TOP_r{0};
@@ -54,9 +54,14 @@ auto MGLaplaceSolver<Decomp>::build_local_dm()
     {
         if (r_dec.rank() == TOP_r)
         {
+            auto neigs = r_dec.get_neighbors();
             T_next = neigs[neighbour_directions::TOP];
-            DMDAGetCorners(r_dec.da, NULL, NULL, NULL, NULL, NULL, &zl);
-            zl -= static_cast<int>(is_side(SIDES::TOP, r_dec) + is_side(SIDES::BOTTOM, r_dec));
+            const auto sizes = r_dec.xSize();
+            zl = sizes[2];
+            zl -= static_cast<int>(is_side(SIDES::TOP, r_dec)) ;
+            zl -= static_cast<int>(is_side(SIDES::BOTTOM, r_dec));
+
+         std::cout << "T_next: " << T_next << " zl " << zl << " Rank " << r_dec.rank() << "\n";
         }
         MPI_Bcast(T_info.data(), T_info.size(), MPI_INT, TOP_r, MPI_COMM_WORLD);
         lz[k] = zl;
@@ -71,9 +76,13 @@ auto MGLaplaceSolver<Decomp>::build_local_dm()
     {
         if (r_dec.rank() == WEST_r)
         {
+            auto neigs = r_dec.get_neighbors();
             W_next = neigs[neighbour_directions::LEFT];
-            DMDAGetCorners(r_dec.da, NULL, NULL, NULL, NULL, &yl, NULL);
-            yl -= static_cast<int>(is_side(SIDES::WEST, r_dec) + is_side(SIDES::EAST, r_dec));
+            const auto sizes = r_dec.xSize();
+            yl = sizes[1];
+            yl -= static_cast<int>(is_side(SIDES::WEST, r_dec ));
+            yl -=  static_cast<int>(is_side(SIDES::EAST, r_dec));
+         std::cout << "W_next: " << W_next << " yl " << yl << " Rank " << r_dec.rank() << "\n";
         }
         MPI_Bcast(W_info.data(), W_info.size(), MPI_INT, WEST_r, MPI_COMM_WORLD);
         ly[j]  = yl;
@@ -82,6 +91,60 @@ auto MGLaplaceSolver<Decomp>::build_local_dm()
 
     MPI_Barrier(MPI_COMM_WORLD);
 
+    if(!r_dec.rank())
+    {
+        std::cout << "\n ======= \nlz : ";
+        for(auto e : lz)
+            std::cout << e << " "; 
+        std::cout << "\n ======= \n";
+
+        std::cout << "\n ======= \nly : ";
+        for(auto e : ly)
+            std::cout << e << " "; 
+        std::cout << "\n ======= \n";
+
+    }
+
+    for (int r = 0; r < r_dec.totRank(); ++r)
+    {
+        MPI_Barrier(MPI_COMM_WORLD);
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (r_dec.rank() == r)
+        {
+            std::cout << "Rank " << r << "\n";
+
+            std::cout << "X, Y, Z sizes\n";
+            for (auto i : r_dec.xSize())
+                std::cout << i << " ";
+
+            std::cout << "X, Y, Z start\n";
+            const auto start  = r_dec.xStart();
+            std::cout << start[0] << " " << start[1] << " " << start[2] << "\n";
+
+            std::cout << std::endl;
+            const auto& neighbors = r_dec.get_neighbors();
+
+            auto top = neighbors[neighbour_directions::TOP];
+            std::cout << "\nTop    : " << top;
+            auto bot = neighbors[neighbour_directions::BOTTOM];
+            std::cout << "\nBottom : " << bot;
+            auto right = neighbors[neighbour_directions::RIGHT];
+            std::cout << "\nRight  : " << right;
+            auto left = neighbors[neighbour_directions::LEFT];
+            std::cout << "\nLeft   : " << left;
+
+         std::cout << "\nIs SOUTH  : "  << std::boolalpha << is_side(numPDE::SIDES::SOUTH , r_dec);
+         std::cout << "\nIs EAST   : "  << std::boolalpha << is_side(numPDE::SIDES::EAST ,  r_dec);
+         std::cout << "\nIs BOTTOM : "  << std::boolalpha << is_side(numPDE::SIDES::BOTTOM, r_dec);
+         std::cout << "\nIs NORTH  : "  << std::boolalpha << is_side(numPDE::SIDES::NORTH , r_dec);
+         std::cout << "\nIs WEST   : "  << std::boolalpha << is_side(numPDE::SIDES::WEST  , r_dec);
+         std::cout << "\nIs TOP    : "  << std::boolalpha << is_side(numPDE::SIDES::TOP   , r_dec);
+            std::cout << std::endl;
+            std::cout << std::endl;
+            std::cout << std::endl;
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
     ierr = DMDACreate3d(r_dec.get_cart_comm(), DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED,
                         DM_BOUNDARY_GHOSTED, DMDA_STENCIL_BOX, NxLoc, NyLoc, NzLoc, 1, py, pz,
                         1, 2, lx.data(), ly.data(), lz.data(), &this->da);
@@ -288,14 +351,20 @@ auto MGLaplaceSolver<Decomp>::apply_BC_A_impl(SIDES const& side)
 
     if (info.bc == NeuHomo or info.bc == Neumann)
     {
-    const PetscScalar v[1] = {1.0};
-    MatStencil        row, col[1];
+        // Impose the BC Using a Polinomial.
+        // Retrieve the ghost point value by fitting a second order polinomial
+        // such that I(h) = u_1; I(2h) = u_2 and I'(0) = G;
+        // Retrive: 3u_0 - 4u_1 + u_2 = -2h * G
+        // The scheme is then modified to impose u_0 = 4/3u_1 - 1/3u_2 - 2hG/3 
+    constexpr size_t n_appr = 2;
+    constexpr PetscScalar v[n_appr] = {4.0/3.0, -1.0/3.0};
+    MatStencil        row, col[n_appr];
 
     row.c    = 0;
     col[0].c = 0;
 
 
-        // TODO leverage the -normal attribute to enforce the BCs with a higher order
+    // TODO leverage the normal attribute to enforce the BCs with a higher order
     for (auto k : info.k_range())
         for (auto j : info.j_range())
             for (auto i : info.i_range())                          
@@ -303,10 +372,13 @@ auto MGLaplaceSolver<Decomp>::apply_BC_A_impl(SIDES const& side)
                 row.i    = i;
                 row.j    = j;
                 row.k    = k;
-                col[0].i = i;
-                col[0].j = j;
-                col[0].k = k;
-                MatSetValuesStencil(this->A, 1, &row, 1, col, v, ADD_VALUES);
+                for(auto el : std::views::iota(size_t{0}, n_appr))
+                {
+                    col[el].i = i + el*info.normal[0];
+                    col[el].j = j + el*info.normal[1];
+                    col[el].k = k + el*info.normal[2];
+                }
+                MatSetValuesStencil(this->A, 1, &row, n_appr, col, v, ADD_VALUES);
             }
     }
 }

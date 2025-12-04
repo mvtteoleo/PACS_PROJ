@@ -1,3 +1,4 @@
+#include <ios>
 #define TEST 1
 #include "../../header/MY_LIB.hpp"
 #include "../../header/my_2Decomp/MPI_types.hpp"
@@ -58,6 +59,13 @@ void print_vals(T& decomp)
             auto left = neighbors[neighbour_directions::LEFT];
             std::cout << "\nLeft   : " << left;
 
+         std::cout << "\nIs SOUTH  : "  << std::boolalpha << is_side(numPDE::SIDES::SOUTH , decomp);
+         std::cout << "\nIs EAST   : "  << std::boolalpha << is_side(numPDE::SIDES::EAST , decomp);
+         std::cout << "\nIs BOTTOM : "  << std::boolalpha << is_side(numPDE::SIDES::BOTTOM, decomp);
+         std::cout << "\nIs NORTH  : "  << std::boolalpha << is_side(numPDE::SIDES::NORTH , decomp);
+         std::cout << "\nIs WEST   : "  << std::boolalpha << is_side(numPDE::SIDES::WEST  , decomp);
+         std::cout << "\nIs TOP    : "  << std::boolalpha << is_side(numPDE::SIDES::TOP   , decomp);
+
             std::cout << std::endl;
             std::cout << std::endl;
             std::cout << std::endl;
@@ -85,10 +93,9 @@ int main(int argc, char* argv[])
     auto& [nx, ny, nz] = ns;
 
     PETScDecomp<Real> petsc_dec(argc, argv);
-    NewDecomp<Real>   new_dec(argc, argv);
-    new_dec.release_mpi_ownership();
+     NewDecomp<Real>   new_dec(argc, argv);
+     new_dec.release_mpi_ownership();
 
-    const auto& neighbors = petsc_dec.get_neighbors();
 #if TEST == 1
     if (!petsc_dec.rank())
     { // Only rank 0 generates random values
@@ -105,26 +112,21 @@ int main(int argc, char* argv[])
     MPI_Bcast(ns.data(), ns.size(), mpi_get_type<size_t>(), 0, MPI_COMM_WORLD);
 
     petsc_dec.initialize_decomp(nx, ny, nz);
-    new_dec.initialize_decomp(nx, ny, nz);
-
-    // nx = 10;
-    // ny = 10;
-    // nz = 10;
-    //  Broadcast to all ranks (convert to an array for simplicity)
+   new_dec.initialize_decomp(nx, ny, nz);
 
     // Copy back to local variables (for ranks > 0, this fills them)
-    auto data1 = numPDE::make_scalar_field<Real, 3>(petsc_dec.xSize());
-    auto data2 = numPDE::make_scalar_field<Real, 3>(new_dec.ySize());
-    auto data3 = numPDE::make_scalar_field<Real, 3>(new_dec.zSize());
+ auto data1 = numPDE::make_scalar_field<Real, 3>(petsc_dec.xSize());
+ auto data2 = numPDE::make_scalar_field<Real, 3>(new_dec.ySize());
+ auto data3 = numPDE::make_scalar_field<Real, 3>(new_dec.zSize());
 
-    Real* u1 = data1.ptr_at(0);
-    Real* u2 = data2.ptr_at(0);
-    Real* u3 = data3.ptr_at(0);
+ Real* u1 = data1.ptr_at(0);
+ Real* u2 = data2.ptr_at(0);
+ Real* u3 = data3.ptr_at(0);
 
-    new_dec.transposeX2Y(u1, u2);
-    new_dec.transposeY2Z(u2, u3);
-    new_dec.transposeZ2Y(u3, u2);
-    new_dec.transposeY2X(u2, u1);
+ new_dec.transposeX2Y(u1, u2);
+ new_dec.transposeY2Z(u2, u3);
+ new_dec.transposeZ2Y(u3, u2);
+ new_dec.transposeY2X(u2, u1);
 
 
     MPI_Barrier(MPI_COMM_WORLD);
