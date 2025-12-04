@@ -1,4 +1,5 @@
 #pragma once
+#include "decompose.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -22,15 +23,15 @@ namespace numPDE
 
     enum SIDES
     {
-        NORTH,  // ++i
-        SOUTH,  // --i
-        WEST,   // ++j
-        EAST,   // --j
-        TOP,    // ++k
-        BOTTOM, // --k
+    TOP    = 0, // z = z_MAX
+    BOTTOM = 1, // z = z_min
+    EAST  = 2, // y = y_min
+    WEST   = 3, // y = y_MAX
+    NORTH  = 4, // x = x_MAX
+    SOUTH   = 5, // x = x_min
 
-        begin = NORTH,
-        end   = BOTTOM,
+    begin = TOP,
+    end   = SOUTH,
     };
 
     template <typename OT, typename IT>
@@ -98,24 +99,20 @@ constexpr auto enum_range()
 template <typename COMM>
 bool is_side(numPDE::SIDES const side, COMM const& r_dec)
 {
-    const auto [xs, ys, zs]  = r_dec.xStart();
-    const auto [xm, ym, zm]  = r_dec.xSize();
-    const auto& [nx, ny, nz] = r_dec.get_global_sizes();
+    const auto start  = r_dec.xStart();
+    const auto sizes = r_dec.xSize();
+    const auto [nx, ny, nz] = r_dec.get_global_sizes();
+
 
     switch (side)
     {
-        case numPDE::SIDES::NORTH:
-            return (xs + xm == nx);
-        case numPDE::SIDES::SOUTH:
-            return (xs == 0);
-        case numPDE::SIDES::EAST:
-            return (ys == 0);
-        case numPDE::SIDES::WEST:
-            return (ys + ym == ny);
-        case numPDE::SIDES::BOTTOM:
-            return (zs == 0);
-        case numPDE::SIDES::TOP:
-            return (zm + zs == nz);
+        case numPDE::SIDES::SOUTH:  return (start[0] == 0);
+        case numPDE::SIDES::EAST:   return (start[1] == 0);
+        case numPDE::SIDES::BOTTOM: return (start[2] == 0);
+
+        case numPDE::SIDES::NORTH:  return (start[0] + sizes[0] == nx );
+        case numPDE::SIDES::WEST:   return (start[1] + sizes[1] == ny );
+        case numPDE::SIDES::TOP:    return (start[2] + sizes[2] == nz );
         default:
             std::cerr << "Invalid side specified — check numPDE::SIDES.\n";
             return false;
