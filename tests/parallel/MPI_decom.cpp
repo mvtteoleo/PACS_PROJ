@@ -1,5 +1,5 @@
 #include <ios>
-#define TEST 1
+#define TEST 2
 #include "../../include/MY_LIB.hpp"
 #include <algorithm>
 #include <array>
@@ -23,8 +23,8 @@
 template <DecomposeConc T>
 void print_vals(T& decomp)
 {
-        MPI_Barrier(MPI_COMM_WORLD);
-        MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
     const auto& neighbors = decomp.get_neighbors();
 
     for (int r = 0; r < decomp.totRank(); ++r)
@@ -58,12 +58,15 @@ void print_vals(T& decomp)
             auto left = neighbors[neighbour_directions::LEFT];
             std::cout << "\nLeft   : " << left;
 
-         std::cout << "\nIs SOUTH  : "  << std::boolalpha << is_side(numPDE::SIDES::SOUTH , decomp);
-         std::cout << "\nIs EAST   : "  << std::boolalpha << is_side(numPDE::SIDES::EAST , decomp);
-         std::cout << "\nIs BOTTOM : "  << std::boolalpha << is_side(numPDE::SIDES::BOTTOM, decomp);
-         std::cout << "\nIs NORTH  : "  << std::boolalpha << is_side(numPDE::SIDES::NORTH , decomp);
-         std::cout << "\nIs WEST   : "  << std::boolalpha << is_side(numPDE::SIDES::WEST  , decomp);
-         std::cout << "\nIs TOP    : "  << std::boolalpha << is_side(numPDE::SIDES::TOP   , decomp);
+            std::cout << "\nIs SOUTH  : " << std::boolalpha
+                      << is_side(numPDE::SIDES::SOUTH, decomp);
+            std::cout << "\nIs EAST   : " << std::boolalpha << is_side(numPDE::SIDES::EAST, decomp);
+            std::cout << "\nIs BOTTOM : " << std::boolalpha
+                      << is_side(numPDE::SIDES::BOTTOM, decomp);
+            std::cout << "\nIs NORTH  : " << std::boolalpha
+                      << is_side(numPDE::SIDES::NORTH, decomp);
+            std::cout << "\nIs WEST   : " << std::boolalpha << is_side(numPDE::SIDES::WEST, decomp);
+            std::cout << "\nIs TOP    : " << std::boolalpha << is_side(numPDE::SIDES::TOP, decomp);
 
             std::cout << std::endl;
             std::cout << std::endl;
@@ -91,11 +94,11 @@ int main(int argc, char* argv[])
 
     auto& [nx, ny, nz] = ns;
 
-    PETScDecomp<Real> petsc_dec(argc, argv);
-     NewDecomp<Real>   new_dec(argc, argv);
-     new_dec.release_mpi_ownership();
-
 #if TEST == 1
+    PETScDecomp<Real> petsc_dec(argc, argv);
+    NewDecomp<Real>   new_dec(argc, argv);
+    new_dec.release_mpi_ownership();
+
     if (!petsc_dec.rank())
     { // Only rank 0 generates random values
         std::random_device rd;
@@ -111,26 +114,25 @@ int main(int argc, char* argv[])
     MPI_Bcast(ns.data(), ns.size(), mpi_get_type<size_t>(), 0, MPI_COMM_WORLD);
 
     petsc_dec.initialize_decomp(nx, ny, nz);
-   new_dec.initialize_decomp(nx, ny, nz);
+    new_dec.initialize_decomp(nx, ny, nz);
 
     // Copy back to local variables (for ranks > 0, this fills them)
- auto data1 = numPDE::make_scalar_field<Real, 3>(petsc_dec.xSize());
- auto data2 = numPDE::make_scalar_field<Real, 3>(new_dec.ySize());
- auto data3 = numPDE::make_scalar_field<Real, 3>(new_dec.zSize());
+    auto data1 = numPDE::make_scalar_field<Real, 3>(petsc_dec.xSize());
+    auto data2 = numPDE::make_scalar_field<Real, 3>(new_dec.ySize());
+    auto data3 = numPDE::make_scalar_field<Real, 3>(new_dec.zSize());
 
- Real* u1 = data1.ptr_at(0);
- Real* u2 = data2.ptr_at(0);
- Real* u3 = data3.ptr_at(0);
+    Real* u1 = data1.ptr_at(0);
+    Real* u2 = data2.ptr_at(0);
+    Real* u3 = data3.ptr_at(0);
 
- new_dec.transposeX2Y(u1, u2);
- new_dec.transposeY2Z(u2, u3);
- new_dec.transposeZ2Y(u3, u2);
- new_dec.transposeY2X(u2, u1);
-
+    new_dec.transposeX2Y(u1, u2);
+    new_dec.transposeY2Z(u2, u3);
+    new_dec.transposeZ2Y(u3, u2);
+    new_dec.transposeY2X(u2, u1);
 
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
-    if(!petsc_dec.rank()) std::cout << "============\n PETSC decomposition\n============\n";
+    if (!petsc_dec.rank()) std::cout << "============\n PETSC decomposition\n============\n";
 
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
@@ -139,8 +141,7 @@ int main(int argc, char* argv[])
 
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
-    if(!new_dec.rank()) std::cout << "============\n NEW_DEC decomposition\n============\n";
-
+    if (!new_dec.rank()) std::cout << "============\n NEW_DEC decomposition\n============\n";
 
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
@@ -148,43 +149,10 @@ int main(int argc, char* argv[])
     print_vals(new_dec);
 #elif TEST == 2
 
-    // Print results rank by rank
-    for (int r = 0; r < decomp.totRank(); ++r)
-    {
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (decomp.rank() == r)
-        {
-            std::cout << std::endl;
-            std::cout << std::endl;
-            std::cout << std::endl;
-            std::cout << "Rank " << r << ":\n";
-            for (auto i : decomp.xStart())
-                std::cout << i << " ";
-            for (auto i : decomp.xStartWGhosts())
-                std::cout << i << " ";
+    PETScDecomp<> decomp(argc, argv, nx, ny, nz);
+    print_vals(decomp);
 
-            std::cout << std::endl;
-            for (auto i : decomp.xSize())
-                std::cout << i << " ";
-            for (auto i : decomp.dimsWithGhosts())
-                std::cout << i << " ";
-            auto top = neighbors[neighbour_directions::TOP];
-            std::cout << "\nTop    : " << top;
-            auto bot = neighbors[neighbour_directions::BOTTOM];
-            std::cout << "\nBottom : " << bot;
-            auto right = neighbors[neighbour_directions::RIGHT];
-            std::cout << "\nRight  : " << right;
-            auto left = neighbors[neighbour_directions::LEFT];
-            std::cout << "\nLeft   : " << left;
-
-            std::cout << std::endl;
-            std::cout << std::endl;
-            std::cout << std::endl;
-        }
-        MPI_Barrier(MPI_COMM_WORLD);
-    }
-
-    MPI_Barrier(MPI_COMM_WORLD);
+    const auto& neighbors = decomp.get_neighbors();
 
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
     auto P    = numPDE::make_scalar_field<Real, N_DIMS>(decomp.dimsWithGhosts());
@@ -310,4 +278,3 @@ int main(int argc, char* argv[])
 
     return 0;
 }
-

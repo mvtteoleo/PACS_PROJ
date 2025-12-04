@@ -19,8 +19,3 @@ enum neighbour_directions
 #include "new_decomp.hpp"
 
 #include "petsc_decomp.hpp"
-
-
-
-
-

@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <iostream>
 #include <numbers>
+#include <petsc.h>
 #include <petscdm.h>
 #include <petscdmda.h>
 #include <petscksp.h>
@@ -16,9 +17,6 @@
 #include <random>
 #include <ranges>
 #include <vector>
-#include <petsc.h>
-#include <petscdmda.h>
-#include <petscksp.h>
 
 bool VERBOOSE = false;
 
@@ -140,13 +138,13 @@ int main(int argc, char** argv)
     // ----------------------------------------------------------
     numPDE::PressureBC<Real> bc;
 
-    auto& g_      = u_ex; //[](std::vector<Real> const& pos) -> Real { return 0.1; };
-    bc.g_north   = g_;
-    bc.g_south   = g_;
-    bc.g_east    = g_;
-    bc.g_west    = g_;
-    bc.g_top     = g_;
-    bc.g_bottom  = g_;
+    auto& g_    = u_ex; //[](std::vector<Real> const& pos) -> Real { return 0.1; };
+    bc.g_north  = g_;
+    bc.g_south  = g_;
+    bc.g_east   = g_;
+    bc.g_west   = g_;
+    bc.g_top    = g_;
+    bc.g_bottom = g_;
 
     bc.BC_NORTH  = numPDE::NeuHomo;
     bc.BC_SOUTH  = numPDE::NeuHomo;
@@ -156,7 +154,6 @@ int main(int argc, char** argv)
     bc.BC_BOTTOM = numPDE::NeuHomo;
     bc.f         = forc;
     bc.u_ex      = u_ex;
-
 
     numPDE::Constants<Real> constants;
     constants.h = h;

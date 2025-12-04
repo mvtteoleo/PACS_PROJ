@@ -37,15 +37,15 @@ auto PETScDecomp<T>::initialize_decomp(Ts nx, Ts ny, Ts nz)
 
     auto [pz, py] = this->get_process_grid();
     PetscErrorCode ierr;
-    ierr       = DMDACreate3d(this->cart_comm, // your Cartesian comm
-                              DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED, DM_BOUNDARY_GHOSTED,
-                              DMDA_STENCIL_BOX, nx, ny, nz, // global grid
-                              1,                 // Px (1/auto)
-                              py,                        // Py (cols)
-                              pz,                        // Pz (rows)
-                              1,                            // dof = 1 scalar field
-                              1,                            // stencil width = 1
-                              NULL, NULL, NULL, &this->da);
+    ierr = DMDACreate3d(this->cart_comm, // your Cartesian comm
+                        DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED, DM_BOUNDARY_GHOSTED,
+                        DMDA_STENCIL_BOX, nx, ny, nz, // global grid
+                        1,                            // Px (1/auto)
+                        py,                           // Py (cols)
+                        pz,                           // Pz (rows)
+                        1,                            // dof = 1 scalar field
+                        1,                            // stencil width = 1
+                        NULL, NULL, NULL, &this->da);
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
     ierr = DMSetUp(this->da);
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
@@ -53,22 +53,23 @@ auto PETScDecomp<T>::initialize_decomp(Ts nx, Ts ny, Ts nz)
 }
 
 template <typename T>
-auto PETScDecomp<T>::init_loal_sizes() {
+auto PETScDecomp<T>::init_loal_sizes()
+{
     PetscInt xs, ys, zs, xm, ym, zm;
-    DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm); 
-    this->start[0]    = static_cast<int>(xs);
-    this->start[1]    = static_cast<int>(ys);
-    this->start[2]    = static_cast<int>(zs);
-    this->loc_sizes[0]= static_cast<int>(xm);
-    this->loc_sizes[1]= static_cast<int>(ym);
-    this->loc_sizes[2]= static_cast<int>(zm);
+    DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
+    this->start[0]     = static_cast<int>(xs);
+    this->start[1]     = static_cast<int>(ys);
+    this->start[2]     = static_cast<int>(zs);
+    this->loc_sizes[0] = static_cast<int>(xm);
+    this->loc_sizes[1] = static_cast<int>(ym);
+    this->loc_sizes[2] = static_cast<int>(zm);
 }
 
 template <typename T>
 std::array<int, 3> PETScDecomp<T>::xStartWGhosts() const
 {
     std::array<int, 3> start_w_ghosts;
-    const auto&               physical_start = this->xStart();
+    const auto&        physical_start = this->xStart();
 
     start_w_ghosts[0] = physical_start[0];
     start_w_ghosts[1] = physical_start[1];
@@ -102,4 +103,3 @@ auto PETScDecomp<T>::dimsWithGhosts() const
 
     return GhostDims;
 }
-

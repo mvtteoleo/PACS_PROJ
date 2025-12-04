@@ -9,7 +9,7 @@
 
 namespace numPDE
 {
-     /*
+    /*
      * The solver works for equation in the shape of : Lap(u) = f.
      *
      * The matrix A is made of integers so that the stencil is modified to be
@@ -23,10 +23,10 @@ namespace numPDE
     class MGLaplaceSolver
     {
       public:
-        using T = Decomp::type_value;
+        using T          = Decomp::type_value;
         using type_value = T;
 
-    // Type alias, going to be substituted by the Concept ASAP
+        // Type alias, going to be substituted by the Concept ASAP
         MGLaplaceSolver(Decomp& decomp, numPDE::PressureBC<T>& Bcs,
                         numPDE::Constants<T>& constants);
 
@@ -77,13 +77,13 @@ namespace numPDE
         auto apply_BC_A_impl(SIDES const& side);
         auto update_bc_b_impl(SIDES const& side);
 
-        auto get_side_infos(const SIDES& side);
-        Decomp& r_dec;
-        PressureBC<T>&  r_BCs;
-        Constants<T>&   r_const;
+        auto           get_side_infos(const SIDES& side);
+        Decomp&        r_dec;
+        PressureBC<T>& r_BCs;
+        Constants<T>&  r_const;
     };
-    
-    auto _range(PetscInt s, PetscInt m) noexcept {return std::views::iota(s, s+m);}
+
+    auto _range(PetscInt s, PetscInt m) noexcept { return std::views::iota(s, s + m); }
     struct SideInfo
     {
         BC bc;
@@ -91,15 +91,13 @@ namespace numPDE
         FunType            fun;
         std::array<int, 3> offset{{1, 1, 1}};
         std::array<int, 3> normal{{0, 0, 0}};
-        PetscInt                xs, ys, zs; 
-        PetscInt                xm, ym, zm; 
-        
-        auto k_range() const noexcept{ return _range(this->zs, this->zm);}
-        auto j_range() const noexcept{ return _range(this->ys, this->ym);}
-        auto i_range() const noexcept{ return _range(this->xs, this->xm);}
+        PetscInt           xs, ys, zs;
+        PetscInt           xm, ym, zm;
+
+        auto k_range() const noexcept { return _range(this->zs, this->zm); }
+        auto j_range() const noexcept { return _range(this->ys, this->ym); }
+        auto i_range() const noexcept { return _range(this->xs, this->xm); }
     };
 } // namespace numPDE
-
-
 
 #include "impl/MG_laplace_solver_impl.hpp"

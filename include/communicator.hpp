@@ -15,7 +15,6 @@
 #include <type_traits>
 #include <vector>
 
-
 template <typename T = double>
 class Communicator
 {
@@ -28,8 +27,8 @@ class Communicator
     std::array<int, 3> glob_sizes{};
     MPI_Comm           cart_comm{MPI_COMM_NULL};
     // Global sizes
-    int Nx{}, Ny{}, Nz{};
-    bool   m_owns_mpi_lifecycle = true;
+    int  Nx{}, Ny{}, Nz{};
+    bool m_owns_mpi_lifecycle = true;
 
   public:
     using type_value = T;
@@ -38,8 +37,8 @@ class Communicator
     ~Communicator();
 
     int         rank() const noexcept { return mpi_rank; }
-    int         totRank() const  noexcept{ return tot_rank; }
-    const auto& get_neighbors() const  noexcept{ return neighbors; }
+    int         totRank() const noexcept { return tot_rank; }
+    const auto& get_neighbors() const noexcept { return neighbors; }
     const auto& get_cart_comm() const noexcept { return cart_comm; };
 
     /*
@@ -48,7 +47,7 @@ class Communicator
     auto get_process_grid() const noexcept { return dims; }
 
     const auto& get_global_sizes() const noexcept { return glob_sizes; }
-     auto get_global_sizes() { return glob_sizes; }
+    auto        get_global_sizes() { return glob_sizes; }
 
     void release_mpi_ownership() noexcept { m_owns_mpi_lifecycle = false; }
 
@@ -66,14 +65,14 @@ class Communicator
 
   protected:
     template <typename U, size_t RANK, size_t N_DIMS>
-    void exchange_late_bounds(numPDE::Tensor<U, RANK, N_DIMS, numPDE::ROW_MAJOR>& P)const noexcept;
+    void exchange_late_bounds(numPDE::Tensor<U, RANK, N_DIMS, numPDE::ROW_MAJOR>& P) const noexcept;
     template <typename U, size_t RANK, size_t N_DIMS>
-    void exchange_vert_bounds(numPDE::Tensor<U, RANK, N_DIMS, numPDE::ROW_MAJOR>& P)const noexcept;
+    void exchange_vert_bounds(numPDE::Tensor<U, RANK, N_DIMS, numPDE::ROW_MAJOR>& P) const noexcept;
 
-    std::vector<int> findFactors(int num)const noexcept;
+    std::vector<int> findFactors(int num) const noexcept;
 
     std::tuple<int, int> best_rank_2D_grid(int nproc, bool verbose = true);
-    void split_rank_cartesian();
+    void                 split_rank_cartesian();
 };
 
 #include "impl/communicator_impl.hpp"

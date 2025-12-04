@@ -13,7 +13,9 @@ NewDecomp<T>::NewDecomp(int argc, char** argv, Ts nx, Ts ny, Ts nz) : Communicat
 }
 
 template <typename T>
-NewDecomp<T>::NewDecomp(int argc, char** argv) : Communicator<T>(argc, argv) {}
+NewDecomp<T>::NewDecomp(int argc, char** argv) : Communicator<T>(argc, argv)
+{
+}
 
 template <typename T>
 NewDecomp<T>::~NewDecomp()
@@ -33,9 +35,9 @@ void NewDecomp<T>::initialize_decomp(Ts nx, Ts ny, Ts nz)
     nz       = static_cast<int>(nz);
     int pRow = this->dims[0];
     int pCol = this->dims[1];
-    
+
     bool periodicBC[3] = {false, false, false};
-    c2d = std::make_unique<C2Decomp>(nx, ny, nz, pCol, pRow, periodicBC);
+    c2d                = std::make_unique<C2Decomp>(nx, ny, nz, pCol, pRow, periodicBC);
     if (pCol != this->dims[1] or pRow != this->dims[0])
     {
         std::cerr << "Warning: Row or column values changed!!\n";
@@ -122,4 +124,3 @@ void NewDecomp<T>::transposeY2X(T* src, T* dst)
     static_assert(std::is_same_v<T, double>, "Currently only double supported");
     c2d->transposeY2X_MajorIndex(src, dst);
 }
-

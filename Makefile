@@ -111,8 +111,23 @@ clean:
 distclean: clean
 	$(RM) $(EXEC) $(SERIAL_TESTS) $(PARALLEL_TESTS)
 
-check_vtk_dir:
-	@echo "VTK_INCLUDE_DIR = $(VTK_INCLUDE_DIR)"
-	@echo "VTK_LIB_DIR     = $(VTK_LIB_DIR)"
-	@ls -1 $(VTK_LIB_DIR)
+# ===================================
+# Run clang-tidy on all sources
+# ===================================
+format:
+	clang-format -i  ./*/*pp && clang-format -i  ./*/*/*pp
 
+TIDY := clang-tidy
+TIDY_FLAGS := --checks=* --header-filter=.* 
+
+
+tidy:
+	@echo "Running clang-tidy..."
+	@rm -f log_tidy.txt
+	@$(foreach src, $(SRCS) $(PARALLEL_SRCS), \
+		echo "=== Checking $(src) ===" >> log_tidy.txt; \
+		$(TIDY) $(src) $(TIDY_FLAGS) -- $(CPPFLAGS) >> log_tidy.txt 2>&1; \
+		echo "" >> log_tidy.txt; \
+		echo "Checked $(src)"; \
+	)
+	@echo "clang-tidy output written to log_tidy.txt

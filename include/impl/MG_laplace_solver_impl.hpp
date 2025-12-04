@@ -5,563 +5,564 @@
 namespace numPDE
 {
 
-#define MGSOLVER_TEMPLATE template <DecomposeConc Decomp>
-#define MGSOLVER_SCOPE MGLaplaceSolver<Decomp>
-
-template <DecomposeConc Decomp>
-MGLaplaceSolver<Decomp>::MGLaplaceSolver(Decomp& decomp, numPDE::PressureBC<typename Decomp::type_value>& Bcs,
-                                    numPDE::Constants<typename Decomp::type_value>& constants)
-: r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
-{
-    this->build_local_dm();
-    this->build_linear_system();
-}
-
-template <DecomposeConc Decomp>
-MGLaplaceSolver<Decomp>::~MGLaplaceSolver()
-{
-    MatNullSpaceDestroy(&nullspace);
-    KSPDestroy(&ksp);
-    VecDestroy(&x_h);
-    VecDestroy(&b);
-    MatDestroy(&A);
-}
-
-template <DecomposeConc Decomp>
-auto MGLaplaceSolver<Decomp>::build_local_dm()
-{
-    PetscErrorCode ierr;
-     auto [pz, py]     = r_dec.get_process_grid();
-    if(!r_dec.rank()) std::cout << "Pz : " << pz << ", Py : " << py << "\n";
-    const auto& [nx, ny, nz] = r_dec.get_global_sizes();
-
-    PetscInt NxLoc{nx - 2};
-    PetscInt NyLoc{ny - 2};
-    PetscInt NzLoc{nz - 2};
-
-    std::array<PetscInt, 1> lx{{NxLoc}};
-    std::vector<PetscInt>   ly(py);
-    std::vector<PetscInt>   lz(pz);
-
-    if (!r_dec.rank()) printf("Starting to iterate over the ranks\n");
-
-
-    // Exchange Z layout info
-    int                TOP_r{0};
-    std::array<int, 2> T_info;
-    auto& [T_next, zl] = T_info;
-    for (auto const k : std::ranges::views::iota(0, pz))
+    template <DecomposeConc Decomp>
+    MGLaplaceSolver<Decomp>::MGLaplaceSolver(
+        Decomp& decomp, numPDE::PressureBC<typename Decomp::type_value>& Bcs,
+        numPDE::Constants<typename Decomp::type_value>& constants)
+        : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
     {
-        if (r_dec.rank() == TOP_r)
+        this->build_local_dm();
+        this->build_linear_system();
+    }
+
+    template <DecomposeConc Decomp>
+    MGLaplaceSolver<Decomp>::~MGLaplaceSolver()
+    {
+        MatNullSpaceDestroy(&nullspace);
+        KSPDestroy(&ksp);
+        VecDestroy(&x_h);
+        VecDestroy(&b);
+        MatDestroy(&A);
+    }
+
+    template <DecomposeConc Decomp>
+    auto MGLaplaceSolver<Decomp>::build_local_dm()
+    {
+        PetscErrorCode ierr;
+        auto [pz, py] = r_dec.get_process_grid();
+        if (!r_dec.rank()) std::cout << "Pz : " << pz << ", Py : " << py << "\n";
+        const auto& [nx, ny, nz] = r_dec.get_global_sizes();
+
+        PetscInt NxLoc{nx - 2};
+        PetscInt NyLoc{ny - 2};
+        PetscInt NzLoc{nz - 2};
+
+        std::array<PetscInt, 1> lx{{NxLoc}};
+        std::vector<PetscInt>   ly(py);
+        std::vector<PetscInt>   lz(pz);
+
+        if (!r_dec.rank()) printf("Starting to iterate over the ranks\n");
+
+        // Exchange Z layout info
+        int                TOP_r{0};
+        std::array<int, 2> T_info;
+        auto& [T_next, zl] = T_info;
+        for (auto const k : std::ranges::views::iota(0, pz))
         {
-            auto neigs = r_dec.get_neighbors();
-            T_next = neigs[neighbour_directions::TOP];
-            const auto sizes = r_dec.xSize();
-            zl = sizes[2];
-            zl -= static_cast<int>(is_side(SIDES::TOP, r_dec)) ;
-            zl -= static_cast<int>(is_side(SIDES::BOTTOM, r_dec));
+            if (r_dec.rank() == TOP_r)
+            {
+                auto neigs       = r_dec.get_neighbors();
+                T_next           = neigs[neighbour_directions::TOP];
+                const auto sizes = r_dec.xSize();
+                zl               = sizes[2];
+                zl -= static_cast<int>(is_side(SIDES::TOP, r_dec));
+                zl -= static_cast<int>(is_side(SIDES::BOTTOM, r_dec));
 
-         std::cout << "T_next: " << T_next << " zl " << zl << " Rank " << r_dec.rank() << "\n";
+                std::cout << "T_next: " << T_next << " zl " << zl << " Rank " << r_dec.rank()
+                          << "\n";
+            }
+            MPI_Bcast(T_info.data(), T_info.size(), MPI_INT, TOP_r, MPI_COMM_WORLD);
+            lz[k] = zl;
+            TOP_r = T_next;
         }
-        MPI_Bcast(T_info.data(), T_info.size(), MPI_INT, TOP_r, MPI_COMM_WORLD);
-        lz[k] = zl;
-        TOP_r = T_next;
-    }
 
-    // Exchange Y layout info
-    int                WEST_r{0};
-    std::array<int, 2> W_info;
-    auto& [W_next, yl] = W_info;
-    for (auto const j : std::ranges::views::iota(0, py))
-    {
-        if (r_dec.rank() == WEST_r)
+        // Exchange Y layout info
+        int                WEST_r{0};
+        std::array<int, 2> W_info;
+        auto& [W_next, yl] = W_info;
+        for (auto const j : std::ranges::views::iota(0, py))
         {
-            auto neigs = r_dec.get_neighbors();
-            W_next = neigs[neighbour_directions::LEFT];
-            const auto sizes = r_dec.xSize();
-            yl = sizes[1];
-            yl -= static_cast<int>(is_side(SIDES::WEST, r_dec ));
-            yl -=  static_cast<int>(is_side(SIDES::EAST, r_dec));
-         std::cout << "W_next: " << W_next << " yl " << yl << " Rank " << r_dec.rank() << "\n";
+            if (r_dec.rank() == WEST_r)
+            {
+                auto neigs       = r_dec.get_neighbors();
+                W_next           = neigs[neighbour_directions::LEFT];
+                const auto sizes = r_dec.xSize();
+                yl               = sizes[1];
+                yl -= static_cast<int>(is_side(SIDES::WEST, r_dec));
+                yl -= static_cast<int>(is_side(SIDES::EAST, r_dec));
+                std::cout << "W_next: " << W_next << " yl " << yl << " Rank " << r_dec.rank()
+                          << "\n";
+            }
+            MPI_Bcast(W_info.data(), W_info.size(), MPI_INT, WEST_r, MPI_COMM_WORLD);
+            ly[j]  = yl;
+            WEST_r = W_next;
         }
-        MPI_Bcast(W_info.data(), W_info.size(), MPI_INT, WEST_r, MPI_COMM_WORLD);
-        ly[j]  = yl;
-        WEST_r = W_next;
+
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        if (!r_dec.rank())
+        {
+            std::cout << "\n ======= \nlz : ";
+            for (auto e : lz)
+                std::cout << e << " ";
+            std::cout << "\n ======= \n";
+
+            std::cout << "\n ======= \nly : ";
+            for (auto e : ly)
+                std::cout << e << " ";
+            std::cout << "\n ======= \n";
+        }
+
+        for (int r = 0; r < r_dec.totRank(); ++r)
+        {
+            MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Barrier(MPI_COMM_WORLD);
+            if (r_dec.rank() == r)
+            {
+                std::cout << "Rank " << r << "\n";
+
+                std::cout << "X, Y, Z sizes\n";
+                for (auto i : r_dec.xSize())
+                    std::cout << i << " ";
+
+                std::cout << "X, Y, Z start\n";
+                const auto start = r_dec.xStart();
+                std::cout << start[0] << " " << start[1] << " " << start[2] << "\n";
+
+                std::cout << std::endl;
+                const auto& neighbors = r_dec.get_neighbors();
+
+                auto top = neighbors[neighbour_directions::TOP];
+                std::cout << "\nTop    : " << top;
+                auto bot = neighbors[neighbour_directions::BOTTOM];
+                std::cout << "\nBottom : " << bot;
+                auto right = neighbors[neighbour_directions::RIGHT];
+                std::cout << "\nRight  : " << right;
+                auto left = neighbors[neighbour_directions::LEFT];
+                std::cout << "\nLeft   : " << left;
+
+                std::cout << "\nIs SOUTH  : " << std::boolalpha
+                          << is_side(numPDE::SIDES::SOUTH, r_dec);
+                std::cout << "\nIs EAST   : " << std::boolalpha
+                          << is_side(numPDE::SIDES::EAST, r_dec);
+                std::cout << "\nIs BOTTOM : " << std::boolalpha
+                          << is_side(numPDE::SIDES::BOTTOM, r_dec);
+                std::cout << "\nIs NORTH  : " << std::boolalpha
+                          << is_side(numPDE::SIDES::NORTH, r_dec);
+                std::cout << "\nIs WEST   : " << std::boolalpha
+                          << is_side(numPDE::SIDES::WEST, r_dec);
+                std::cout << "\nIs TOP    : " << std::boolalpha
+                          << is_side(numPDE::SIDES::TOP, r_dec);
+                std::cout << std::endl;
+                std::cout << std::endl;
+                std::cout << std::endl;
+            }
+            MPI_Barrier(MPI_COMM_WORLD);
+        }
+        ierr = DMDACreate3d(r_dec.get_cart_comm(), DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED,
+                            DM_BOUNDARY_GHOSTED, DMDA_STENCIL_BOX, NxLoc, NyLoc, NzLoc, 1, py, pz,
+                            1, 2, lx.data(), ly.data(), lz.data(), &this->da);
+        DMSetUp(this->da);
+        MPI_Barrier(MPI_COMM_WORLD);
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
-
-    if(!r_dec.rank())
-    {
-        std::cout << "\n ======= \nlz : ";
-        for(auto e : lz)
-            std::cout << e << " "; 
-        std::cout << "\n ======= \n";
-
-        std::cout << "\n ======= \nly : ";
-        for(auto e : ly)
-            std::cout << e << " "; 
-        std::cout << "\n ======= \n";
-
-    }
-
-    for (int r = 0; r < r_dec.totRank(); ++r)
+    template <DecomposeConc Decomp>
+    auto MGLaplaceSolver<Decomp>::build_linear_system()
     {
         MPI_Barrier(MPI_COMM_WORLD);
-        MPI_Barrier(MPI_COMM_WORLD);
-        if (r_dec.rank() == r)
+        DMCreateMatrix(this->da, &A);
+        DMCreateGlobalVector(this->da, &x_h);
+        DMCreateGlobalVector(this->da, &b);
+
+        build_int_A();
+        apply_bc_to_A();
+
+        KSPCreate(PETSC_COMM_WORLD, &ksp);
+        KSPSetOperators(ksp, A, A);
+        KSPGetPC(ksp, &pc);
+        if (this->MG_solver)
         {
-            std::cout << "Rank " << r << "\n";
-
-            std::cout << "X, Y, Z sizes\n";
-            for (auto i : r_dec.xSize())
-                std::cout << i << " ";
-
-            std::cout << "X, Y, Z start\n";
-            const auto start  = r_dec.xStart();
-            std::cout << start[0] << " " << start[1] << " " << start[2] << "\n";
-
-            std::cout << std::endl;
-            const auto& neighbors = r_dec.get_neighbors();
-
-            auto top = neighbors[neighbour_directions::TOP];
-            std::cout << "\nTop    : " << top;
-            auto bot = neighbors[neighbour_directions::BOTTOM];
-            std::cout << "\nBottom : " << bot;
-            auto right = neighbors[neighbour_directions::RIGHT];
-            std::cout << "\nRight  : " << right;
-            auto left = neighbors[neighbour_directions::LEFT];
-            std::cout << "\nLeft   : " << left;
-
-         std::cout << "\nIs SOUTH  : "  << std::boolalpha << is_side(numPDE::SIDES::SOUTH , r_dec);
-         std::cout << "\nIs EAST   : "  << std::boolalpha << is_side(numPDE::SIDES::EAST ,  r_dec);
-         std::cout << "\nIs BOTTOM : "  << std::boolalpha << is_side(numPDE::SIDES::BOTTOM, r_dec);
-         std::cout << "\nIs NORTH  : "  << std::boolalpha << is_side(numPDE::SIDES::NORTH , r_dec);
-         std::cout << "\nIs WEST   : "  << std::boolalpha << is_side(numPDE::SIDES::WEST  , r_dec);
-         std::cout << "\nIs TOP    : "  << std::boolalpha << is_side(numPDE::SIDES::TOP   , r_dec);
-            std::cout << std::endl;
-            std::cout << std::endl;
-            std::cout << std::endl;
+            PCSetType(pc, PCMG);
+            KSPSetType(ksp, KSPGMRES);
         }
-        MPI_Barrier(MPI_COMM_WORLD);
-    }
-    ierr = DMDACreate3d(r_dec.get_cart_comm(), DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED,
-                        DM_BOUNDARY_GHOSTED, DMDA_STENCIL_BOX, NxLoc, NyLoc, NzLoc, 1, py, pz,
-                        1, 2, lx.data(), ly.data(), lz.data(), &this->da);
-    DMSetUp(this->da);
-    MPI_Barrier(MPI_COMM_WORLD);
-}
-
-template<DecomposeConc Decomp>
-auto MGLaplaceSolver<Decomp>::build_linear_system()
-{
-    MPI_Barrier(MPI_COMM_WORLD);
-    DMCreateMatrix(this->da, &A);
-    DMCreateGlobalVector(this->da, &x_h);
-    DMCreateGlobalVector(this->da, &b);
-
-    build_int_A();
-    apply_bc_to_A();
-
-
-    KSPCreate(PETSC_COMM_WORLD, &ksp);
-    KSPSetOperators(ksp, A, A);
-    KSPGetPC(ksp, &pc);
-    if (this->MG_solver)
-    {
-        PCSetType(pc, PCMG);
-        KSPSetType(ksp, KSPGMRES);
-    }
-    KSPSetTolerances(ksp, 1e-10, 1e-10, PETSC_DEFAULT, 3e5);
-    KSPSetFromOptions(ksp);
-    KSPSetUp(ksp);
-}
-
-template<DecomposeConc Decomp>
-template <bool NEEDS_UPDATE_BC>
-auto MGLaplaceSolver<Decomp>::solve()
-{
-    this->build_rhs();
-    this->solve_impl<NEEDS_UPDATE_BC>();
-}
-
-template<DecomposeConc Decomp>
-template <bool NEEDS_UPDATE_BC, TypeIndex TYPE>
-auto MGLaplaceSolver<Decomp>::solve(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
-{
-    this->load_into_rhs(b_t);
-    this->solve_impl<NEEDS_UPDATE_BC>();
-}
-
-template<DecomposeConc Decomp>
-template <bool NEEDS_UPDATE_BC>
-auto MGLaplaceSolver<Decomp>::solve_impl()
-{
-    if constexpr (NEEDS_UPDATE_BC == true)
-    {
-        update_bc_on_b();
+        KSPSetTolerances(ksp, 1e-10, 1e-10, PETSC_DEFAULT, 3e5);
+        KSPSetFromOptions(ksp);
+        KSPSetUp(ksp);
     }
 
-    if (all_neumann_bc())
+    template <DecomposeConc Decomp>
+    template <bool NEEDS_UPDATE_BC>
+    auto MGLaplaceSolver<Decomp>::solve()
     {
-        if (!r_dec.rank()) std::cout << "Nullspace activated\n";
-        MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_TRUE, 0, NULL, &nullspace);
-        MatSetNullSpace(A, nullspace);
+        this->build_rhs();
+        this->solve_impl<NEEDS_UPDATE_BC>();
     }
 
-    KSPSolve(ksp, b, x_h);
-
-    if (this->all_neumann_bc()) MatNullSpaceRemove(this->nullspace, this->x_h);
-}
-
-template<DecomposeConc Decomp>
-auto MGLaplaceSolver<Decomp>::build_rhs()
-{
-    PetscScalar*** bAsTens;
-    DMDAVecGetArray(this->da, this->b, &bAsTens);
-    PetscInt xs, ys, zs, xm, ym, zm;
-    DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
-    const T h = r_const.h;
-
-    for (PetscInt k = zs; k < zs + zm; ++k)
-        for (PetscInt j = ys; j < ys + ym; ++j)
-            for (PetscInt i = xs; i < xs + xm; ++i)
-            {
-                // +1 due to restricted domain
-                const T x        = h * (i + 1);
-                const T y        = h * (j + 1);
-                const T z        = h * (k + 1);
-                bAsTens[k][j][i] = static_cast<PetscScalar>(r_BCs.f({x, y, z}) * h * h);
-            }
-    DMDAVecRestoreArray(this->da, this->b, &bAsTens);
-    VecAssemblyBegin(this->b);
-    VecAssemblyEnd(this->b);
-}
-
-template<DecomposeConc Decomp>
-auto MGLaplaceSolver<Decomp>::build_int_A()
-{
-    PetscScalar v[7];
-    MatStencil  row, col[7];
-    row.c = 0;
-
-    PetscInt xs, ys, zs, xm, ym, zm;
-    DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
-    const auto& [nx, ny, nz] = r_dec.get_global_sizes();
-
-    for (PetscInt kp = zs; kp < zs + zm; kp++)
-        for (PetscInt jp = ys; jp < ys + ym; jp++)
-            for (PetscInt ip = xs; ip < xs + xm; ip++)
-            {
-                PetscInt n = 0;
-                // Explicit assignment to match PETSc struct layout (k, j, i) safely
-                row.i = ip;
-                row.j = jp;
-                row.k = kp;
-
-                v[n]     = -6.0;
-                col[n].i = ip;
-                col[n].j = jp;
-                col[n].k = kp;
-                col[n].c = 0;
-                n++;
-
-                if (ip > 0)
-                {
-                    v[n]     = 1.0;
-                    col[n].i = ip - 1;
-                    col[n].j = jp;
-                    col[n].k = kp;
-                    col[n].c = 0;
-                    n++;
-                }
-                if (ip < nx - 3)
-                {
-                    v[n]     = 1.0;
-                    col[n].i = ip + 1;
-                    col[n].j = jp;
-                    col[n].k = kp;
-                    col[n].c = 0;
-                    n++;
-                }
-                if (jp > 0)
-                {
-                    v[n]     = 1.0;
-                    col[n].i = ip;
-                    col[n].j = jp - 1;
-                    col[n].k = kp;
-                    col[n].c = 0;
-                    n++;
-                }
-                if (jp < ny - 3)
-                {
-                    v[n]     = 1.0;
-                    col[n].i = ip;
-                    col[n].j = jp + 1;
-                    col[n].k = kp;
-                    col[n].c = 0;
-                    n++;
-                }
-                if (kp > 0)
-                {
-                    v[n]     = 1.0;
-                    col[n].i = ip;
-                    col[n].j = jp;
-                    col[n].k = kp - 1;
-                    col[n].c = 0;
-                    n++;
-                }
-                if (kp < nz - 3)
-                {
-                    v[n]     = 1.0;
-                    col[n].i = ip;
-                    col[n].j = jp;
-                    col[n].k = kp + 1;
-                    col[n].c = 0;
-                    n++;
-                }
-
-                MatSetValuesStencil(A, 1, &row, n, col, v, INSERT_VALUES);
-            }
-}
-
-template<DecomposeConc Decomp>
-auto MGLaplaceSolver<Decomp>::apply_bc_to_A()
-{
-    // Allows to change mode of modify the matrix (ADD_VALUES to INSERT_VALUES)
-    MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY);
-    MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY);
-    for (auto side : enum_range<numPDE::SIDES>())
-    if (is_side(side, r_dec))
+    template <DecomposeConc Decomp>
+    template <bool NEEDS_UPDATE_BC, TypeIndex TYPE>
+    auto MGLaplaceSolver<Decomp>::solve(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
     {
-        apply_BC_A_impl(side);
+        this->load_into_rhs(b_t);
+        this->solve_impl<NEEDS_UPDATE_BC>();
     }
 
-    // Finalize the Matrix assembly
-    MPI_Barrier(MPI_COMM_WORLD);
-    MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
-    MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
-
-}
-
-template<DecomposeConc Decomp>
-auto MGLaplaceSolver<Decomp>::apply_BC_A_impl(SIDES const& side)
-{
-    auto info = this->get_side_infos(side);
-
-    if (info.bc == NeuHomo or info.bc == Neumann)
+    template <DecomposeConc Decomp>
+    template <bool NEEDS_UPDATE_BC>
+    auto MGLaplaceSolver<Decomp>::solve_impl()
     {
-        // Impose the BC Using a Polinomial.
-        // Retrieve the ghost point value by fitting a second order polinomial
-        // such that I(h) = u_1; I(2h) = u_2 and I'(0) = G;
-        // Retrive: 3u_0 - 4u_1 + u_2 = -2h * G
-        // The scheme is then modified to impose u_0 = 4/3u_1 - 1/3u_2 - 2hG/3 
-    constexpr size_t n_appr = 2;
-    constexpr PetscScalar v[n_appr] = {4.0/3.0, -1.0/3.0};
-    MatStencil        row, col[n_appr];
+        if constexpr (NEEDS_UPDATE_BC == true)
+        {
+            update_bc_on_b();
+        }
 
-    row.c    = 0;
-    col[0].c = 0;
+        if (all_neumann_bc())
+        {
+            if (!r_dec.rank()) std::cout << "Nullspace activated\n";
+            MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_TRUE, 0, NULL, &nullspace);
+            MatSetNullSpace(A, nullspace);
+        }
 
+        KSPSolve(ksp, b, x_h);
 
-    // TODO leverage the normal attribute to enforce the BCs with a higher order
-    for (auto k : info.k_range())
-        for (auto j : info.j_range())
-            for (auto i : info.i_range())                          
-            {
-                row.i    = i;
-                row.j    = j;
-                row.k    = k;
-                for(auto el : std::views::iota(size_t{0}, n_appr))
-                {
-                    col[el].i = i + el*info.normal[0];
-                    col[el].j = j + el*info.normal[1];
-                    col[el].k = k + el*info.normal[2];
-                }
-                MatSetValuesStencil(this->A, 1, &row, n_appr, col, v, ADD_VALUES);
-            }
+        if (this->all_neumann_bc()) MatNullSpaceRemove(this->nullspace, this->x_h);
     }
-}
 
-template<DecomposeConc Decomp>
-auto MGLaplaceSolver<Decomp>::update_bc_on_b()
-{
-    for (auto side : enum_range<numPDE::SIDES>())
-    if (is_side(side, r_dec)) update_bc_b_impl(side);
-
-    VecAssemblyBegin(b);
-    VecAssemblyEnd(b);
-}
-
-template<DecomposeConc Decomp>
-auto MGLaplaceSolver<Decomp>::update_bc_b_impl(SIDES const& side)
-{
-
-    auto info = this->get_side_infos(side);
-
-    if (info.bc == Dirichlet or info.bc == Neumann)
+    template <DecomposeConc Decomp>
+    auto MGLaplaceSolver<Decomp>::build_rhs()
     {
-        const T        scale = (info.bc == BC::Dirichlet) ? -1.0 : r_const.h;
         PetscScalar*** bAsTens;
         DMDAVecGetArray(this->da, this->b, &bAsTens);
-        for (auto k : info.k_range())
-            for (auto j : info.j_range())
-                for (auto i : info.i_range())
+        PetscInt xs, ys, zs, xm, ym, zm;
+        DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
+        const T h = r_const.h;
+
+        for (PetscInt k = zs; k < zs + zm; ++k)
+            for (PetscInt j = ys; j < ys + ym; ++j)
+                for (PetscInt i = xs; i < xs + xm; ++i)
                 {
-                    const auto pos = std::vector<T>{(i + info.offset[0]) * r_const.h,
-                        (j + info.offset[1]) * r_const.h,
-                        (k + info.offset[2]) * r_const.h};
-                    bAsTens[k][j][i] += scale * static_cast<PetscScalar>(info.fun(pos));
+                    // +1 due to restricted domain
+                    const T x        = h * (i + 1);
+                    const T y        = h * (j + 1);
+                    const T z        = h * (k + 1);
+                    bAsTens[k][j][i] = static_cast<PetscScalar>(r_BCs.f({x, y, z}) * h * h);
                 }
         DMDAVecRestoreArray(this->da, this->b, &bAsTens);
+        VecAssemblyBegin(this->b);
+        VecAssemblyEnd(this->b);
     }
-}
 
-template<DecomposeConc Decomp>
-bool MGLaplaceSolver<Decomp>::all_neumann_bc() const
-{
-    auto is_neumann = [](BC bc) -> bool { return (bc == NeuHomo or bc == Neumann); };
-    const std::array<BC, 6> bcs = {r_BCs.BC_BOTTOM, r_BCs.BC_TOP,   r_BCs.BC_EAST,
-        r_BCs.BC_WEST,   r_BCs.BC_SOUTH, r_BCs.BC_NORTH};
-    return std::ranges::all_of(bcs, is_neumann);
-}
+    template <DecomposeConc Decomp>
+    auto MGLaplaceSolver<Decomp>::build_int_A()
+    {
+        PetscScalar v[7];
+        MatStencil  row, col[7];
+        row.c = 0;
 
-template<DecomposeConc Decomp>
-auto MGLaplaceSolver<Decomp>::check_sol()
-{
-    PetscScalar*** x_hTens;
-    Vec            check;
-    VecDuplicate(this->x_h, &check);
-    VecCopy(this->x_h, check);
-    DMDAVecGetArray(this->da, check, &x_hTens);
+        PetscInt xs, ys, zs, xm, ym, zm;
+        DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
+        const auto& [nx, ny, nz] = r_dec.get_global_sizes();
 
-    PetscInt xs, ys, zs, xm, ym, zm;
-    DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
-    const T h = r_const.h;
+        for (PetscInt kp = zs; kp < zs + zm; kp++)
+            for (PetscInt jp = ys; jp < ys + ym; jp++)
+                for (PetscInt ip = xs; ip < xs + xm; ip++)
+                {
+                    PetscInt n = 0;
+                    // Explicit assignment to match PETSc struct layout (k, j, i) safely
+                    row.i = ip;
+                    row.j = jp;
+                    row.k = kp;
 
-    for (PetscInt k = zs; k < zs + zm; ++k)
-        for (PetscInt j = ys; j < ys + ym; ++j)
-            for (PetscInt i = xs; i < xs + xm; ++i)
+                    v[n]     = -6.0;
+                    col[n].i = ip;
+                    col[n].j = jp;
+                    col[n].k = kp;
+                    col[n].c = 0;
+                    n++;
+
+                    if (ip > 0)
+                    {
+                        v[n]     = 1.0;
+                        col[n].i = ip - 1;
+                        col[n].j = jp;
+                        col[n].k = kp;
+                        col[n].c = 0;
+                        n++;
+                    }
+                    if (ip < nx - 3)
+                    {
+                        v[n]     = 1.0;
+                        col[n].i = ip + 1;
+                        col[n].j = jp;
+                        col[n].k = kp;
+                        col[n].c = 0;
+                        n++;
+                    }
+                    if (jp > 0)
+                    {
+                        v[n]     = 1.0;
+                        col[n].i = ip;
+                        col[n].j = jp - 1;
+                        col[n].k = kp;
+                        col[n].c = 0;
+                        n++;
+                    }
+                    if (jp < ny - 3)
+                    {
+                        v[n]     = 1.0;
+                        col[n].i = ip;
+                        col[n].j = jp + 1;
+                        col[n].k = kp;
+                        col[n].c = 0;
+                        n++;
+                    }
+                    if (kp > 0)
+                    {
+                        v[n]     = 1.0;
+                        col[n].i = ip;
+                        col[n].j = jp;
+                        col[n].k = kp - 1;
+                        col[n].c = 0;
+                        n++;
+                    }
+                    if (kp < nz - 3)
+                    {
+                        v[n]     = 1.0;
+                        col[n].i = ip;
+                        col[n].j = jp;
+                        col[n].k = kp + 1;
+                        col[n].c = 0;
+                        n++;
+                    }
+
+                    MatSetValuesStencil(A, 1, &row, n, col, v, INSERT_VALUES);
+                }
+    }
+
+    template <DecomposeConc Decomp>
+    auto MGLaplaceSolver<Decomp>::apply_bc_to_A()
+    {
+        // Allows to change mode of modify the matrix (ADD_VALUES to INSERT_VALUES)
+        MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY);
+        MatAssemblyEnd(A, MAT_FLUSH_ASSEMBLY);
+        for (auto side : enum_range<numPDE::SIDES>())
+            if (is_side(side, r_dec))
             {
-                const auto pos = std::vector<T>{h * (i + 1), h * (j + 1), h * (k + 1)};
-                x_hTens[k][j][i] =
-                    std::abs(static_cast<PetscScalar>(r_BCs.u_ex(pos)) - x_hTens[k][j][i]);
+                apply_BC_A_impl(side);
             }
-    DMDAVecRestoreArray(this->da, check, &x_hTens);
-    VecAssemblyBegin(check);
-    VecAssemblyEnd(check);
 
-    T residual{1};
-    VecNorm(check, NORM_2, &residual);
-    if (!r_dec.rank()) std::cout << "L2 err : " << residual * std::sqrt(h * h * h) << "\n";
-
-    VecNorm(check, NORM_INFINITY, &residual);
-    if (!r_dec.rank()) std::cout << "Linf err: " << residual << "\n";
-
-    VecDestroy(&check);
-}
-template<DecomposeConc Decomp>
-template <TypeIndex TYPE>
-auto MGLaplaceSolver<Decomp>::load_into_rhs(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
-{
-    PetscScalar*** bAsTens;
-    DMDAVecGetArray(this->da, this->b, &bAsTens);
-    PetscInt xs, ys, zs, xm, ym, zm;
-    DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
-    const T h_2 = r_const.h * r_const.h;
-
-    for (PetscInt k = zs; k < zs + zm; ++k)
-        for (PetscInt j = ys; j < ys + ym; ++j)
-            for (PetscInt i = xs; i < xs + xm; ++i)
-            {
-                bAsTens[k][j][i] =
-                    static_cast<PetscScalar>(b_t(i - xs + 1, j - ys + 1, k - zs + 1) * h_2);
-            }
-    DMDAVecRestoreArray(this->da, this->b, &bAsTens);
-    VecAssemblyBegin(this->b);
-    VecAssemblyEnd(this->b);
-}
-template<DecomposeConc Decomp>
-template <TypeIndex TYPE>
-auto MGLaplaceSolver<Decomp>::write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t)
-{
-    PetscScalar*** bAsTens;
-    DMDAVecGetArray(this->da, this->b, &bAsTens);
-    PetscInt xs, ys, zs, xm, ym, zm;
-    DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
-
-    for (auto [k, j, i] : b_t.int_elems())
-    {
-        const PetscInt gi = i + xs - 1;
-        const PetscInt gj = j + ys - 1;
-        const PetscInt gk = k + zs - 1;
-        b_t(i, j, k)      = bAsTens[gk][gj][gi];
-    }
-    DMDAVecRestoreArray(this->da, this->b, &bAsTens);
-}
-
-template<DecomposeConc Decomp>
-auto MGLaplaceSolver<Decomp>::get_side_infos(const SIDES& side)
-{
-    SideInfo info{};
-    DMDAGetCorners(this->da, &info.xs, &info.ys, &info.zs, &info.xm, &info.ym, &info.zm);
-    const auto& [nx, ny, nz] = r_dec.get_global_sizes();
-
-    if (side == SIDES::NORTH)
-    {
-        info.xs        = nx - 3;
-        info.xm        = 1;
-        info.bc        = r_BCs.BC_NORTH;
-        info.fun       = r_BCs.g_north;
-        info.offset[0] = 2;
-        info.normal = {-1, 0, 0};
-    }
-    else if (side == SIDES::SOUTH)
-    {
-        info.xs        = 0;
-        info.xm        = 1;
-        info.bc        = r_BCs.BC_SOUTH;
-        info.fun       = r_BCs.g_south;
-        info.offset[0] = 0;
-        info.normal = {1, 0, 0};
-    }
-    else if (side == SIDES::EAST)
-    {
-        info.ys        = 0;
-        info.ym        = 1;
-        info.bc        = r_BCs.BC_EAST;
-        info.fun       = r_BCs.g_east;
-        info.offset[1] = 0;
-        info.normal = {0, 1, 0};
-    }
-    else if (side == SIDES::WEST)
-    {
-        info.ys        = ny - 3;
-        info.ym        = 1;
-        info.bc        = r_BCs.BC_WEST;
-        info.fun       = r_BCs.g_west;
-        info.offset[1] = 2;
-        info.normal = {0, -1, 0};
-    }
-    else if (side == SIDES::TOP)
-    {
-        info.zs        = nz - 3;
-        info.zm        = 1;
-        info.bc        = r_BCs.BC_TOP;
-        info.fun       = r_BCs.g_top;
-        info.offset[2] = 2;
-        info.normal = {0, 0, -1};
-    }
-    else if (side == SIDES::BOTTOM)
-    {
-        info.zs        = 0;
-        info.zm        = 1;
-        info.bc        = r_BCs.BC_BOTTOM;
-        info.fun       = r_BCs.g_bottom;
-        info.offset[2] = 0;
-        info.normal = {0, 0, 1};
+        // Finalize the Matrix assembly
+        MPI_Barrier(MPI_COMM_WORLD);
+        MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
+        MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
     }
 
-    return info;
-}
+    template <DecomposeConc Decomp>
+    auto MGLaplaceSolver<Decomp>::apply_BC_A_impl(SIDES const& side)
+    {
+        auto info = this->get_side_infos(side);
+
+        if (info.bc == NeuHomo or info.bc == Neumann)
+        {
+            // Impose the BC Using a Polinomial.
+            // Retrieve the ghost point value by fitting a second order polinomial
+            // such that I(h) = u_1; I(2h) = u_2 and I'(0) = G;
+            // Retrive: 3u_0 - 4u_1 + u_2 = -2h * G
+            // The scheme is then modified to impose u_0 = 4/3u_1 - 1/3u_2 - 2hG/3
+            constexpr size_t      n_appr    = 2;
+            constexpr PetscScalar v[n_appr] = {4.0 / 3.0, -1.0 / 3.0};
+            MatStencil            row, col[n_appr];
+
+            row.c    = 0;
+            col[0].c = 0;
+
+            // TODO leverage the normal attribute to enforce the BCs with a higher order
+            for (auto k : info.k_range())
+                for (auto j : info.j_range())
+                    for (auto i : info.i_range())
+                    {
+                        row.i = i;
+                        row.j = j;
+                        row.k = k;
+                        for (auto el : std::views::iota(size_t{0}, n_appr))
+                        {
+                            col[el].i = i + el * info.normal[0];
+                            col[el].j = j + el * info.normal[1];
+                            col[el].k = k + el * info.normal[2];
+                        }
+                        MatSetValuesStencil(this->A, 1, &row, n_appr, col, v, ADD_VALUES);
+                    }
+        }
+    }
+
+    template <DecomposeConc Decomp>
+    auto MGLaplaceSolver<Decomp>::update_bc_on_b()
+    {
+        for (auto side : enum_range<numPDE::SIDES>())
+            if (is_side(side, r_dec)) update_bc_b_impl(side);
+
+        VecAssemblyBegin(b);
+        VecAssemblyEnd(b);
+    }
+
+    template <DecomposeConc Decomp>
+    auto MGLaplaceSolver<Decomp>::update_bc_b_impl(SIDES const& side)
+    {
+
+        auto info = this->get_side_infos(side);
+
+        if (info.bc == Dirichlet or info.bc == Neumann)
+        {
+            const T        scale = (info.bc == BC::Dirichlet) ? -1.0 : r_const.h;
+            PetscScalar*** bAsTens;
+            DMDAVecGetArray(this->da, this->b, &bAsTens);
+            for (auto k : info.k_range())
+                for (auto j : info.j_range())
+                    for (auto i : info.i_range())
+                    {
+                        const auto pos = std::vector<T>{(i + info.offset[0]) * r_const.h,
+                                                        (j + info.offset[1]) * r_const.h,
+                                                        (k + info.offset[2]) * r_const.h};
+                        bAsTens[k][j][i] += scale * static_cast<PetscScalar>(info.fun(pos));
+                    }
+            DMDAVecRestoreArray(this->da, this->b, &bAsTens);
+        }
+    }
+
+    template <DecomposeConc Decomp>
+    bool MGLaplaceSolver<Decomp>::all_neumann_bc() const
+    {
+        auto is_neumann = [](BC bc) -> bool { return (bc == NeuHomo or bc == Neumann); };
+        const std::array<BC, 6> bcs = {r_BCs.BC_BOTTOM, r_BCs.BC_TOP,   r_BCs.BC_EAST,
+                                       r_BCs.BC_WEST,   r_BCs.BC_SOUTH, r_BCs.BC_NORTH};
+        return std::ranges::all_of(bcs, is_neumann);
+    }
+
+    template <DecomposeConc Decomp>
+    auto MGLaplaceSolver<Decomp>::check_sol()
+    {
+        PetscScalar*** x_hTens;
+        Vec            check;
+        VecDuplicate(this->x_h, &check);
+        VecCopy(this->x_h, check);
+        DMDAVecGetArray(this->da, check, &x_hTens);
+
+        PetscInt xs, ys, zs, xm, ym, zm;
+        DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
+        const T h = r_const.h;
+
+        for (PetscInt k = zs; k < zs + zm; ++k)
+            for (PetscInt j = ys; j < ys + ym; ++j)
+                for (PetscInt i = xs; i < xs + xm; ++i)
+                {
+                    const auto pos = std::vector<T>{h * (i + 1), h * (j + 1), h * (k + 1)};
+                    x_hTens[k][j][i] =
+                        std::abs(static_cast<PetscScalar>(r_BCs.u_ex(pos)) - x_hTens[k][j][i]);
+                }
+        DMDAVecRestoreArray(this->da, check, &x_hTens);
+        VecAssemblyBegin(check);
+        VecAssemblyEnd(check);
+
+        T residual{1};
+        VecNorm(check, NORM_2, &residual);
+        if (!r_dec.rank()) std::cout << "L2 err : " << residual * std::sqrt(h * h * h) << "\n";
+
+        VecNorm(check, NORM_INFINITY, &residual);
+        if (!r_dec.rank()) std::cout << "Linf err: " << residual << "\n";
+
+        VecDestroy(&check);
+    }
+    template <DecomposeConc Decomp>
+    template <TypeIndex TYPE>
+    auto MGLaplaceSolver<Decomp>::load_into_rhs(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
+    {
+        PetscScalar*** bAsTens;
+        DMDAVecGetArray(this->da, this->b, &bAsTens);
+        PetscInt xs, ys, zs, xm, ym, zm;
+        DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
+        const T h_2 = r_const.h * r_const.h;
+
+        for (PetscInt k = zs; k < zs + zm; ++k)
+            for (PetscInt j = ys; j < ys + ym; ++j)
+                for (PetscInt i = xs; i < xs + xm; ++i)
+                {
+                    bAsTens[k][j][i] =
+                        static_cast<PetscScalar>(b_t(i - xs + 1, j - ys + 1, k - zs + 1) * h_2);
+                }
+        DMDAVecRestoreArray(this->da, this->b, &bAsTens);
+        VecAssemblyBegin(this->b);
+        VecAssemblyEnd(this->b);
+    }
+    template <DecomposeConc Decomp>
+    template <TypeIndex TYPE>
+    auto MGLaplaceSolver<Decomp>::write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t)
+    {
+        PetscScalar*** bAsTens;
+        DMDAVecGetArray(this->da, this->b, &bAsTens);
+        PetscInt xs, ys, zs, xm, ym, zm;
+        DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
+
+        for (auto [k, j, i] : b_t.int_elems())
+        {
+            const PetscInt gi = i + xs - 1;
+            const PetscInt gj = j + ys - 1;
+            const PetscInt gk = k + zs - 1;
+            b_t(i, j, k)      = bAsTens[gk][gj][gi];
+        }
+        DMDAVecRestoreArray(this->da, this->b, &bAsTens);
+    }
+
+    template <DecomposeConc Decomp>
+    auto MGLaplaceSolver<Decomp>::get_side_infos(const SIDES& side)
+    {
+        SideInfo info{};
+        DMDAGetCorners(this->da, &info.xs, &info.ys, &info.zs, &info.xm, &info.ym, &info.zm);
+        const auto& [nx, ny, nz] = r_dec.get_global_sizes();
+
+        if (side == SIDES::NORTH)
+        {
+            info.xs        = nx - 3;
+            info.xm        = 1;
+            info.bc        = r_BCs.BC_NORTH;
+            info.fun       = r_BCs.g_north;
+            info.offset[0] = 2;
+            info.normal    = {-1, 0, 0};
+        }
+        else if (side == SIDES::SOUTH)
+        {
+            info.xs        = 0;
+            info.xm        = 1;
+            info.bc        = r_BCs.BC_SOUTH;
+            info.fun       = r_BCs.g_south;
+            info.offset[0] = 0;
+            info.normal    = {1, 0, 0};
+        }
+        else if (side == SIDES::EAST)
+        {
+            info.ys        = 0;
+            info.ym        = 1;
+            info.bc        = r_BCs.BC_EAST;
+            info.fun       = r_BCs.g_east;
+            info.offset[1] = 0;
+            info.normal    = {0, 1, 0};
+        }
+        else if (side == SIDES::WEST)
+        {
+            info.ys        = ny - 3;
+            info.ym        = 1;
+            info.bc        = r_BCs.BC_WEST;
+            info.fun       = r_BCs.g_west;
+            info.offset[1] = 2;
+            info.normal    = {0, -1, 0};
+        }
+        else if (side == SIDES::TOP)
+        {
+            info.zs        = nz - 3;
+            info.zm        = 1;
+            info.bc        = r_BCs.BC_TOP;
+            info.fun       = r_BCs.g_top;
+            info.offset[2] = 2;
+            info.normal    = {0, 0, -1};
+        }
+        else if (side == SIDES::BOTTOM)
+        {
+            info.zs        = 0;
+            info.zm        = 1;
+            info.bc        = r_BCs.BC_BOTTOM;
+            info.fun       = r_BCs.g_bottom;
+            info.offset[2] = 0;
+            info.normal    = {0, 0, 1};
+        }
+
+        return info;
+    }
 } // namespace numPDE

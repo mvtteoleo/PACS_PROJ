@@ -25,7 +25,7 @@ class NewDecomp : public Communicator<T>
     NewDecomp& operator=(const NewDecomp&) = default;
     NewDecomp(NewDecomp&&)                 = default;
     NewDecomp& operator=(NewDecomp&&)      = default;
-    
+
     ~NewDecomp();
 
     template <typename Ts>
@@ -41,7 +41,7 @@ class NewDecomp : public Communicator<T>
     auto zSize() const { return std::span<const int>(&c2d->zSize[0], 3); }
 
     std::array<int, 3> xStartWGhosts() const;
-    auto dimsWithGhosts() const;
+    auto               dimsWithGhosts() const;
 
     // Transpositions
     void transposeX2Y(T* src, T* dst);

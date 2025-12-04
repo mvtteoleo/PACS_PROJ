@@ -25,20 +25,20 @@ class PETScDecomp : public Communicator<T>
     auto xSize() const { return loc_sizes; }
 
     std::array<int, 3> xStartWGhosts() const;
-    auto dimsWithGhosts() const;
+    auto               dimsWithGhosts() const;
 
     PETScDecomp(PETScDecomp&&)                 = default;
     PETScDecomp(const PETScDecomp&)            = default;
     PETScDecomp& operator=(PETScDecomp&&)      = default;
     PETScDecomp& operator=(const PETScDecomp&) = default;
-private:
+
+  private:
     auto init_loal_sizes();
 
     // PETSc communicator
-    DM       da;
+    DM                 da;
     std::array<int, 3> start;
     std::array<int, 3> loc_sizes;
-
 };
 
 #include "impl/petsc_decomp_impl.hpp"
