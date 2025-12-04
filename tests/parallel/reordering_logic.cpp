@@ -16,8 +16,8 @@
 #include <numbers>
 #include <vector>
 
-#include "../../header/MY_LIB.hpp"
-#include "../../header/decompose.hpp"
+#include "../../include/MY_LIB.hpp"
+#include "../../include/decompose.hpp"
 
 int main(int argc, char* argv[])
 {
@@ -106,7 +106,7 @@ int main(int argc, char* argv[])
     return 0;
 }
 #elif TEST == 1
-#include "../../header/MY_LIB.hpp"
+#include "../../include/MY_LIB.hpp"
 #include <iomanip>
 #include <iostream>
 #include <mpi.h> // make sure you include MPI

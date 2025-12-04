@@ -1,6 +1,6 @@
-#include "../../header/MY_LIB.hpp"
-#include "../../header/decompose.hpp"
-#include "../../header/pvts_writer.hpp"
+#include "../../include/MY_LIB.hpp"
+#include "../../include/decompose.hpp"
+#include "../../include/pvts_writer.hpp"
 #include "petscdmda.h"
 #include <algorithm>
 #include <array>
@@ -16,10 +16,6 @@
 #include <random>
 #include <ranges>
 #include <vector>
-#include "../../header/compiler_directives.hpp"
-#include "../../header/decompose.hpp"
-#include "../../header/pde_helper.hpp"
-#include "../../header/tensors.hpp"
 #include <petsc.h>
 #include <petscdmda.h>
 #include <petscksp.h>

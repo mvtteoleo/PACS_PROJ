@@ -64,4 +64,4 @@ namespace numPDE
 } // namespace numPDE
 
 // Include Implementation
-#include "fast_laplace_solver_impl.hpp"
+#include "impl/fast_laplace_solver_impl.hpp"

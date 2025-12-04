@@ -2,7 +2,7 @@
 # Compiler and Flags
 CXX       := mpic++
 MPICXX    := mpic++
-CPPFLAGS  := -Wall -Wextra -pedantic -fopenmp -std=c++23  -Iheader -Isrc -I. 
+CPPFLAGS  := -Wall -Wextra -pedantic -fopenmp -std=c++23  -Iinclude -Isrc -I. 
 LDLIBS   := -lfftw3 -lm -lboost_iostreams -lboost_system #-lfftw3_mpi 
 
 
@@ -31,7 +31,7 @@ TEST_DIR     := tests
 SERIAL_DIR   := $(TEST_DIR)/serial
 PARALLEL_DIR := $(TEST_DIR)/parallel
 BUILD_DIR    := build
-C2DECOMP_DIR := deps/2Decomp_C
+C2DECOMP_DIR := include/third_party/2Decomp_C
 
 # Main target
 EXEC      := main

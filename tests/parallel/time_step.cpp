@@ -2,8 +2,8 @@
 #include <functional>
 #include <utility>
 using Real = double;
-#include "../../header/MY_LIB.hpp"
-#include "../../header/laplace_solver.hpp"
+#include "../../include/MY_LIB.hpp"
+#include "../../include/laplace_solver.hpp"
 #include <climits>
 #include <cmath>
 #include <fftw3.h>

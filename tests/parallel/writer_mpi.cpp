@@ -1,5 +1,5 @@
-#include "../../header/MY_LIB.hpp"
-#include "../../header/pvts_writer.hpp"
+#include "../../include/MY_LIB.hpp"
+#include "../../include/pvts_writer.hpp"
 #include <array>
 #include <cassert>
 #include <fstream>

@@ -1,5 +1,6 @@
-#include "../../deps/gnuplot-iostream.h"
-#include "../../header/MY_LIB.hpp"
+#include "../../include/MY_LIB.hpp"
+#include "../../include/third_party/gnuplot-iostream.h"
+
 #include <cmath> // for sin()
 #include <utility>
 #include <vector>
@@ -104,7 +105,7 @@ int main()
     }
 
     // --- Here's the important part ---
-    gp << "set terminal x11 size 800,600\n"; // ✅ interactive terminal
+    gp << "set terminal x11 size 800,600\n"; 
     gp << "set xlabel 'X'\n";
     gp << "set ylabel 'Y'\n";
     gp << "set zlabel 'Z'\n";
