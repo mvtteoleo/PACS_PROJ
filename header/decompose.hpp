@@ -1,30 +1,19 @@
 #pragma once
 
 #include "../deps/2Decomp_C/C2Decomp.hpp"
-#include "compiler_directives.hpp"
-#include "my_2Decomp/MPI_types.hpp"
+#include "../deps/MPI_types.hpp"
+#include "tensors.hpp"
 
 #include <algorithm>
-#include <array>
-#include <cassert>
-#include <cmath>
-#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <iostream>
 #include <memory>
-#include <mpi.h>
 #include <ranges>
 #include <span>
 #include <stdexcept>
-#include <sys/types.h>
-#include <tuple>
 #include <type_traits>
 #include <vector>
 
-#include "my_2Decomp/MPI_types.hpp"
-#include "tensors.hpp"
 
 enum neighbour_directions
 {
