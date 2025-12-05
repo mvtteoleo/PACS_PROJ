@@ -158,7 +158,7 @@ int main(int argc, char** argv)
     numPDE::Constants<Real> constants;
     constants.h = h;
 
-    numPDE::MGLaplaceSolver<PETScDecomp<Real>> mg(decomp, bc, constants);
+    numPDE::MultiGridPoissonSolver<PETScDecomp<Real>> mg(decomp, bc, constants);
 
     myUtilities::ChronoTimer time("Solve time");
 

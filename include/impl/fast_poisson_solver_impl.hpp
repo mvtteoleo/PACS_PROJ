@@ -1,13 +1,11 @@
 #pragma once
-#include <execution>
-#include <iomanip>
-#include <mpi.h>
+#include "../fast_poisson_solver.hpp"
 
 namespace numPDE
 {
 
     template <typename T>
-    FastLaplaceSolver<T>::FastLaplaceSolver(NewDecomp<T>& decomp, PressureBC<T>& Bcs,
+    FastPoissonSolver<T>::FastPoissonSolver(NewDecomp<T>& decomp, PressureBC<T>& Bcs,
                                             Constants<T>& constants)
         : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
     {
@@ -17,7 +15,7 @@ namespace numPDE
     }
 
     template <typename T>
-    FastLaplaceSolver<T>::~FastLaplaceSolver()
+    FastPoissonSolver<T>::~FastPoissonSolver()
     {
         if (fft_x) fftw_destroy_plan(fft_x);
         if (ifft_x) fftw_destroy_plan(ifft_x);
@@ -29,14 +27,14 @@ namespace numPDE
     }
 
     template <typename T>
-    void FastLaplaceSolver<T>::validate_bcs()
+    void FastPoissonSolver<T>::validate_bcs()
     {
         auto check_pair = [](BC bc1, BC bc2, const std::string& axis) -> BC
         {
             if (bc1 != NeuHomo and bc1 != DirHomo)
             {
                 std::cerr << "The " << std::to_string(bc1)
-                          << " is not supported for FastLaplaceSolver\n";
+                          << " is not supported for FastPoissonSolver\n";
                 return BC::DirHomo;
             }
             if (bc1 == bc2) return bc1;
@@ -59,7 +57,7 @@ namespace numPDE
     }
 
     template <typename T>
-    void FastLaplaceSolver<T>::allocate_buffers()
+    void FastPoissonSolver<T>::allocate_buffers()
     {
         const auto& ySizeArr = r_dec.ySize();
         const auto& zSizeArr = r_dec.zSize();
@@ -81,7 +79,7 @@ namespace numPDE
     }
 
     template <typename T>
-    void FastLaplaceSolver<T>::create_fftw_plans()
+    void FastPoissonSolver<T>::create_fftw_plans()
     {
         auto create_plan = [&](BC bc, int len, fftw_plan& f, fftw_plan& inv)
         {
@@ -103,7 +101,7 @@ namespace numPDE
     }
 
     template <typename T>
-    auto FastLaplaceSolver<T>::solve(bool verbose)
+    auto FastPoissonSolver<T>::solve(bool verbose)
     {
         P.emplace(numPDE::make_scalar_field<T, 3>(r_dec.xSize()));
         const auto& xstrt = r_dec.xStart();
@@ -123,7 +121,7 @@ namespace numPDE
     }
 
     template <typename T>
-    void FastLaplaceSolver<T>::solve(const numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& in,
+    void FastPoissonSolver<T>::solve(const numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& in,
                                      numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& out, bool verbose)
     {
         int mpiRank = r_dec.rank();
@@ -159,7 +157,7 @@ namespace numPDE
 
     template <typename T>
     void
-    FastLaplaceSolver<T>::transform_forward(const numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& in,
+    FastPoissonSolver<T>::transform_forward(const numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& in,
                                             numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& out, T*& u1,
                                             T*& u2, T*& u3)
     {
@@ -215,7 +213,7 @@ namespace numPDE
     }
 
     template <typename T>
-    void FastLaplaceSolver<T>::solve_spectral(T* u3)
+    void FastPoissonSolver<T>::solve_spectral(T* u3)
     {
         const auto& zSizeArr = r_dec.zSize();
         const T&    h        = r_const.h;
@@ -244,7 +242,7 @@ namespace numPDE
     }
 
     template <typename T>
-    void FastLaplaceSolver<T>::transform_backward(T* u1, T* u2, T* u3)
+    void FastPoissonSolver<T>::transform_backward(T* u1, T* u2, T* u3)
     {
         const auto& xSizeArr = r_dec.xSize();
         const auto& ySizeArr = r_dec.ySize();
@@ -302,7 +300,7 @@ namespace numPDE
     }
 
     template <typename T>
-    auto FastLaplaceSolver<T>::check_sol()
+    auto FastPoissonSolver<T>::check_sol()
     {
         if (!P.has_value())
         {

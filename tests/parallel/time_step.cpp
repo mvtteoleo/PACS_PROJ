@@ -3,7 +3,7 @@
 #include <utility>
 using Real = double;
 #include "../../include/MY_LIB.hpp"
-#include "../../include/laplace_solver.hpp"
+#include "../../include/poisson_solver.hpp"
 #include <climits>
 #include <cmath>
 #include <fftw3.h>

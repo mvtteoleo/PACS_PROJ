@@ -1,12 +1,12 @@
 #pragma once
 
-#include "MG_laplace_solver.hpp"
+#include "../MG_poisson_solver.hpp"
 #include "decompose.hpp"
 namespace numPDE
 {
 
     template <DecomposeConc Decomp>
-    MGLaplaceSolver<Decomp>::MGLaplaceSolver(
+    MultiGridPoissonSolver<Decomp>::MultiGridPoissonSolver(
         Decomp& decomp, numPDE::PressureBC<typename Decomp::type_value>& Bcs,
         numPDE::Constants<typename Decomp::type_value>& constants)
         : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
@@ -16,7 +16,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    MGLaplaceSolver<Decomp>::~MGLaplaceSolver()
+    MultiGridPoissonSolver<Decomp>::~MultiGridPoissonSolver()
     {
         MatNullSpaceDestroy(&nullspace);
         KSPDestroy(&ksp);
@@ -26,7 +26,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MGLaplaceSolver<Decomp>::build_local_dm()
+    auto MultiGridPoissonSolver<Decomp>::build_local_dm()
     {
         PetscErrorCode ierr;
         auto [pz, py] = r_dec.get_process_grid();
@@ -157,7 +157,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MGLaplaceSolver<Decomp>::build_linear_system()
+    auto MultiGridPoissonSolver<Decomp>::build_linear_system()
     {
         MPI_Barrier(MPI_COMM_WORLD);
         DMCreateMatrix(this->da, &A);
@@ -182,7 +182,7 @@ namespace numPDE
 
     template <DecomposeConc Decomp>
     template <bool NEEDS_UPDATE_BC>
-    auto MGLaplaceSolver<Decomp>::solve()
+    auto MultiGridPoissonSolver<Decomp>::solve()
     {
         this->build_rhs();
         this->solve_impl<NEEDS_UPDATE_BC>();
@@ -190,7 +190,7 @@ namespace numPDE
 
     template <DecomposeConc Decomp>
     template <bool NEEDS_UPDATE_BC, TypeIndex TYPE>
-    auto MGLaplaceSolver<Decomp>::solve(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
+    auto MultiGridPoissonSolver<Decomp>::solve(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
     {
         this->load_into_rhs(b_t);
         this->solve_impl<NEEDS_UPDATE_BC>();
@@ -198,7 +198,7 @@ namespace numPDE
 
     template <DecomposeConc Decomp>
     template <bool NEEDS_UPDATE_BC>
-    auto MGLaplaceSolver<Decomp>::solve_impl()
+    auto MultiGridPoissonSolver<Decomp>::solve_impl()
     {
         if constexpr (NEEDS_UPDATE_BC == true)
         {
@@ -218,7 +218,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MGLaplaceSolver<Decomp>::build_rhs()
+    auto MultiGridPoissonSolver<Decomp>::build_rhs()
     {
         PetscScalar*** bAsTens;
         DMDAVecGetArray(this->da, this->b, &bAsTens);
@@ -242,7 +242,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MGLaplaceSolver<Decomp>::build_int_A()
+    auto MultiGridPoissonSolver<Decomp>::build_int_A()
     {
         PetscScalar v[7];
         MatStencil  row, col[7];
@@ -329,7 +329,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MGLaplaceSolver<Decomp>::apply_bc_to_A()
+    auto MultiGridPoissonSolver<Decomp>::apply_bc_to_A()
     {
         // Allows to change mode of modify the matrix (ADD_VALUES to INSERT_VALUES)
         MatAssemblyBegin(A, MAT_FLUSH_ASSEMBLY);
@@ -347,7 +347,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MGLaplaceSolver<Decomp>::apply_BC_A_impl(SIDES const& side)
+    auto MultiGridPoissonSolver<Decomp>::apply_BC_A_impl(SIDES const& side)
     {
         auto info = this->get_side_infos(side);
 
@@ -385,7 +385,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MGLaplaceSolver<Decomp>::update_bc_on_b()
+    auto MultiGridPoissonSolver<Decomp>::update_bc_on_b()
     {
         for (auto side : enum_range<numPDE::SIDES>())
             if (is_side(side, r_dec)) update_bc_b_impl(side);
@@ -395,7 +395,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MGLaplaceSolver<Decomp>::update_bc_b_impl(SIDES const& side)
+    auto MultiGridPoissonSolver<Decomp>::update_bc_b_impl(SIDES const& side)
     {
 
         auto info = this->get_side_infos(side);
@@ -419,7 +419,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    bool MGLaplaceSolver<Decomp>::all_neumann_bc() const
+    bool MultiGridPoissonSolver<Decomp>::all_neumann_bc() const
     {
         auto is_neumann = [](BC bc) -> bool { return (bc == NeuHomo or bc == Neumann); };
         const std::array<BC, 6> bcs = {r_BCs.BC_BOTTOM, r_BCs.BC_TOP,   r_BCs.BC_EAST,
@@ -428,7 +428,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MGLaplaceSolver<Decomp>::check_sol()
+    auto MultiGridPoissonSolver<Decomp>::check_sol()
     {
         PetscScalar*** x_hTens;
         Vec            check;
@@ -463,7 +463,7 @@ namespace numPDE
     }
     template <DecomposeConc Decomp>
     template <TypeIndex TYPE>
-    auto MGLaplaceSolver<Decomp>::load_into_rhs(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
+    auto MultiGridPoissonSolver<Decomp>::load_into_rhs(numPDE::Tensor<T, 3, 3, TYPE> const& b_t)
     {
         PetscScalar*** bAsTens;
         DMDAVecGetArray(this->da, this->b, &bAsTens);
@@ -484,7 +484,8 @@ namespace numPDE
     }
     template <DecomposeConc Decomp>
     template <TypeIndex TYPE>
-    auto MGLaplaceSolver<Decomp>::write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t)
+    auto
+    MultiGridPoissonSolver<Decomp>::write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t)
     {
         PetscScalar*** bAsTens;
         DMDAVecGetArray(this->da, this->b, &bAsTens);
@@ -502,7 +503,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MGLaplaceSolver<Decomp>::get_side_infos(const SIDES& side)
+    auto MultiGridPoissonSolver<Decomp>::get_side_infos(const SIDES& side)
     {
         SideInfo info{};
         DMDAGetCorners(this->da, &info.xs, &info.ys, &info.zs, &info.xm, &info.ym, &info.zm);

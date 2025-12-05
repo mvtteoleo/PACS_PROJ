@@ -1,6 +1,6 @@
 #pragma once
 #include "decompose.hpp"
-#include "laplace_solver.hpp"
+#include "poisson_solver.hpp"
 #include "tensors.hpp"
 #include <algorithm>
 #include <array>
@@ -428,6 +428,6 @@ namespace numPDE
         T             t = 0;
 
         NewDecomp<T>&        r_dec;
-        FastLaplaceSolver<T> fastLapSolver;
+        FastPoissonSolver<T> fastLapSolver;
     };
 }; // namespace numPDE

@@ -3,7 +3,9 @@
 #include "decompose.hpp"
 #include "pde_helper.hpp"
 #include "tensors.hpp"
+#include <execution>
 #include <fftw3.h>
+#include <iomanip>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -11,13 +13,13 @@
 namespace numPDE
 {
     template <typename T = double>
-    class FastLaplaceSolver
+    class FastPoissonSolver
     {
       public:
         using type_value = T;
 
-        FastLaplaceSolver(NewDecomp<T>& decomp, PressureBC<T>& Bcs, Constants<T>& constants);
-        ~FastLaplaceSolver();
+        FastPoissonSolver(NewDecomp<T>& decomp, PressureBC<T>& Bcs, Constants<T>& constants);
+        ~FastPoissonSolver();
 
         // Solves internally and populates P
         auto solve(bool verbose = false);
@@ -64,4 +66,4 @@ namespace numPDE
 } // namespace numPDE
 
 // Include Implementation
-#include "impl/fast_laplace_solver_impl.hpp"
+#include "impl/fast_poisson_solver_impl.hpp"

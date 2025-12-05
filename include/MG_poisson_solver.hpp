@@ -20,22 +20,22 @@ namespace numPDE
      *
      */
     template <DecomposeConc Decomp>
-    class MGLaplaceSolver
+    class MultiGridPoissonSolver
     {
       public:
         using T          = Decomp::type_value;
         using type_value = T;
 
         // Type alias, going to be substituted by the Concept ASAP
-        MGLaplaceSolver(Decomp& decomp, numPDE::PressureBC<T>& Bcs,
-                        numPDE::Constants<T>& constants);
+        MultiGridPoissonSolver(Decomp& decomp, numPDE::PressureBC<T>& Bcs,
+                               numPDE::Constants<T>& constants);
 
         // Rule of 5 defaults
-        MGLaplaceSolver(MGLaplaceSolver&&)                 = default;
-        MGLaplaceSolver(const MGLaplaceSolver&)            = default;
-        MGLaplaceSolver& operator=(MGLaplaceSolver&&)      = default;
-        MGLaplaceSolver& operator=(const MGLaplaceSolver&) = default;
-        ~MGLaplaceSolver();
+        MultiGridPoissonSolver(MultiGridPoissonSolver&&)                 = default;
+        MultiGridPoissonSolver(const MultiGridPoissonSolver&)            = default;
+        MultiGridPoissonSolver& operator=(MultiGridPoissonSolver&&)      = default;
+        MultiGridPoissonSolver& operator=(const MultiGridPoissonSolver&) = default;
+        ~MultiGridPoissonSolver();
 
         // --- Core Methods ---
         template <bool NEEDS_UPDATE_BC = true>
@@ -100,4 +100,4 @@ namespace numPDE
     };
 } // namespace numPDE
 
-#include "impl/MG_laplace_solver_impl.hpp"
+#include "impl/MG_poisson_solver_impl.hpp"

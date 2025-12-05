@@ -1,6 +1,6 @@
 #define TEST 1
 #include "../../include/MY_LIB.hpp"
-#include "../../include/laplace_solver.hpp"
+#include "../../include/poisson_solver.hpp"
 #include <climits>
 #include <cmath>
 #include <fftw3.h>
@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
     numPDE::Constants<Real> csts;
     csts.h = h;
 
-    numPDE::FastLaplaceSolver pSolver(decomposer, bc, csts);
+    numPDE::FastPoissonSolver pSolver(decomposer, bc, csts);
 
     auto exact = P;
     auto f     = P;
@@ -268,7 +268,7 @@ int main(int argc, char** argv)
     numPDE::Constants<Real> constants;
     constants.h = h;
 
-    numPDE::FastLaplaceSolver<Real> mg(decomp, Bcs, constants);
+    numPDE::FastPoissonSolver<Real> mg(decomp, Bcs, constants);
 
     myUtilities::ChronoTimer time("Solve time");
 
