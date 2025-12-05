@@ -64,15 +64,20 @@ namespace numPDE
         OT def_val{};
     };
 
+    // std::vectors in order to keep it generic and be safe in case of time dependence
+    // (Maybe a struct with x, y, z, t would be nice)
     template <typename T = double>
     struct VelocityBC : generic_BC<std::vector<T>, std::vector<T>>
     {
     };
 
     template <typename T = double>
-    struct PressureBC : generic_BC<T, std::vector<T>>
+    struct ScalarBC : generic_BC<T, std::vector<T>>
     {
     };
+
+    template <typename T = double>
+    using PressureBC = ScalarBC<T>;
 
     template <typename T = double>
     struct Constants

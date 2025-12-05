@@ -7,7 +7,7 @@ namespace numPDE
 
     template <DecomposeConc Decomp>
     MultiGridPoissonSolver<Decomp>::MultiGridPoissonSolver(
-        Decomp& decomp, numPDE::PressureBC<typename Decomp::type_value>& Bcs,
+        Decomp& decomp, numPDE::ScalarBC<typename Decomp::type_value>& Bcs,
         numPDE::Constants<typename Decomp::type_value>& constants)
         : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
     {

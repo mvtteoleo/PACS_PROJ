@@ -33,15 +33,15 @@ class NewDecomp : public Communicator<T>
     void initialize_decomp(Ts nx, Ts ny, Ts nz);
 
     // Accessors for 2Decomp structures
-    auto xStart() const { return std::span<const int>(&c2d->xStart[0], 3); }
-    auto yStart() const { return std::span<const int>(&c2d->yStart[0], 3); }
-    auto zStart() const { return std::span<const int>(&c2d->zStart[0], 3); }
-    auto xSize() const { return std::span<const int>(&c2d->xSize[0], 3); }
-    auto ySize() const { return std::span<const int>(&c2d->ySize[0], 3); }
-    auto zSize() const { return std::span<const int>(&c2d->zSize[0], 3); }
+    auto xStart() const noexcept { return std::span<const int>(&c2d->xStart[0], 3); }
+    auto yStart() const noexcept { return std::span<const int>(&c2d->yStart[0], 3); }
+    auto zStart() const noexcept { return std::span<const int>(&c2d->zStart[0], 3); }
+    auto xSize() const noexcept { return std::span<const int>(&c2d->xSize[0], 3); }
+    auto ySize() const noexcept { return std::span<const int>(&c2d->ySize[0], 3); }
+    auto zSize() const noexcept { return std::span<const int>(&c2d->zSize[0], 3); }
 
-    std::array<int, 3> xStartWGhosts() const;
-    auto               dimsWithGhosts() const;
+    std::array<int, 3> xStartWGhosts() const noexcept;
+    std::array<int, 3> dimsWithGhosts() const noexcept;
 
     // Transpositions
     void transposeX2Y(T* src, T* dst);

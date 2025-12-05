@@ -24,8 +24,8 @@ class PETScDecomp : public Communicator<T>
     auto xStart() const { return start; }
     auto xSize() const { return loc_sizes; }
 
-    std::array<int, 3> xStartWGhosts() const;
-    auto               dimsWithGhosts() const;
+    std::array<int, 3>  xStartWGhosts() const noexcept;
+    std::array<int, 3> dimsWithGhosts() const noexcept;
 
     PETScDecomp(PETScDecomp&&)                 = default;
     PETScDecomp(const PETScDecomp&)            = default;

@@ -62,7 +62,7 @@ void NewDecomp<T>::initialize_decomp(Ts nx, Ts ny, Ts nz)
 }
 
 template <typename T>
-std::array<int, 3> NewDecomp<T>::xStartWGhosts() const
+std::array<int, 3> NewDecomp<T>::xStartWGhosts() const noexcept
 {
     std::array<int, 3> start_w_ghosts;
     auto               physical_start = this->xStart();
@@ -84,7 +84,7 @@ std::array<int, 3> NewDecomp<T>::xStartWGhosts() const
 }
 
 template <typename T>
-auto NewDecomp<T>::dimsWithGhosts() const
+std::array<int, 3> NewDecomp<T>::dimsWithGhosts() const noexcept
 {
     std::array<int, 3> GhostDims;
     auto               qui = this->xSize();

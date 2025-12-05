@@ -5,7 +5,7 @@ namespace numPDE
 {
 
     template <typename T>
-    FastPoissonSolver<T>::FastPoissonSolver(NewDecomp<T>& decomp, PressureBC<T>& Bcs,
+    FastPoissonSolver<T>::FastPoissonSolver(NewDecomp<T>& decomp, ScalarBC<T>& Bcs,
                                             Constants<T>& constants)
         : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
     {

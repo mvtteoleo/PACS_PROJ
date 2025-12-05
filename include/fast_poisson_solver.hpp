@@ -18,7 +18,7 @@ namespace numPDE
       public:
         using type_value = T;
 
-        FastPoissonSolver(NewDecomp<T>& decomp, PressureBC<T>& Bcs, Constants<T>& constants);
+        FastPoissonSolver(NewDecomp<T>& decomp, ScalarBC<T>& Bcs, Constants<T>& constants);
         ~FastPoissonSolver();
 
         // Solves internally and populates P
@@ -49,7 +49,7 @@ namespace numPDE
         void transform_backward(T* u1, T* u2, T* u3);
 
         NewDecomp<T>&                             r_dec;
-        PressureBC<T>&                            r_BCs;
+        ScalarBC<T>&                            r_BCs;
         Constants<T>&                             r_const;
         std::vector<T>                            data2, data3;
         std::optional<Tensor<T, 3, 3, ROW_MAJOR>> P;

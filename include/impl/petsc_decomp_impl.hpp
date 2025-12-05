@@ -66,7 +66,7 @@ auto PETScDecomp<T>::init_loal_sizes()
 }
 
 template <typename T>
-std::array<int, 3> PETScDecomp<T>::xStartWGhosts() const
+std::array<int, 3> PETScDecomp<T>::xStartWGhosts() const noexcept
 {
     std::array<int, 3> start_w_ghosts;
     const auto&        physical_start = this->xStart();
@@ -88,7 +88,7 @@ std::array<int, 3> PETScDecomp<T>::xStartWGhosts() const
 }
 
 template <typename T>
-auto PETScDecomp<T>::dimsWithGhosts() const
+std::array<int, 3> PETScDecomp<T>::dimsWithGhosts() const noexcept
 {
     std::array<int, 3> GhostDims;
     auto               qui = this->xSize();

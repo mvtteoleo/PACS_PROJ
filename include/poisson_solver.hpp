@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pde_helper.hpp"
 #include "MG_poisson_solver.hpp"
 #include "fast_poisson_solver.hpp"
 

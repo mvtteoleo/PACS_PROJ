@@ -1,6 +1,4 @@
 #pragma once
-#include "compiler_directives.hpp"
-#include "decompose.hpp"
 #include "pde_helper.hpp"
 #include "tensors.hpp"
 #include <petsc.h>
@@ -27,7 +25,7 @@ namespace numPDE
         using type_value = T;
 
         // Type alias, going to be substituted by the Concept ASAP
-        MultiGridPoissonSolver(Decomp& decomp, numPDE::PressureBC<T>& Bcs,
+        MultiGridPoissonSolver(Decomp& decomp, numPDE::ScalarBC<T>& Bcs,
                                numPDE::Constants<T>& constants);
 
         // Rule of 5 defaults
@@ -79,7 +77,7 @@ namespace numPDE
 
         auto           get_side_infos(const SIDES& side);
         Decomp&        r_dec;
-        PressureBC<T>& r_BCs;
+        ScalarBC<T>& r_BCs;
         Constants<T>&  r_const;
     };
 
@@ -87,7 +85,7 @@ namespace numPDE
     struct SideInfo
     {
         BC bc;
-        using FunType = PressureBC<>::Function;
+        using FunType = ScalarBC<>::Function;
         FunType            fun;
         std::array<int, 3> offset{{1, 1, 1}};
         std::array<int, 3> normal{{0, 0, 0}};
