@@ -75,10 +75,10 @@ namespace numPDE
         auto apply_BC_A_impl(SIDES const& side);
         auto update_bc_b_impl(SIDES const& side);
 
-        auto           get_side_infos(const SIDES& side);
-        Decomp&        r_dec;
-        ScalarBC<T>& r_BCs;
-        Constants<T>&  r_const;
+        auto          get_side_infos(const SIDES& side);
+        Decomp&       r_dec;
+        ScalarBC<T>&  r_BCs;
+        Constants<T>& r_const;
     };
 
     auto _range(PetscInt s, PetscInt m) noexcept { return std::views::iota(s, s + m); }

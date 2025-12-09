@@ -28,6 +28,13 @@ namespace numPDE
         void solve(const numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& in,
                    numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& out, bool verbose = false);
 
+        // Not needed always as the solver accepts external Tensors, std::optional was the most
+        // sensed thing to IMO
+        auto allocate_P()
+        {
+            this->P.emplace(numPDE::make_scalar_field<T, 3>(this->r_dec.xSize()));
+        };
+
         auto check_sol();
 
       private:
@@ -49,7 +56,7 @@ namespace numPDE
         void transform_backward(T* u1, T* u2, T* u3);
 
         NewDecomp<T>&                             r_dec;
-        ScalarBC<T>&                            r_BCs;
+        ScalarBC<T>&                              r_BCs;
         Constants<T>&                             r_const;
         std::vector<T>                            data2, data3;
         std::optional<Tensor<T, 3, 3, ROW_MAJOR>> P;

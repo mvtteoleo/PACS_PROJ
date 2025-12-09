@@ -30,7 +30,6 @@ namespace numPDE
     {
         PetscErrorCode ierr;
         auto [pz, py] = r_dec.get_process_grid();
-        if (!r_dec.rank()) std::cout << "Pz : " << pz << ", Py : " << py << "\n";
         const auto& [nx, ny, nz] = r_dec.get_global_sizes();
 
         PetscInt NxLoc{nx - 2};
@@ -40,8 +39,6 @@ namespace numPDE
         std::array<PetscInt, 1> lx{{NxLoc}};
         std::vector<PetscInt>   ly(py);
         std::vector<PetscInt>   lz(pz);
-
-        if (!r_dec.rank()) printf("Starting to iterate over the ranks\n");
 
         // Exchange Z layout info
         int                TOP_r{0};
@@ -58,8 +55,6 @@ namespace numPDE
                 zl -= static_cast<int>(is_side(SIDES::TOP, r_dec));
                 zl -= static_cast<int>(is_side(SIDES::BOTTOM, r_dec));
 
-                std::cout << "T_next: " << T_next << " zl " << zl << " Rank " << r_dec.rank()
-                          << "\n";
             }
             MPI_Bcast(T_info.data(), T_info.size(), MPI_INT, TOP_r, MPI_COMM_WORLD);
             lz[k] = zl;
@@ -80,8 +75,6 @@ namespace numPDE
                 yl               = sizes[1];
                 yl -= static_cast<int>(is_side(SIDES::WEST, r_dec));
                 yl -= static_cast<int>(is_side(SIDES::EAST, r_dec));
-                std::cout << "W_next: " << W_next << " yl " << yl << " Rank " << r_dec.rank()
-                          << "\n";
             }
             MPI_Bcast(W_info.data(), W_info.size(), MPI_INT, WEST_r, MPI_COMM_WORLD);
             ly[j]  = yl;
@@ -90,65 +83,6 @@ namespace numPDE
 
         MPI_Barrier(MPI_COMM_WORLD);
 
-        if (!r_dec.rank())
-        {
-            std::cout << "\n ======= \nlz : ";
-            for (auto e : lz)
-                std::cout << e << " ";
-            std::cout << "\n ======= \n";
-
-            std::cout << "\n ======= \nly : ";
-            for (auto e : ly)
-                std::cout << e << " ";
-            std::cout << "\n ======= \n";
-        }
-
-        for (int r = 0; r < r_dec.totRank(); ++r)
-        {
-            MPI_Barrier(MPI_COMM_WORLD);
-            MPI_Barrier(MPI_COMM_WORLD);
-            if (r_dec.rank() == r)
-            {
-                std::cout << "Rank " << r << "\n";
-
-                std::cout << "X, Y, Z sizes\n";
-                for (auto i : r_dec.xSize())
-                    std::cout << i << " ";
-
-                std::cout << "X, Y, Z start\n";
-                const auto start = r_dec.xStart();
-                std::cout << start[0] << " " << start[1] << " " << start[2] << "\n";
-
-                std::cout << std::endl;
-                const auto& neighbors = r_dec.get_neighbors();
-
-                auto top = neighbors[neighbour_directions::TOP];
-                std::cout << "\nTop    : " << top;
-                auto bot = neighbors[neighbour_directions::BOTTOM];
-                std::cout << "\nBottom : " << bot;
-                auto right = neighbors[neighbour_directions::RIGHT];
-                std::cout << "\nRight  : " << right;
-                auto left = neighbors[neighbour_directions::LEFT];
-                std::cout << "\nLeft   : " << left;
-
-                std::cout << "\nIs SOUTH  : " << std::boolalpha
-                          << is_side(numPDE::SIDES::SOUTH, r_dec);
-                std::cout << "\nIs EAST   : " << std::boolalpha
-                          << is_side(numPDE::SIDES::EAST, r_dec);
-                std::cout << "\nIs BOTTOM : " << std::boolalpha
-                          << is_side(numPDE::SIDES::BOTTOM, r_dec);
-                std::cout << "\nIs NORTH  : " << std::boolalpha
-                          << is_side(numPDE::SIDES::NORTH, r_dec);
-                std::cout << "\nIs WEST   : " << std::boolalpha
-                          << is_side(numPDE::SIDES::WEST, r_dec);
-                std::cout << "\nIs TOP    : " << std::boolalpha
-                          << is_side(numPDE::SIDES::TOP, r_dec);
-                std::cout << std::endl;
-                std::cout << std::endl;
-                std::cout << std::endl;
-            }
-            MPI_Barrier(MPI_COMM_WORLD);
-        }
         ierr = DMDACreate3d(r_dec.get_cart_comm(), DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED,
                             DM_BOUNDARY_GHOSTED, DMDA_STENCIL_BOX, NxLoc, NyLoc, NzLoc, 1, py, pz,
                             1, 2, lx.data(), ly.data(), lz.data(), &this->da);
