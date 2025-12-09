@@ -262,6 +262,11 @@ namespace numPDE
             for (int ip = 0; ip < zSizeArr[0]; ++ip)
             {
                 int base = jp * zSizeArr[2] * zSizeArr[0] + ip * zSizeArr[2] + start_z;
+                // Set the values of first and last to 0 to match the Dirichlet BC
+                // in case it's not needed gets overwritten by the copy_n
+                u3[base -start_z] = 0;
+                u3[base -start_z + Lz] = 0;
+                
                 std::copy_n(u3 + base, Nz, xbuf);
                 fftw_execute(ifft_z);
                 std::copy_n(xbuf, Nz, u3 + base);
@@ -277,6 +282,10 @@ namespace numPDE
             for (int kp = 0; kp < ySizeArr[2]; ++kp)
             {
                 int base = ip * ySizeArr[2] * ySizeArr[1] + kp * ySizeArr[1] + start_y;
+                // Set the values of first and last to 0 to match the Dirichlet BC
+                // in case it's not needed gets overwritten by the copy_n
+                u2[base - start_y] = 0;
+                u2[base - start_y + Ly -1] = 0;
                 std::copy_n(u2 + base, Ny, xbuf);
                 fftw_execute(ifft_y);
                 std::copy_n(xbuf, Ny, u2 + base);
@@ -292,6 +301,8 @@ namespace numPDE
             for (int jp = 0; jp < xSizeArr[1]; ++jp)
             {
                 int base = kp * xSizeArr[1] * xSizeArr[0] + jp * xSizeArr[0] + start_x;
+                u1[base - start_x] = 0;
+                u1[base - start_x + Lx -1] = 0;
                 std::copy_n(u1 + base, Nx, xbuf);
                 fftw_execute(ifft_x);
                 std::transform(std::execution::seq, xbuf, xbuf + Nx, u1 + base,
