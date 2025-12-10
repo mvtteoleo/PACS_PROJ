@@ -70,9 +70,6 @@ void Communicator<T>::exchange_late_bounds(
     }
 #endif // PEDANTIC
 
-    // Exchange TOP with rank on TOP
-
-    // using T = Tensor<T, RANK, N_DIMS, numPDE::ROW_MAJOR>::T;
     MPI_Datatype mpi_type = mpi_get_type<U>();
 
     // Each slice is one z-layer (ny × nx elements)
@@ -80,7 +77,7 @@ void Communicator<T>::exchange_late_bounds(
     std::vector<U> ghost_left(slice, 0.), int_left(slice, 0.);
     std::vector<U> ghost_righ(slice, 0.), int_righ(slice, 0.);
 
-    // Extract the intern
+    // Extract the internal left elements 
     if (this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
         for (int k = 1; k < nz - 1; ++k)
         {
@@ -89,6 +86,7 @@ void Communicator<T>::exchange_late_bounds(
                         &int_left[(k - 1) * nx * n_scal]);
         }
 
+    // Extract the internal right elements
     if (this->neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
         for (int k = 1; k < nz - 1; ++k)
         {
@@ -97,28 +95,28 @@ void Communicator<T>::exchange_late_bounds(
                         &int_righ[(k - 1) * nx * n_scal]);
         }
 
-    // Exchange the ghost if there is a process that has sent the data
     MPI_Barrier(MPI_COMM_WORLD);
+    // Send the int_right to the right process (Will be his left ghost cells)
     if (this->neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
     {
         MPI_Sendrecv(int_righ.data(), slice, mpi_type, this->neighbors[neighbour_directions::RIGHT],
-                     200, ghost_righ.data(), slice, mpi_type,
+                     200, ghost_left.data(), slice, mpi_type,
                      this->neighbors[neighbour_directions::RIGHT], 201, cart_comm,
                      MPI_STATUS_IGNORE);
     }
 
-    // Send first physical layer (bottom) directly, receive into bottom ghost layer
+    // Send the int_left to the left process (Will be his right ghost cells)
     if (this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
     {
         MPI_Sendrecv(int_left.data(), slice, mpi_type, this->neighbors[neighbour_directions::LEFT],
-                     201, ghost_left.data(), slice, mpi_type,
+                     201, ghost_righ.data(), slice, mpi_type,
                      this->neighbors[neighbour_directions::LEFT], 200, cart_comm,
                      MPI_STATUS_IGNORE);
     }
     MPI_Barrier(MPI_COMM_WORLD);
 
-    // Copy back in the tensor
-    if (this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
+    // Copy the received elements (ghost_left into the left part of the right process)
+    if (this->neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
         for (int k = 1; k < nz - 1; ++k)
         {
             constexpr int j = 0;
@@ -126,7 +124,8 @@ void Communicator<T>::exchange_late_bounds(
                         P.ptr_at(n_scal * nx * (k * ny + j)));
         }
 
-    if (this->neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
+    // Copy the received elements (ghost_righ into the right part of the left process)
+    if (this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
         for (int k = 1; k < nz - 1; ++k)
         {
             const int j = ny - 1;
