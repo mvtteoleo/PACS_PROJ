@@ -19,7 +19,6 @@ namespace numPDE
     template <DecomposeConc Decomp>
     MultiGridPoissonSolver<Decomp>::~MultiGridPoissonSolver()
     {
-        MatNullSpaceDestroy(&nullspace);
         KSPDestroy(&ksp);
         VecDestroy(&x_h);
         VecDestroy(&b);
@@ -140,16 +139,7 @@ namespace numPDE
             update_bc_on_b();
         }
 
-        if (all_neumann_bc())
-        {
-            if (!r_dec.rank()) std::cout << "Nullspace activated\n";
-            MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_TRUE, 0, NULL, &nullspace);
-            MatSetNullSpace(A, nullspace);
-        }
-
         KSPSolve(ksp, b, x_h);
-
-        if (this->all_neumann_bc()) MatNullSpaceRemove(this->nullspace, this->x_h);
     }
 
     template <DecomposeConc Decomp>
@@ -179,7 +169,7 @@ namespace numPDE
     template <DecomposeConc Decomp>
     auto MultiGridPoissonSolver<Decomp>::build_int_A()
     {
-        PetscScalar v[7] ;
+        PetscScalar v[7];
         MatStencil  row, col[7];
         row.c = 0;
 
@@ -281,8 +271,8 @@ namespace numPDE
         MPI_Barrier(MPI_COMM_WORLD);
         MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
         MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
-//    std::cout<< "\n \n \n \n \n  after modification";
-//    MatView(A, PETSC_VIEWER_STDOUT_WORLD);
+        //    std::cout<< "\n \n \n \n \n  after modification";
+        //    MatView(A, PETSC_VIEWER_STDOUT_WORLD);
     }
 
     template <DecomposeConc Decomp>
@@ -298,34 +288,37 @@ namespace numPDE
             // Retrive: 3u_0 - 4u_1 + u_2 = -2h * G
             // The scheme is then modified to impose u_0 = 4/3u_1 - 1/3u_2 - 2hG/3
             constexpr size_t      n_appr    = 2;
-            constexpr PetscScalar v[n_appr] = {4.0/3.0, -1.0/3.0};
+            constexpr PetscScalar v[n_appr] = {4.0 / 3.0, -1.0 / 3.0};
             MatStencil            row, col[n_appr];
 
             row.c    = 0;
             col[0].c = 0;
 
             for (auto k : info.k_range())
-            for (auto j : info.j_range())
-            for (auto i : info.i_range())
-            {
-                row.i = i;
-                row.j = j;
-                row.k = k;
-                for (auto el : std::views::iota(size_t{0}, n_appr))
-                {
-                    col[el].i = i + el * info.normal[0];
-                    col[el].j = j + el * info.normal[1];
-                    col[el].k = k + el * info.normal[2];
-                    col[el].c = 0;
-                }
-                MatSetValuesStencil(this->A, 1, &row, n_appr, col, v, ADD_VALUES);
-            }
+                for (auto j : info.j_range())
+                    for (auto i : info.i_range())
+                    {
+                        row.i = i;
+                        row.j = j;
+                        row.k = k;
+                        for (auto el : std::views::iota(size_t{0}, n_appr))
+                        {
+                            col[el].i = i + el * info.normal[0];
+                            col[el].j = j + el * info.normal[1];
+                            col[el].k = k + el * info.normal[2];
+                            col[el].c = 0;
+                        }
+                        MatSetValuesStencil(this->A, 1, &row, n_appr, col, v, ADD_VALUES);
+                    }
             return;
         }
-        else if (info.bc == BC::Dirichlet or info.bc == BC::DirHomo) { return; }
-        else 
+        else if (info.bc == BC::Dirichlet or info.bc == BC::DirHomo)
         {
-            if(!r_dec.rank()) std::cerr << "\n!!! BC NOT SUPPORTED in apply_BC_A !!! \n";
+            return;
+        }
+        else
+        {
+            if (!r_dec.rank()) std::cerr << "\n!!! BC NOT SUPPORTED in apply_BC_A !!! \n";
 
             return;
         }
@@ -350,7 +343,7 @@ namespace numPDE
         if (info.bc == Dirichlet or info.bc == Neumann)
         {
             // Scale changes due to implementation
-            const T        scale = (info.bc == BC::Dirichlet) ? -1.0 : r_const.h*2.0/3.0;
+            const T        scale = (info.bc == BC::Dirichlet) ? -1.0 : r_const.h * 2.0 / 3.0;
             PetscScalar*** bAsTens;
             DMDAVecGetArray(this->da, this->b, &bAsTens);
             for (auto k : info.k_range())
@@ -364,15 +357,6 @@ namespace numPDE
                     }
             DMDAVecRestoreArray(this->da, this->b, &bAsTens);
         }
-    }
-
-    template <DecomposeConc Decomp>
-    bool MultiGridPoissonSolver<Decomp>::all_neumann_bc() const
-    {
-        auto is_neumann = [](BC bc) -> bool { return (bc == NeuHomo or bc == Neumann); };
-        const std::array<BC, 6> bcs = {r_BCs.BC_BOTTOM, r_BCs.BC_TOP,   r_BCs.BC_EAST,
-                                       r_BCs.BC_WEST,   r_BCs.BC_SOUTH, r_BCs.BC_NORTH};
-        return std::ranges::all_of(bcs, is_neumann);
     }
 
     template <DecomposeConc Decomp>
@@ -392,11 +376,11 @@ namespace numPDE
             for (PetscInt j = ys; j < ys + ym; ++j)
                 for (PetscInt i = xs; i < xs + xm; ++i)
                 {
-                    const auto pos = std::vector<T>{h * (i + 1), h * (j + 1), h * (k + 1)};
+                    const auto pos   = std::vector<T>{h * (i + 1), h * (j + 1), h * (k + 1)};
                     const auto exact = static_cast<PetscScalar>(r_BCs.u_ex(pos));
                     const auto num   = x_hTens[k][j][i];
-                    const auto err = std::abs( exact - num );
-                    x_hTens[k][j][i] = err ;
+                    const auto err   = std::abs(exact - num);
+                    x_hTens[k][j][i] = err;
                 }
         DMDAVecRestoreArray(this->da, check, &x_hTens);
         VecAssemblyBegin(check);
@@ -515,8 +499,7 @@ namespace numPDE
         }
         else
         {
-            if(!r_dec.rank())
-                std::cerr << "\n!!! Invalid SIDE in get_side_infos() !!!";
+            if (!r_dec.rank()) std::cerr << "\n!!! Invalid SIDE in get_side_infos() !!!";
         }
 
         return info;

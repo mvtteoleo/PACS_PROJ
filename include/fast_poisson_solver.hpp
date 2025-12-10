@@ -32,7 +32,7 @@ namespace numPDE
         // sensed thing to IMO
         auto allocate_P()
         {
-            this->P.emplace(numPDE::make_scalar_field<T, 3>(this->r_dec.xSize()));
+            this->m_P.emplace(numPDE::make_scalar_field<T, 3>(this->r_dec.xSize()));
         };
 
         auto check_sol();
@@ -50,7 +50,7 @@ namespace numPDE
                                T*& u3);
 
         // 2. Solve algebraic equation in frequency domain
-        void solve_spectral(T* u3);
+        void solve_spectral();
 
         // 3. IFFTs and Transposes (Z -> Y -> X)
         void transform_backward(T* u1, T* u2, T* u3);
@@ -58,8 +58,8 @@ namespace numPDE
         NewDecomp<T>&                             r_dec;
         ScalarBC<T>&                              r_BCs;
         Constants<T>&                             r_const;
-        std::vector<T>                            data2, data3;
-        std::optional<Tensor<T, 3, 3, ROW_MAJOR>> P;
+        std::vector<T>                            m_data2, m_data3;
+        std::optional<Tensor<T, 3, 3, ROW_MAJOR>> m_P;
 
         int Lx, Ly, Lz;
         BC  m_BC_x, m_BC_y, m_BC_z;

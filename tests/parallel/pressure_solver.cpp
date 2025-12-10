@@ -1,4 +1,4 @@
-#define TEST 1
+#define TEST 0
 #include "../../include/MY_LIB.hpp"
 #include "../../include/poisson_solver.hpp"
 #include <climits>

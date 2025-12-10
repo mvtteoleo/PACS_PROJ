@@ -83,21 +83,6 @@ namespace numPDE
             return ris;
         }
 
-        auto div(VecF& u, size_t i, size_t j, size_t k)
-        {
-            T du_dx = (u.at(0, i + 1, j, k) - u.at(0, i, j, k)) / r_cstns.h;
-            T dv_dy = (u.at(1, i, j + 1, k) - u.at(1, i, j, k)) / r_cstns.h;
-            T dw_dz = (u.at(2, i, j, k + 1) - u.at(2, i, j, k)) / r_cstns.h;
-            return du_dx + dv_dy + dw_dz;
-        }
-        numPDE::MyVec<T> grad(ScalF& p, size_t i, size_t j, size_t k)
-        {
-            T dp_dx = (p(i + 1, j, k) - p(i, j, k)) / r_cstns.h;
-            T dp_dy = (p(i, j + 1, k) - p(i, j, k)) / r_cstns.h;
-            T dp_dz = (p(i, j, k + 1) - p(i, j, k)) / r_cstns.h;
-            return {dp_dx, dp_dy, dp_dz};
-        }
-
         void update_bc(VecF& U)
         {
             update_z(U);

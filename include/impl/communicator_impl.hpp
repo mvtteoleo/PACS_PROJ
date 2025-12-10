@@ -77,7 +77,7 @@ void Communicator<T>::exchange_late_bounds(
     std::vector<U> ghost_left(slice, 0.), int_left(slice, 0.);
     std::vector<U> ghost_righ(slice, 0.), int_righ(slice, 0.);
 
-    // Extract the internal left elements 
+    // Extract the internal left elements
     if (this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
         for (int k = 1; k < nz - 1; ++k)
         {

@@ -52,16 +52,14 @@ namespace numPDE
         auto build_linear_system();
         auto build_rhs();
         auto update_bc_on_b();
-        bool all_neumann_bc() const;
 
         // Public members (PETSc objects often need direct access)
-        Mat          A;
-        Vec          x_h, b;
-        DM           da;
-        KSP          ksp;
-        PC           pc;
-        MatNullSpace nullspace{};
-        bool         MG_solver{true};
+        Mat  A;
+        Vec  x_h, b;
+        DM   da;
+        KSP  ksp;
+        PC   pc;
+        bool MG_solver{true};
 
       private:
         template <bool NEEDS_UPDATE_BC = true>

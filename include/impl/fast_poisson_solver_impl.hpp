@@ -62,8 +62,8 @@ namespace numPDE
         const auto& ySizeArr = r_dec.ySize();
         const auto& zSizeArr = r_dec.zSize();
 
-        data2.resize(ySizeArr[0] * ySizeArr[1] * ySizeArr[2]);
-        data3.resize(zSizeArr[0] * zSizeArr[1] * zSizeArr[2]);
+        m_data2.resize(ySizeArr[0] * ySizeArr[1] * ySizeArr[2]);
+        m_data3.resize(zSizeArr[0] * zSizeArr[1] * zSizeArr[2]);
 
         Lx = r_dec.xSize()[0];
         Ly = r_dec.ySize()[1];
@@ -103,21 +103,21 @@ namespace numPDE
     template <typename T>
     auto FastPoissonSolver<T>::solve(bool verbose)
     {
-        P.emplace(numPDE::make_scalar_field<T, 3>(r_dec.xSize()));
+        m_P.emplace(numPDE::make_scalar_field<T, 3>(r_dec.xSize()));
         const auto& xstrt = r_dec.xStart();
         const auto& is    = xstrt[0];
         const auto& js    = xstrt[1];
         const auto& ks    = xstrt[2];
         const auto& h     = r_const.h;
 
-        for (auto [kp, jp, ip] : P->all_elems())
+        for (auto [kp, jp, ip] : m_P->all_elems())
         {
-            const T x        = h * static_cast<T>(is + ip);
-            const T y        = h * static_cast<T>(js + jp);
-            const T z        = h * static_cast<T>(ks + kp);
-            (*P)(ip, jp, kp) = r_BCs.f({x, y, z});
+            const T x          = h * static_cast<T>(is + ip);
+            const T y          = h * static_cast<T>(js + jp);
+            const T z          = h * static_cast<T>(ks + kp);
+            (*m_P)(ip, jp, kp) = r_BCs.f({x, y, z});
         }
-        this->solve(*P, *P, verbose);
+        this->solve(*m_P, *m_P, verbose);
     }
 
     template <typename T>
@@ -126,8 +126,8 @@ namespace numPDE
     {
         int mpiRank = r_dec.rank();
         T*  u1      = out.ptr_at(0);
-        T*  u2      = &data2[0];
-        T*  u3      = &data3[0];
+        T*  u2      = &m_data2[0];
+        T*  u3      = &m_data3[0];
 
         MPI_Barrier(MPI_COMM_WORLD);
         double t0 = MPI_Wtime();
@@ -137,7 +137,7 @@ namespace numPDE
         MPI_Barrier(MPI_COMM_WORLD);
         double t1 = MPI_Wtime();
 
-        solve_spectral(u3);
+        solve_spectral();
 
         MPI_Barrier(MPI_COMM_WORLD);
         double t2 = MPI_Wtime();
@@ -213,7 +213,7 @@ namespace numPDE
     }
 
     template <typename T>
-    void FastPoissonSolver<T>::solve_spectral(T* u3)
+    void FastPoissonSolver<T>::solve_spectral()
     {
         const auto& zSizeArr = r_dec.zSize();
         const T&    h        = r_const.h;
@@ -234,11 +234,12 @@ namespace numPDE
                     const int jglob = r_dec.zStart()[1] + jp;
                     const int kglob = r_dec.zStart()[2] + kp;
                     const T   denom = eig_x(iglob) + eig_y(jglob) + eig_z(kglob);
-                    data3[ii] /= denom;
+                    m_data3[ii] /= denom;
                 }
 
         // Set mean mode to 0 if relevant
-        if (r_dec.zStart()[0] == 0 && r_dec.zStart()[1] == 0 && r_dec.zStart()[2] == 0) u3[0] = 0.0;
+        if (r_dec.zStart()[0] == 0 && r_dec.zStart()[1] == 0 && r_dec.zStart()[2] == 0)
+            m_data3[0] = 0.0;
     }
 
     template <typename T>
@@ -313,9 +314,9 @@ namespace numPDE
     template <typename T>
     auto FastPoissonSolver<T>::check_sol()
     {
-        if (!P.has_value())
+        if (!this->m_P.has_value())
         {
-            if (!r_dec.rank()) std::cout << "No values in P";
+            if (!r_dec.rank()) std::cout << "No values in m_P";
             return;
         }
 
@@ -327,12 +328,12 @@ namespace numPDE
         const auto& js      = xstrt[1];
         const auto& ks      = xstrt[2];
 
-        for (auto [kp, jp, ip] : P->all_elems())
+        for (auto [kp, jp, ip] : m_P->all_elems())
         {
             const T x       = h * static_cast<T>(is + ip);
             const T y       = h * static_cast<T>(js + jp);
             const T z       = h * static_cast<T>(ks + kp);
-            const T abs_err = std::abs((*P)(ip, jp, kp) - r_BCs.u_ex({x, y, z}));
+            const T abs_err = std::abs((*m_P)(ip, jp, kp) - r_BCs.u_ex({x, y, z}));
             L2err += abs_err * abs_err;
             if (abs_err > max_err) max_err = abs_err;
         }

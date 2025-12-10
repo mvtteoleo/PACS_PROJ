@@ -1,4 +1,6 @@
 #include <ios>
+#include <optional>
+#include <ranges>
 #define TEST 2
 #include "../../include/MY_LIB.hpp"
 #include <algorithm>
@@ -150,6 +152,8 @@ int main(int argc, char* argv[])
 #elif TEST == 2
 
     PETScDecomp<> decomp(argc, argv, nx, ny, nz);
+    // NewDecomp<Real>   new_dec(argc, argv);
+
     print_vals(decomp);
 
     const auto& neighbors = decomp.get_neighbors();
@@ -163,6 +167,9 @@ int main(int argc, char* argv[])
     ny = dims[1];
     nz = dims[2];
 
+    for (auto k : std::views::iota(size_t{0}, nz))
+        for (auto j : std::views::iota(size_t{0}, ny))
+            P(0, j, k) = j * 10 + k;
     P.fill_val(decomp.rank());
     V.fill_val(decomp.rank());
 
@@ -204,7 +211,7 @@ int main(int argc, char* argv[])
     if (neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
         for (int j = 0; j < nx; ++j)
             for (int jp = 1; jp < nz - 1; ++jp)
-                if (P(j, 0, jp) != static_cast<int>(neighbors[neighbour_directions::LEFT]))
+                if (P(j, ny - 1, jp) != static_cast<int>(neighbors[neighbour_directions::LEFT]))
                     std::cerr << "Problem in the left communication for " << decomp.rank() << "\n";
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -213,7 +220,7 @@ int main(int argc, char* argv[])
     if (neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
         for (int j = 0; j < nx; ++j)
             for (int jp = 1; jp < nz - 1; ++jp)
-                if (P(j, ny - 1, jp) != static_cast<int>(neighbors[neighbour_directions::RIGHT]))
+                if (P(j, 0, jp) != static_cast<int>(neighbors[neighbour_directions::RIGHT]))
                     std::cerr << "Problem in the right communication for " << decomp.rank() << "\n";
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -259,21 +266,21 @@ int main(int argc, char* argv[])
     }
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
-
-    int i = 0, j = 0, k = 0;
-    if (!decomp.rank()) std::cout << " TEST \n";
-    auto C = V(i, j, k);
-    if (!decomp.rank())
-        for (int i = 0; i < 3; ++i)
-            std::cout << static_cast<int>(C[i]) << " ";
-
-    if (!decomp.rank()) std::cout << " TEST \n";
-    if (!decomp.rank())
-        for (int l = 0; l < 3; ++l)
-            std::cout << static_cast<int>(V.at(l, i, j, k)) << " ";
-
-    if (!decomp.rank()) std::cout << "\n";
-    if (!decomp.rank()) std::cout << P(i, j, k) << " " << P.at(i, j, k);
+//
+//  int i = 0, j = 0, k = 0;
+//  if (!decomp.rank()) std::cout << " TEST \n";
+//  auto C = V(i, j, k);
+//  if (!decomp.rank())
+//      for (int i = 0; i < 3; ++i)
+//          std::cout << static_cast<int>(C[i]) << " ";
+//
+//  if (!decomp.rank()) std::cout << " TEST \n";
+//  if (!decomp.rank())
+//      for (int l = 0; l < 3; ++l)
+//          std::cout << static_cast<int>(V.at(l, i, j, k)) << " ";
+//
+//  if (!decomp.rank()) std::cout << "\n";
+//  if (!decomp.rank()) std::cout << P(i, j, k) << " " << P.at(i, j, k);
 #endif
 
     return 0;
