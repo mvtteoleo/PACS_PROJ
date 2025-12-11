@@ -2,43 +2,9 @@
 
 #include "../MG_poisson_solver.hpp"
 #include "decompose.hpp"
+#include "../bc_interp.hpp"
 namespace numPDE
 {
-
-    // Impose the BC Using a Polynomial.
-    // Retrieve the ghost point value by fitting a second order polynomial
-    // such that I(h) = u_1; I(2h) = u_2 and I'(0) = G;
-    // Retrieve: 3u_0 - 4u_1 + u_2 = -2h * G
-    // The scheme is then modified to impose u_0 = 4/3u_1 - 1/3u_2 - 2hG/3
-
-    // Derivation of the coefficients in /tools/inv.py
-
-    constexpr size_t g_appr_ord = 3;
-    template <size_t appr_ord, typename T>
-    consteval auto get_appr_coeffs()
-    {
-        struct InterpData
-        {
-            T v[appr_ord]{};
-            T scale{};
-        };
-
-        if constexpr (appr_ord == 2)
-        {
-            InterpData coefs;
-            coefs.v     = {4.0 / 3.0, -1.0 / 3.0};
-            coefs.scale = 2. / 3.;
-            return coefs;
-        }
-        if constexpr (appr_ord == 3)
-        {
-            InterpData coefs;
-            coefs.v     = {18.0 / 11.0, -9.0 / 11.0, 2.0 / 11.0};
-            coefs.scale = 6. / 11.;
-            return coefs;
-        }
-    };
-
     template <DecomposeConc Decomp>
     MultiGridPoissonSolver<Decomp>::MultiGridPoissonSolver(
         Decomp& decomp, numPDE::ScalarBC<typename Decomp::type_value>& Bcs,
@@ -314,8 +280,7 @@ namespace numPDE
 
         if (info.bc == BC::NeuHomo or info.bc == BC::Neumann)
         {
-            constexpr auto  coefs = get_appr_coeffs<g_appr_ord, PetscScalar>();
-            constexpr auto& v     = coefs.v;
+            constexpr auto coefs = get_appr_coeffs<g_appr_ord, PetscScalar>();
 
             MatStencil row, col[g_appr_ord];
 
@@ -336,7 +301,7 @@ namespace numPDE
                             col[el].k = k + el * info.normal[2];
                             col[el].c = 0;
                         }
-                        MatSetValuesStencil(this->A, 1, &row, g_appr_ord, col, v, ADD_VALUES);
+                        MatSetValuesStencil(this->A, 1, &row, g_appr_ord, col, coefs.v, ADD_VALUES);
                     }
             return;
         }
