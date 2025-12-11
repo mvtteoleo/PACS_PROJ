@@ -5,6 +5,40 @@
 namespace numPDE
 {
 
+    // Impose the BC Using a Polynomial.
+    // Retrieve the ghost point value by fitting a second order polynomial
+    // such that I(h) = u_1; I(2h) = u_2 and I'(0) = G;
+    // Retrieve: 3u_0 - 4u_1 + u_2 = -2h * G
+    // The scheme is then modified to impose u_0 = 4/3u_1 - 1/3u_2 - 2hG/3
+
+    // Derivation of the coefficients in /tools/inv.py
+
+    constexpr size_t g_appr_ord = 3;
+    template <size_t appr_ord, typename T>
+    consteval auto get_appr_coeffs()
+    {
+        struct InterpData
+        {
+            T v[appr_ord]{};
+            T scale{};
+        };
+
+        if constexpr (appr_ord == 2)
+        {
+            InterpData coefs;
+            coefs.v     = {4.0 / 3.0, -1.0 / 3.0};
+            coefs.scale = 2. / 3.;
+            return coefs;
+        }
+        if constexpr (appr_ord == 3)
+        {
+            InterpData coefs;
+            coefs.v     = {18.0 / 11.0, -9.0 / 11.0, 2.0 / 11.0};
+            coefs.scale = 6. / 11.;
+            return coefs;
+        }
+    };
+
     template <DecomposeConc Decomp>
     MultiGridPoissonSolver<Decomp>::MultiGridPoissonSolver(
         Decomp& decomp, numPDE::ScalarBC<typename Decomp::type_value>& Bcs,
@@ -271,8 +305,6 @@ namespace numPDE
         MPI_Barrier(MPI_COMM_WORLD);
         MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
         MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
-        //    std::cout<< "\n \n \n \n \n  after modification";
-        //    MatView(A, PETSC_VIEWER_STDOUT_WORLD);
     }
 
     template <DecomposeConc Decomp>
@@ -282,14 +314,10 @@ namespace numPDE
 
         if (info.bc == BC::NeuHomo or info.bc == BC::Neumann)
         {
-            // Impose the BC Using a Polynomial.
-            // Retrieve the ghost point value by fitting a second order polynomial
-            // such that I(h) = u_1; I(2h) = u_2 and I'(0) = G;
-            // Retrive: 3u_0 - 4u_1 + u_2 = -2h * G
-            // The scheme is then modified to impose u_0 = 4/3u_1 - 1/3u_2 - 2hG/3
-            constexpr size_t      n_appr    = 2;
-            constexpr PetscScalar v[n_appr] = {4.0 / 3.0, -1.0 / 3.0};
-            MatStencil            row, col[n_appr];
+            constexpr auto  coefs = get_appr_coeffs<g_appr_ord, PetscScalar>();
+            constexpr auto& v     = coefs.v;
+
+            MatStencil row, col[g_appr_ord];
 
             row.c    = 0;
             col[0].c = 0;
@@ -301,14 +329,14 @@ namespace numPDE
                         row.i = i;
                         row.j = j;
                         row.k = k;
-                        for (auto el : std::views::iota(size_t{0}, n_appr))
+                        for (auto el : std::views::iota(size_t{0}, g_appr_ord))
                         {
                             col[el].i = i + el * info.normal[0];
                             col[el].j = j + el * info.normal[1];
                             col[el].k = k + el * info.normal[2];
                             col[el].c = 0;
                         }
-                        MatSetValuesStencil(this->A, 1, &row, n_appr, col, v, ADD_VALUES);
+                        MatSetValuesStencil(this->A, 1, &row, g_appr_ord, col, v, ADD_VALUES);
                     }
             return;
         }
@@ -342,8 +370,8 @@ namespace numPDE
 
         if (info.bc == Dirichlet or info.bc == Neumann)
         {
-            // Scale changes due to implementation
-            const T        scale = (info.bc == BC::Dirichlet) ? -1.0 : r_const.h * 2.0 / 3.0;
+            constexpr auto coefs = get_appr_coeffs<g_appr_ord, PetscScalar>();
+            const T        scale = (info.bc == BC::Dirichlet) ? -1.0 : r_const.h * coefs.scale;
             PetscScalar*** bAsTens;
             DMDAVecGetArray(this->da, this->b, &bAsTens);
             for (auto k : info.k_range())
