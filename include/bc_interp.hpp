@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <type_traits>
 namespace numPDE
 {
 
@@ -13,8 +14,13 @@ namespace numPDE
     // Derivation of the coefficients in /tools/inv.py
 
     constexpr size_t g_appr_ord = 3;
+
+    /*
+     * Coefficents to feed to PETSc for the Neumann BC case
+     * For the Dirichlet just impose the value...
+     */
     template <size_t appr_ord, typename T>
-    consteval auto get_appr_coeffs()
+    consteval auto get_appr_coeffs_neu()
     {
         struct InterpData
         {
@@ -40,4 +46,4 @@ namespace numPDE
         }
     };
 
-};
+}; // namespace numPDE

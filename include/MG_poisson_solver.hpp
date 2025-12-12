@@ -61,7 +61,7 @@ namespace numPDE
         PC   pc;
         bool MG_solver{true};
 
-      private:
+      protected:
         template <bool NEEDS_UPDATE_BC = true>
         auto solve_impl();
 
@@ -80,7 +80,7 @@ namespace numPDE
     };
 
     auto _range(PetscInt s, PetscInt m) noexcept { return std::views::iota(s, s + m); }
-    struct SideInfo
+    struct MGSideInfo
     {
         BC bc;
         using FunType = ScalarBC<>::Function;

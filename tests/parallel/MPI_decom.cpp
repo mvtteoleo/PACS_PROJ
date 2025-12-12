@@ -282,6 +282,5 @@ int main(int argc, char* argv[])
 //  if (!decomp.rank()) std::cout << "\n";
 //  if (!decomp.rank()) std::cout << P(i, j, k) << " " << P.at(i, j, k);
 #endif
-
     return 0;
 }

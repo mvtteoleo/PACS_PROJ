@@ -103,21 +103,21 @@ namespace numPDE
     template <typename T>
     auto FastPoissonSolver<T>::solve(bool verbose)
     {
-        m_P.emplace(numPDE::make_scalar_field<T, 3>(r_dec.xSize()));
+        mo_P.emplace(numPDE::make_scalar_field<T, 3>(r_dec.xSize()));
         const auto& xstrt = r_dec.xStart();
         const auto& is    = xstrt[0];
         const auto& js    = xstrt[1];
         const auto& ks    = xstrt[2];
         const auto& h     = r_const.h;
 
-        for (auto [kp, jp, ip] : m_P->all_elems())
+        for (auto [kp, jp, ip] : mo_P->all_elems())
         {
-            const T x          = h * static_cast<T>(is + ip);
-            const T y          = h * static_cast<T>(js + jp);
-            const T z          = h * static_cast<T>(ks + kp);
-            (*m_P)(ip, jp, kp) = r_BCs.f({x, y, z});
+            const T x           = h * static_cast<T>(is + ip);
+            const T y           = h * static_cast<T>(js + jp);
+            const T z           = h * static_cast<T>(ks + kp);
+            (*mo_P)(ip, jp, kp) = r_BCs.f({x, y, z});
         }
-        this->solve(*m_P, *m_P, verbose);
+        this->solve(*mo_P, *mo_P, verbose);
     }
 
     template <typename T>
@@ -314,9 +314,9 @@ namespace numPDE
     template <typename T>
     auto FastPoissonSolver<T>::check_sol()
     {
-        if (!this->m_P.has_value())
+        if (!this->mo_P.has_value())
         {
-            if (!r_dec.rank()) std::cout << "No values in m_P";
+            if (!r_dec.rank()) std::cout << "No values in mo_P";
             return;
         }
 
@@ -328,12 +328,12 @@ namespace numPDE
         const auto& js      = xstrt[1];
         const auto& ks      = xstrt[2];
 
-        for (auto [kp, jp, ip] : m_P->all_elems())
+        for (auto [kp, jp, ip] : mo_P->all_elems())
         {
             const T x       = h * static_cast<T>(is + ip);
             const T y       = h * static_cast<T>(js + jp);
             const T z       = h * static_cast<T>(ks + kp);
-            const T abs_err = std::abs((*m_P)(ip, jp, kp) - r_BCs.u_ex({x, y, z}));
+            const T abs_err = std::abs((*mo_P)(ip, jp, kp) - r_BCs.u_ex({x, y, z}));
             L2err += abs_err * abs_err;
             if (abs_err > max_err) max_err = abs_err;
         }

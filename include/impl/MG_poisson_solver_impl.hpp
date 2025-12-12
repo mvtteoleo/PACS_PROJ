@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../MG_poisson_solver.hpp"
-#include "decompose.hpp"
 #include "../bc_interp.hpp"
+#include "decompose.hpp"
 namespace numPDE
 {
     template <DecomposeConc Decomp>
@@ -280,7 +280,7 @@ namespace numPDE
 
         if (info.bc == BC::NeuHomo or info.bc == BC::Neumann)
         {
-            constexpr auto coefs = get_appr_coeffs<g_appr_ord, PetscScalar>();
+            constexpr auto coefs = get_appr_coeffs_neu<g_appr_ord, PetscScalar>();
 
             MatStencil row, col[g_appr_ord];
 
@@ -335,7 +335,7 @@ namespace numPDE
 
         if (info.bc == Dirichlet or info.bc == Neumann)
         {
-            constexpr auto coefs = get_appr_coeffs<g_appr_ord, PetscScalar>();
+            constexpr auto coefs = get_appr_coeffs_neu<g_appr_ord, PetscScalar>();
             const T        scale = (info.bc == BC::Dirichlet) ? -1.0 : r_const.h * coefs.scale;
             PetscScalar*** bAsTens;
             DMDAVecGetArray(this->da, this->b, &bAsTens);
@@ -432,7 +432,7 @@ namespace numPDE
     template <DecomposeConc Decomp>
     auto MultiGridPoissonSolver<Decomp>::get_side_infos(const SIDES& side)
     {
-        SideInfo info{};
+        MGSideInfo info{};
         DMDAGetCorners(this->da, &info.xs, &info.ys, &info.zs, &info.xm, &info.ym, &info.zm);
         const auto& [nx, ny, nz] = r_dec.get_global_sizes();
 

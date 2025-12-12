@@ -32,12 +32,12 @@ namespace numPDE
         // sensed thing to IMO
         auto allocate_P()
         {
-            this->m_P.emplace(numPDE::make_scalar_field<T, 3>(this->r_dec.xSize()));
+            this->mo_P.emplace(numPDE::make_scalar_field<T, 3>(this->r_dec.xSize()));
         };
 
         auto check_sol();
 
-      private:
+      protected:
         // --- Initialization Helpers ---
         void validate_bcs();
         void allocate_buffers();
@@ -59,7 +59,7 @@ namespace numPDE
         ScalarBC<T>&                              r_BCs;
         Constants<T>&                             r_const;
         std::vector<T>                            m_data2, m_data3;
-        std::optional<Tensor<T, 3, 3, ROW_MAJOR>> m_P;
+        std::optional<Tensor<T, 3, 3, ROW_MAJOR>> mo_P;
 
         int Lx, Ly, Lz;
         BC  m_BC_x, m_BC_y, m_BC_z;

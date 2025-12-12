@@ -35,7 +35,7 @@ namespace numPDE
      * the key idea is to do a std::md_span, but with easier to use indexing
      */
     template <typename T, size_t RANK = DEF_DIM, size_t N_DIMS = RANK, TypeIndex TYPE = ROW_MAJOR>
-    class Tensor : public Expr<Tensor<T, RANK, N_DIMS, TYPE>>
+    struct Tensor : public Expr<Tensor<T, RANK, N_DIMS, TYPE>>
     {
       public:
         using Small_vec  = std::array<size_t, RANK>;

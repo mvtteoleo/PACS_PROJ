@@ -1,6 +1,7 @@
 #pragma once
 #include "decompose.hpp"
 #include "poisson_solver.hpp"
+#include "staggered_operators.hpp"
 #include "tensors.hpp"
 #include <algorithm>
 #include <array>
@@ -19,7 +20,9 @@ namespace numPDE
         VelocityBC<U> v_BC;
         Constants<U>  constants;
     };
+};
 
+#if 0
     template <typename T = double>
     struct NS_problem
     {
@@ -344,14 +347,14 @@ namespace numPDE
             // PREDICTOR STEP
             for (auto [k, j, i] : u_old.int_elems())
                 u_new(i, j, k) = buff(i, j, k) + RK_a_coeff * dt * predictor_f(u_old, i, j, k) -
-                                 dt * RK_dc_coeff * grad(p_old, i, j, k);
+                                 dt * RK_dc_coeff * grad(p_old, i, j, k, r_cstns);
 
             // Exchange boundaries
             r_dec.exchange_ghosts(u_new);
 
             // PRESSURE SOLVE
             for (auto [k, j, i] : p_old.int_elems())
-                p_new(i, j, k) = div(u_new, i, j, k) / (RK_dc_coeff * dt);
+                p_new(i, j, k) = div(u_new, i, j, k, r_cstns) / (RK_dc_coeff * dt);
 
             pressure_solve(p_new, p_new);
 
@@ -359,7 +362,7 @@ namespace numPDE
             r_dec.exchange_ghosts(p_new);
             // UPDATE THE VELOCITY FIELD
             for (auto [k, j, i] : u_new.int_elems())
-                u_new(i, j, k) = u_new(i, j, k) + grad(p_new, i, j, k);
+                u_new(i, j, k) = u_new(i, j, k) + grad(p_new, i, j, k, r_cstns);
 
             p_new = p_new + p_old;
 
@@ -415,4 +418,41 @@ namespace numPDE
         NewDecomp<T>&        r_dec;
         FastPoissonSolver<T> fastLapSolver;
     };
+#endif
+
+#include "pressure_solver.hpp"
+
+namespace numPDE
+{
+
+template<typename T>
+struct RKOptCoeffs
+{
+    const T       a21 = 64.0 / 120.0, a31 = 0.25, a32 = 5.0 / 12.0;
+    const T       c1 = a21, c2 = 2.0 / 3.0, b3 = 0.75;
+    T             t = 0;
+};
+
+template <SolvePolicy solveP, DecomposeConc Decomp>
+struct NSSolver
+{
+    using T = Decomp::type_value;
+    Decomp& r_dec;
+    PressureSolver<solveP, Decomp> pSolve;
+    NS_input<T>&  r_inps;
+
+    NSSolver(Decomp& dec, NS_input<T> inp)
+        : r_dec(dec), pSolve(dec, inp.p_BC, inp.constants), r_inps(inp)
+    {}
+
+    // Apply BC
+    // Compute forcing term
+    // Timestep
+
+
+
+};
+
+#include "impl/ns_impl.hpp"
+
 }; // namespace numPDE
