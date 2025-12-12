@@ -486,6 +486,8 @@ namespace numPDE
         size_t constexpr get_rank() const noexcept { return RANK; }
 
         size_t constexpr size() const noexcept { return m_Datas.size(); }
+        auto        begin()  noexcept { return m_Datas.begin(); }
+            auto        end()  noexcept { return m_Datas.end(); }
         const auto& raw_datas() const noexcept { return m_Datas; }
         const auto  get_slices() const noexcept { return m_Slices_size; }
         const auto  get_sizes() const noexcept { return m_Sizes; }

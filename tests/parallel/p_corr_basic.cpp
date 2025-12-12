@@ -71,8 +71,8 @@ int main(int argc, char* argv[])
         Real sum = 0.0;
         for (auto [wx, wy, wz] : harmonics)
         {
-            sum += scale * std::cos(wx * M_PI * x / Lx) * std::cos(wy * M_PI * y / Ly) *
-                   std::cos(wz * M_PI * z / Lz);
+            sum += scale * std::sin(wx * M_PI * x / Lx) * std::sin(wy * M_PI * y / Ly) *
+                   std::sin(wz * M_PI * z / Lz);
         }
         return sum;
     };
@@ -83,8 +83,8 @@ int main(int argc, char* argv[])
         Real sum = 0.0;
         for (auto [wx, wy, wz] : harmonics)
         {
-            Real u = scale * std::cos(wx * M_PI * x / Lx) * std::cos(wy * M_PI * y / Ly) *
-                     std::cos(wz * M_PI * z / Lz);
+            Real u = scale * std::sin(wx * M_PI * x / Lx) * std::sin(wy * M_PI * y / Ly) *
+                     std::sin(wz * M_PI * z / Lz);
 
             double coeff = -M_PI * M_PI *
                            ((wx * wx) / (Lx * Lx) + (wy * wy) / (Ly * Ly) + (wz * wz) / (Lz * Lz));
@@ -95,12 +95,12 @@ int main(int argc, char* argv[])
 
     auto u_ex         = exact_sol_harm; //
     auto forc         = forcing_harm;   //
-    scal_bc.BC_NORTH  = numPDE::NeuHomo;
-    scal_bc.BC_SOUTH  = numPDE::NeuHomo;
-    scal_bc.BC_EAST   = numPDE::NeuHomo;
-    scal_bc.BC_WEST   = numPDE::NeuHomo;
-    scal_bc.BC_TOP    = numPDE::NeuHomo;
-    scal_bc.BC_BOTTOM = numPDE::NeuHomo;
+    scal_bc.BC_NORTH  = numPDE::DirHomo;
+    scal_bc.BC_SOUTH  = numPDE::DirHomo;
+    scal_bc.BC_EAST   = numPDE::DirHomo;
+    scal_bc.BC_WEST   = numPDE::DirHomo;
+    scal_bc.BC_TOP    = numPDE::DirHomo;
+    scal_bc.BC_BOTTOM = numPDE::DirHomo;
     scal_bc.f         = forc;
     scal_bc.u_ex      = u_ex;
 
