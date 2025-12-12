@@ -206,6 +206,9 @@ namespace numPDE
         const auto& nx    = sizes[0];
         const auto& ny    = sizes[1];
         const auto& nz    = sizes[2];
+        const auto k_range = std::views::iota(size_t{0}, size_t{sizes[2]});
+        const auto j_range = std::views::iota(size_t{0}, size_t{sizes[1]});
+        const auto i_range = std::views::iota(size_t{0}, size_t{sizes[0]});
 
         // Account for the presence of ghost points
         const bool j_g = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
@@ -214,7 +217,9 @@ namespace numPDE
         auto idx = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
         auto strt = this->r_dec.xStartWGhosts();
 
-        for (const auto [k, j, i] : this->mo_P->all_elems())
+        for(const auto k : k_range)
+        for(const auto j : j_range)
+        for(const auto i : i_range)
         {
             const size_t l       = idx(i, j, k);
         
@@ -234,7 +239,6 @@ namespace numPDE
 
         // UPDATE V
 
-    /*
         const auto slice = nx * ny;
         for (int k = nz - 1; k > 0; k--)
         {
@@ -242,12 +246,13 @@ namespace numPDE
                         this->m_P_ghosted.ptr_at(0, j_g, k_g + k - 1));
         }
         this->r_dec.exchange_ghosts(m_P_ghosted);
-    */
         
         
         // Fill P with  with the solution
-        for(auto  l : this->mo_P->all_linear_elements())
-            (*this->mo_P)[l] = this->m_P_ghosted[l];
+        for(const auto k : k_range)
+            for(const auto j : j_range)
+            for(const auto i : i_range)
+            this->mo_P->at(i, j, k) = this->m_P_ghosted(i, j + j_g, k + k_g);
         
         this->check_sol();
     }
