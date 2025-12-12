@@ -6,6 +6,60 @@
 
 namespace numPDE
 {
+
+    template <typename T>
+    void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::pressure_correct(
+        Tensor<T, 4, 3, TypeIndex::ROW_MAJOR>& V, Tensor<T, 3, 3, TypeIndex::ROW_MAJOR>& P,
+        const T dt_step, bool verbose)
+    {
+        const auto  h     = this->r_const.h;
+        const auto& sizes = this->r_dec.xSize();
+        const auto& nx    = sizes[0];
+        const auto& ny    = sizes[1];
+        const auto& nz    = sizes[2];
+
+        // Account for the presence of ghost points
+        const bool j_g = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
+        const bool k_g = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
+
+        // TODO may be enough to write the solution on the stag tensor, solve and copy the solution
+        // in the correct places starting from the row towards WEST TOP)
+
+        auto idx = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
+        for (const auto [k, j, i] : V.int_elems())
+        {
+            const size_t l       = idx(i, j - j_g, k - k_g);
+            this->m_P_ghosted[l] = div(V, i, j, k, h) / dt_step;
+        }
+
+        this->compute_div_on_sides();
+
+        // Feed the tensor to the solve method
+        this->solve(this->m_P_ghosted, this->m_P_ghosted, verbose);
+
+        // UPDATE V
+        const auto slice = nx * ny;
+
+        for (int k = nz - 1; k > 0; k--)
+        {
+            std::copy_n(this->m_P_ghosted.ptr_at(idx(0, 0, k - 1)), slice,
+                        this->m_P_ghosted.ptr_at(0, j_g, k_g + k - 1));
+        }
+
+        this->r_dec.exchange_ghosts(m_P_ghosted);
+
+        for (const auto k : std::views::iota(size_t{j_g}, size_t{nz - 1}))
+            for (const auto j : std::views::iota(size_t{j_g}, size_t{ny - 1}))
+                for (const auto i : std::views::iota(size_t{0}, size_t{nx - 1}))
+                {
+                    const auto dP = grad(m_P_ghosted, i, j, k, h);
+                    V(i, j, k)    = V(i, j, k) - dP;
+                }
+
+        // Update P
+        P = P + m_P_ghosted;
+    }
+
     template <typename T>
     void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::compute_div_on_sides()
     {
@@ -19,36 +73,35 @@ namespace numPDE
         const auto i_range = std::views::iota(size_t{0}, size_t{sizes[0]});
 
         constexpr auto coefs = get_appr_coeffs_neu<g_appr_ord, T>();
+        auto           idx   = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
 
         // Apply BC to all x because of the stencil decomposition
         if (this->m_BC_x == NeuHomo)
         {
             T val_s{};
             T val_e{};
-            for (auto k : k_range)
-                for (auto j : j_range)
+            for (size_t l = 0; l < nx * ny * nz; l += nx)
+            {
+                // Since the BC is only NeuHomo here the coef.v*g*h is simply 0!!
+                val_e = 0.;
+                val_s = 0.;
+                for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
                 {
-                    // Since the BC is only NeuHomo here the coef.v*g*h is simply 0!!
-                    val_e = 0.;
-                    val_s = 0.;
-                    for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
-                    {
-                        val_s += coefs.v[el] * this->m_P(el + 1, j, k);
-                        val_e += coefs.v[el] * this->m_P(nx - 2 - el, j, k);
-                    }
-                    this->m_P(0, j, k)      = val_s;
-                    this->m_P(nx - 1, j, k) = val_e;
+                    val_s += coefs.v[el] * this->m_P_ghosted[l + el + 1];
+                    val_e += coefs.v[el] * this->m_P_ghosted[l + nx - 2 - el];
                 }
+                // Fix the value on the fist element of the row and on the last one
+                this->m_P_ghosted[l]          = val_s;
+                this->m_P_ghosted[l + nx - 1] = val_e;
+            }
         }
         else if (this->m_BC_x == DirHomo)
         {
-
-            for (auto k : k_range)
-                for (auto j : j_range)
-                {
-                    this->m_P(0, j, k)      = T{};
-                    this->m_P(nx - 1, j, k) = T{};
-                }
+            for (size_t l = 0; l < nx * ny * nz; l += nx)
+            {
+                this->m_P_ghosted[l]          = T{};
+                this->m_P_ghosted[l + nx - 1] = T{};
+            }
         }
 
         if (is_side(SIDES::BOTTOM, this->r_dec))
@@ -58,16 +111,18 @@ namespace numPDE
                 for (auto j : j_range)
                     for (auto i : i_range)
                     {
-                        this->m_P(i, j, 0) = 0.;
+                        const auto l         = idx(i, j, 0);
+                        this->m_P_ghosted[l] = 0.;
                         for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
-                            this->m_P(i, j, 0) += coefs.v[el] * this->m_P(i, j, el + 1);
+                            this->m_P_ghosted[l] +=
+                                coefs.v[el] * this->m_P_ghosted[idx(i, j, el + 1)];
                     }
             }
             else if (this->m_BC_z == DirHomo)
             {
                 for (auto j : j_range)
                     for (auto i : i_range)
-                        this->m_P(i, j, 0) = 0.;
+                        this->m_P_ghosted[idx(i, j, 0)] = 0.;
             }
         }
 
@@ -79,16 +134,21 @@ namespace numPDE
                 for (auto j : j_range)
                     for (auto i : i_range)
                     {
-                        this->m_P(i, j, k_max) = 0.;
+                        const auto l         = idx(i, j, k_max);
+                        this->m_P_ghosted[l] = 0.;
                         for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
-                            this->m_P(i, j, k_max) += coefs.v[el] * this->m_P(i, j, k_max - 1 - el);
+                            this->m_P_ghosted[l] +=
+                                coefs.v[el] * this->m_P_ghosted[idx(i, j, k_max - 1 - el)];
                     }
             }
             else if (this->m_BC_z == DirHomo)
             {
                 for (auto j : j_range)
                     for (auto i : i_range)
-                        this->m_P(i, j, k_max) = 0.;
+                    {
+                        const auto l         = idx(i, j, k_max);
+                        this->m_P_ghosted[l] = 0.;
+                    }
             }
         }
 
@@ -100,16 +160,17 @@ namespace numPDE
                 for (auto k : k_range)
                     for (auto i : i_range)
                     {
-                        this->m_P(i, j_max, k) = 0.;
+                        this->m_P_ghosted[idx(i, j_max, k)] = 0.;
                         for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
-                            this->m_P(i, j_max, k) += coefs.v[el] * this->m_P(i, j_max - 1 - el, k);
+                            this->m_P_ghosted[idx(i, j_max, k)] +=
+                                coefs.v[el] * this->m_P_ghosted[idx(i, j_max - 1 - el, k)];
                     }
             }
             else if (this->m_BC_y == DirHomo)
             {
                 for (auto k : k_range)
                     for (auto i : i_range)
-                        this->m_P(i, j_max, k) = 0.;
+                        this->m_P_ghosted[idx(i, j_max, k)] = 0.;
             }
         }
 
@@ -120,75 +181,19 @@ namespace numPDE
                 for (auto k : k_range)
                     for (auto i : i_range)
                     {
-                        this->m_P(i, 0, k) = 0.;
+                        this->m_P_ghosted[idx(i, 0, k)] = 0.;
                         for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
-                            this->m_P(i, 0, k) += coefs.v[el] * this->m_P(i, el + 1, k);
+                            this->m_P_ghosted[idx(i, 0, k)] +=
+                                coefs.v[el] * this->m_P_ghosted[idx(i, el + 1, k)];
                     }
             }
             else if (this->m_BC_z == DirHomo)
             {
                 for (auto k : k_range)
                     for (auto i : i_range)
-                        this->m_P(i, 0, k) = 0.;
+                        this->m_P_ghosted[idx(i, 0, k)] = 0.;
             }
         }
     }
 
-    template <typename T>
-    void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::pressure_correct(
-        Tensor<T, 4, 3, TypeIndex::ROW_MAJOR>& V, Tensor<T, 3, 3, TypeIndex::ROW_MAJOR>& P,
-        const T dt_step, bool verbose)
-    {
-        const auto& strt = this->r_dec.xStart();
-
-        // Account for the presence of ghost points
-        const bool is_east = is_side(SIDES::EAST, this->r_dec);
-        const bool is_bott = is_side(SIDES::BOTTOM, this->r_dec);
-
-        // TODO may be enough to write the solution on the stag tensor, solve and copy the solution
-        // in the correct places starting from the row towards WEST TOP)
-
-        // Initialize the internal field of m_P & handle the reconstruction along X
-        // Iterate over the int_elems() of V (ALL OVER I HAVE INFO ALREADY!!!)
-        // => Fill the physical internal ones of m_P
-        for (auto [k, j, i] : V.int_elems())
-            this->m_P(i, j - !is_east, k - !is_bott) = div(V, i, j, k, this->r_const.h) / dt_step;
-
-        this->compute_div_on_sides();
-
-        // Feed the tensor to the solve method
-        this->solve(this->m_P, this->m_P, verbose);
-
-        // UPDATE V
-
-        const auto& sizes = this->r_dec.xSize();
-        const auto& nx    = sizes[0];
-        const auto& ny    = sizes[1];
-        const auto& nz    = sizes[2];
-        const auto  slice = nx * ny;
-
-        for (const auto k : std::views::iota(size_t{0}, size_t{nz}))
-            std::copy_n(m_P.ptr_at(0, 0, k), slice, m_P_ghosted.ptr_at(0, !is_east, !is_bott + k));
-
-        this->r_dec.exchange_ghosts(m_P_ghosted);
-
-        for (const auto k : std::views::iota(size_t{!is_east}, size_t{nz - 1}))
-            for (const auto j : std::views::iota(size_t{!is_east}, size_t{ny - 1}))
-                for (const auto i : std::views::iota(size_t{0}, size_t{nx - 1}))
-                {
-                    const auto dP = grad(m_P_ghosted, i, j, k, this->r_const.h);
-                    
-                    // V(i, j, k) = V(i, j, k) - dP;
-                    // Debug porouses
-                    for(int l=0; l<3; ++l)
-             {
-                auto corr = V.at(l, i, j, k) - dP[l];
-                            V.at(l, i, j, k) = corr;
-             }
-                }
-
-        // Update P
-        P = P + m_P_ghosted;
-    }
-
-} // namespace numPDE
+}; // namespace numPDE
