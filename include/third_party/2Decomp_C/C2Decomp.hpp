@@ -99,7 +99,37 @@ class C2Decomp
     void best2DGrid(int nProc, int& pRow, int& pCol);
     void FindFactor(int num, int* factors, int& nfact);
 
-    void decomp2DFinalize() {}
+    void decomp2DFinalize() {
+
+        this->decompInfoFinalize(); 
+    
+    if (decompMain.x1dist) { delete[] decompMain.x1dist; decompMain.x1dist = nullptr; }
+    if (decompMain.y1dist) { delete[] decompMain.y1dist; decompMain.y1dist = nullptr; }
+    if (decompMain.y2dist) { delete[] decompMain.y2dist; decompMain.y2dist = nullptr; }
+    if (decompMain.z2dist) { delete[] decompMain.z2dist; decompMain.z2dist = nullptr; }
+
+    if (decompMain.x1cnts) { delete[] decompMain.x1cnts; decompMain.x1cnts = nullptr; }
+    if (decompMain.y1cnts) { delete[] decompMain.y1cnts; decompMain.y1cnts = nullptr; }
+    if (decompMain.y2cnts) { delete[] decompMain.y2cnts; decompMain.y2cnts = nullptr; }
+    if (decompMain.z2cnts) { delete[] decompMain.z2cnts; decompMain.z2cnts = nullptr; }
+
+    if (decompMain.x1disp) { delete[] decompMain.x1disp; decompMain.x1disp = nullptr; }
+    if (decompMain.y1disp) { delete[] decompMain.y1disp; decompMain.y1disp = nullptr; }
+    if (decompMain.y2disp) { delete[] decompMain.y2disp; decompMain.y2disp = nullptr; }
+    if (decompMain.z2disp) { delete[] decompMain.z2disp; decompMain.z2disp = nullptr; }
+
+    // 2. Free the Large Work Buffers (The source of your 74KB leaks)
+    if (work1_r) { delete[] work1_r; work1_r = nullptr; }
+    if (work2_r) { delete[] work2_r; work2_r = nullptr; }
+    
+    decompBufSize = 0;
+
+    if (DECOMP_2D_COMM_CART_X != MPI_COMM_NULL) { MPI_Comm_free(&DECOMP_2D_COMM_CART_X); }
+    if (DECOMP_2D_COMM_CART_Y != MPI_COMM_NULL) { MPI_Comm_free(&DECOMP_2D_COMM_CART_Y); }
+    if (DECOMP_2D_COMM_CART_Z != MPI_COMM_NULL) { MPI_Comm_free(&DECOMP_2D_COMM_CART_Z); }
+    if (DECOMP_2D_COMM_COL    != MPI_COMM_NULL) { MPI_Comm_free(&DECOMP_2D_COMM_COL); }
+    if (DECOMP_2D_COMM_ROW    != MPI_COMM_NULL) { MPI_Comm_free(&DECOMP_2D_COMM_ROW); }
+    };
 
     // Just get it running without the optional decomp for now...
     void transposeX2Y(double* src, double* dst);
