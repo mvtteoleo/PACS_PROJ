@@ -176,9 +176,10 @@ namespace numPDE
         for (int kp = 0; kp < xSizeArr[2]; ++kp)
             for (int jp = 0; jp < xSizeArr[1]; ++jp)
             {
-                std::copy_n(in.ptr_at(start_x, jp, kp), Nx, xbuf);
+                const auto ll = start_x + xSizeArr[0] * (jp + xSizeArr[1] * kp);
+                std::copy_n(in.ptr_at(ll), Nx, xbuf);
                 fftw_execute(fft_x);
-                std::copy_n(xbuf, Nx, out.ptr_at(start_x, jp, kp));
+                std::copy_n(xbuf, Nx, out.ptr_at(ll));
             }
 
         // X -> Y
@@ -265,8 +266,8 @@ namespace numPDE
                 int base = jp * zSizeArr[2] * zSizeArr[0] + ip * zSizeArr[2] + start_z;
                 // Set the values of first and last to 0 to match the Dirichlet BC
                 // in case it's not needed gets overwritten by the copy_n
-                u3[base - start_z]      = 0;
-                u3[base - start_z + Lz] = 0;
+                u3[base - start_z]          = 0;
+                u3[base - start_z + Lz - 1] = 0;
 
                 std::copy_n(u3 + base, Nz, xbuf);
                 fftw_execute(ifft_z);
