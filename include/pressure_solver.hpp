@@ -38,7 +38,7 @@ namespace numPDE
         void pressure_correct(Tensor<T, 4, 3, TypeIndex::ROW_MAJOR>& V,
                               Tensor<T, 3, 3, TypeIndex::ROW_MAJOR>& P, const T dt_step,
                               bool verbose = false);
-        void test_p_corr(bool verbose=false);
+        void test_p_corr(bool verbose = false);
 
       private:
         void compute_div_on_sides();

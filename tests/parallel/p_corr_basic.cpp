@@ -1,6 +1,7 @@
 #include "../../include/pressure_solver.hpp"
 
 #include <random>
+#include <vector>
 
 template <typename T>
 void fill_with_random(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U)
@@ -8,12 +9,12 @@ void fill_with_random(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U)
     std::random_device rd;
     std::mt19937       gen(rd());
 
-    std::uniform_real_distribution<T> dist(-0.1, 0.1);
+    std::uniform_real_distribution<T> dist(-0.0001, 0.0001);
 
     for (auto [k, j, i] : U.all_elems())
     {
-        U.at(0, i, j, k) = 1.0 + dist(gen);
-        U.at(1, i, j, k) = 1.0 + dist(gen);
+        U.at(0, i, j, k) = 0.0 + dist(gen);
+        U.at(1, i, j, k) = 0.0 + dist(gen);
         U.at(2, i, j, k) = 1.0 + dist(gen);
     }
 }
@@ -53,8 +54,8 @@ int main(int argc, char* argv[])
     numPDE::Constants<Real> csts;
     numPDE::ScalarBC<Real>  scal_bc;
 
-    Real        L  = 1.0;
-    const auto &Lx = L, Ly = L, Lz = L;
+    Real       L  = 1.0;
+    const auto Lx = L, Ly = L, Lz = L;
     using FunType = numPDE::PressureBC<>::Function;
 
     // Polynomial exact solution
@@ -79,12 +80,12 @@ int main(int argc, char* argv[])
 
     auto u_ex         = exact_sol_poly; //
     auto forc         = forcing_poly;   //
-    scal_bc.BC_NORTH  = numPDE::NeuHomo;
-    scal_bc.BC_SOUTH  = numPDE::NeuHomo;
-    scal_bc.BC_EAST   = numPDE::NeuHomo;
-    scal_bc.BC_WEST   = numPDE::NeuHomo;
-    scal_bc.BC_TOP    = numPDE::NeuHomo;
-    scal_bc.BC_BOTTOM = numPDE::NeuHomo;
+    scal_bc.BC_NORTH  = numPDE::DirHomo;
+    scal_bc.BC_SOUTH  = numPDE::DirHomo;
+    scal_bc.BC_EAST   = numPDE::DirHomo;
+    scal_bc.BC_WEST   = numPDE::DirHomo;
+    scal_bc.BC_TOP    = numPDE::DirHomo;
+    scal_bc.BC_BOTTOM = numPDE::DirHomo;
     scal_bc.f         = forc;
     scal_bc.u_ex      = u_ex;
 
@@ -110,13 +111,20 @@ int main(int argc, char* argv[])
     pSolve_3.check_sol();
     */
 
+    pSolve_3.test_p_corr();
+
+    /*
     auto U = numPDE::make_vector_field<Real, 3>(p_dec.dimsWithGhosts());
     auto P = numPDE::make_scalar_field<Real, 3>(p_dec.dimsWithGhosts());
 
     fill_with_random(U);
-    pSolve_3.pressure_correct(U, P, 0.0001, false);
     auto ris = check_divergence(U, csts.h);
     std::cout << "L2 err : " << ris.L2 << " Linf : " << ris.Linf;
+
+    pSolve_3.pressure_correct(U, P, 1., false);
+    ris = check_divergence(U, csts.h);
+    std::cout << "L2 err : " << ris.L2 << " Linf : " << ris.Linf;
+    */
 
     return 0;
 }

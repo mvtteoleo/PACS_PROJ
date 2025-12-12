@@ -44,17 +44,16 @@ namespace numPDE
         }
         this->r_dec.exchange_ghosts(m_P_ghosted);
 
-
-/*
-        for (const auto k : std::views::iota(size_t{j_g}, size_t{nz - 1}))
-            for (const auto j : std::views::iota(size_t{j_g}, size_t{ny - 1}))
-                for (const auto i : std::views::iota(size_t{0}, size_t{nx - 1}))
-    */
+        /*
+                for (const auto k : std::views::iota(size_t{j_g}, size_t{nz - 1}))
+                    for (const auto j : std::views::iota(size_t{j_g}, size_t{ny - 1}))
+                        for (const auto i : std::views::iota(size_t{0}, size_t{nx - 1}))
+            */
         for (const auto [k, j, i] : V.int_elems())
-                {
-                    const auto dP = grad(m_P_ghosted, i, j, k, h);
-                    V(i, j, k)    = V(i, j, k) - dP;
-                }
+        {
+            const auto dP = grad(m_P_ghosted, i, j, k, h);
+            V(i, j, k)    = V(i, j, k) - dP;
+        }
 
         this->r_dec.exchange_ghosts(V);
         // Update P
@@ -201,36 +200,37 @@ namespace numPDE
     void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::test_p_corr(bool verbose)
     {
         this->allocate_P();
-        const auto  h     = this->r_const.h;
-        const auto& sizes = this->r_dec.xSize();
-        const auto& nx    = sizes[0];
-        const auto& ny    = sizes[1];
-        const auto& nz    = sizes[2];
-        const auto k_range = std::views::iota(size_t{0}, size_t{sizes[2]});
-        const auto j_range = std::views::iota(size_t{0}, size_t{sizes[1]});
-        const auto i_range = std::views::iota(size_t{0}, size_t{sizes[0]});
+        const auto  h       = this->r_const.h;
+        const auto& sizes   = this->r_dec.xSize();
+        const auto& nx      = sizes[0];
+        const auto& ny      = sizes[1];
+        const auto& nz      = sizes[2];
+        const auto  k_range = std::views::iota(size_t{0}, size_t{sizes[2]});
+        const auto  j_range = std::views::iota(size_t{0}, size_t{sizes[1]});
+        const auto  i_range = std::views::iota(size_t{0}, size_t{sizes[0]});
 
         // Account for the presence of ghost points
         const bool j_g = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
         const bool k_g = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
 
-        auto idx = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
+        auto idx  = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
         auto strt = this->r_dec.xStartWGhosts();
 
-        for(const auto k : k_range)
-        for(const auto j : j_range)
-        for(const auto i : i_range)
-        {
-            const size_t l       = idx(i, j, k);
-        
-            assert(l==this->mo_P->get_linear_index(i, j, k) && "Error in the index computation");
+        for (const auto k : k_range)
+            for (const auto j : j_range)
+                for (const auto i : i_range)
+                {
+                    const size_t l = idx(i, j, k);
 
-            T iG = static_cast<T>(strt[0] + i);
-            T jG = static_cast<T>(strt[1] + j);
-            T kG = static_cast<T>(strt[2] + k);
-            std::vector<T> pos = { h * iG, h*jG, h*kG};
-            this->m_P_ghosted[l] = this->r_BCs.f(pos);
-        }
+                    assert(l == this->mo_P->get_linear_index(i, j, k) &&
+                           "Error in the index computation");
+
+                    T              iG    = static_cast<T>(strt[0] + i);
+                    T              jG    = static_cast<T>(strt[1] + j);
+                    T              kG    = static_cast<T>(strt[2] + k);
+                    std::vector<T> pos   = {h * iG, h * jG, h * kG};
+                    this->m_P_ghosted[l] = this->r_BCs.f(pos);
+                }
 
         // this->compute_div_on_sides();
 
@@ -246,14 +246,13 @@ namespace numPDE
                         this->m_P_ghosted.ptr_at(0, j_g, k_g + k - 1));
         }
         this->r_dec.exchange_ghosts(m_P_ghosted);
-        
-        
+
         // Fill P with  with the solution
-        for(const auto k : k_range)
-            for(const auto j : j_range)
-            for(const auto i : i_range)
-            this->mo_P->at(i, j, k) = this->m_P_ghosted(i, j + j_g, k + k_g);
-        
+        for (const auto k : k_range)
+            for (const auto j : j_range)
+                for (const auto i : i_range)
+                    this->mo_P->at(i, j, k) = this->m_P_ghosted(i, j + j_g, k + k_g);
+
         this->check_sol();
     }
 }; // namespace numPDE
