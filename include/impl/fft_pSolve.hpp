@@ -204,29 +204,34 @@ namespace numPDE
     {
         this->allocate_P();
         // Account for the presence of ghost points
-        const bool  j_g     = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
-        const bool  k_g     = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
-        const auto  h       = this->r_const.h;
-        const auto& sizes   = this->r_dec.xSize();
-        const auto& nx      = sizes[0];
-        const auto& ny      = sizes[1];
-        const auto& nz      = sizes[2];
-        const auto  k_range = std::views::iota(size_t{0}, size_t{sizes[2]});
-        const auto  j_range = std::views::iota(size_t{0}, size_t{sizes[1]});
-        const auto  i_range = std::views::iota(size_t{0}, size_t{sizes[0]});
+        const bool  j_g   = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
+        const bool  k_g   = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
+        const auto  h     = this->r_const.h;
+        const auto& sizes = this->r_dec.xSize();
+        const auto& nx    = sizes[0];
+        const auto& ny    = sizes[1];
+        const auto& nz    = sizes[2];
+
+        const auto k_range = std::views::iota(size_t{!k_g}, size_t{sizes[2]});
+        const auto j_range = std::views::iota(size_t{!j_g}, size_t{sizes[1]});
+        const auto i_range = std::views::iota(size_t{1}, size_t{sizes[0]});
 
         auto idx  = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
         auto strt = this->r_dec.xStart();
 
         constexpr T CHECK_VAL = 1234.5678;
-        m_P_ghosted.fill_val(0.);
+        auto        beg       = m_P_ghosted.begin();
+        std::fill(beg, m_P_ghosted.end(), CHECK_VAL);
 
+        // Brute imposition of DirHomo BC
+        std::fill(beg, beg + (nx * ny * nz), 0.);
+
+        // Fill the internal part of the domain
         for (const auto k : k_range)
             for (const auto j : j_range)
                 for (const auto i : i_range)
                 {
                     const size_t l = idx(i, j, k);
-
                     assert(l == this->mo_P->get_linear_index(i, j, k) &&
                            "Error in the index computation");
 
@@ -240,41 +245,38 @@ namespace numPDE
         // WARNING THIS IS THE DANGEROUS FUNCTION !!!
         // DIRICHLET BC ALONG X!!!
         // this->compute_div_on_sides();
-        
-        auto beg = m_P_ghosted.begin();
 
-        auto check_lambda = [&](auto gg) { return (gg - CHECK_VAL) < 1e-5; };
+        // MORE CHECKS
+        auto check_lambda = [&](auto gg) { return gg == CHECK_VAL; };
 
         auto result_it = std::find_if(beg, m_P_ghosted.end(), check_lambda);
-        std::cout << std::distance(beg, result_it) << " vs " << nx*ny*nz << "\n";
-        assert(std::distance(beg, result_it) == nx*ny*nz+1
-               && "\n\n=====\n\nFirst element is NOT the CHECK_VAL imposed!!\n\n=====\n\n");
+        std::cout << std::distance(beg, result_it) << " vs " << nx * ny * nz << "\n";
+        assert(std::distance(beg, result_it) == nx * ny * nz &&
+               "\n\n=====\n\nFirst element is NOT the CHECK_VAL imposed!!\n\n=====\n\n");
 
-        assert(std::any_of(beg, beg + (nx * ny * nz), check_lambda)
-               && "\n\n=====\n\nSome values have not been modified\n\n=====\n\n");
+        assert(std::none_of(beg, beg + (nx * ny * nz), check_lambda) &&
+               "\n\n=====\n\nSome values have not been modified\n\n=====\n\n");
 
         // Feed the tensor to the solve method
         this->solve(this->m_P_ghosted, this->m_P_ghosted, verbose);
 
-        // UPDATE V
-    std::copy_n(this->m_P_ghosted.begin(), this->mo_P->size(),this->mo_P->begin());
+        // Solve is OK, NOW there is the need to copy back into the relative staggered position
+        std::copy_n(beg, this->mo_P->size(), this->mo_P->begin());
+        /*
+            const auto slice = nx * ny;
+            for (int k = nz - 2; k >= 0; k--)
+            {
+                std::copy_n(this->m_P_ghosted.ptr_at(k*slice), slice,
+                            this->m_P_ghosted.ptr_at(0, j_g, k_g + k));
+            }
 
-    /*
-        const auto slice = nx * ny;
-        for (int k = nz - 1; k > 0; k--)
-        {
-            std::copy_n(this->m_P_ghosted.ptr_at(idx(0, 0, k - 1)), slice,
-                        this->m_P_ghosted.ptr_at(0, j_g, k_g + k - 1));
-        }
+            // this->r_dec.exchange_ghosts(m_P_ghosted);
 
-        this->r_dec.exchange_ghosts(m_P_ghosted);
+            // Fill P with  with the solution
 
-        // Fill P with  with the solution
-        for (const auto k : k_range)
-            for (const auto j : j_range)
-                for (const auto i : i_range)
-                    this->mo_P->at(i, j, k) = this->m_P_ghosted(i, j + j_g, k + k_g);
-    */
+            for(auto [k, j, i] : this->mo_P->all_elems())
+                        this->mo_P->at(i, j, k) = this->m_P_ghosted(i, j + j_g, k + k_g);
+        */
 
         this->check_sol();
     }
