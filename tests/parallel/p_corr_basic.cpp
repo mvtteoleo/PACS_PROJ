@@ -2,46 +2,52 @@
 
 #include <random>
 
-template<typename T>
-void fill_with_random(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR> &U)
+template <typename T>
+void fill_with_random(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U)
 {
-        std::random_device rd;
-        std::mt19937       gen(rd());
+    std::random_device rd;
+    std::mt19937       gen(rd());
 
-        std::uniform_real_distribution<T> dist(-1, 1);
+    std::uniform_real_distribution<T> dist(-0.1, 0.1);
 
-        for(auto [k, j, i] : U.all_elems())
-        {
-            U.at(0, i,j, k) = dist(gen);
-            U.at(1, i,j, k) = dist(gen);
-            U.at(2, i,j, k) = dist(gen);
-        }
-
+    for (auto [k, j, i] : U.all_elems())
+    {
+        U.at(0, i, j, k) = 1.0 + dist(gen);
+        U.at(1, i, j, k) = 1.0 + dist(gen);
+        U.at(2, i, j, k) = 1.0 + dist(gen);
+    }
 }
 
-template<typename T>
-auto check_divergence (numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR> &U, const T h)
+template <typename T>
+auto check_divergence(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U, const T h)
 {
-        T l2div{};
-        T maxDiv{};
-        
-        for(auto [k, j, i] : U.int_elems())
-        {
-            const T div = std::abs( numPDE::div(U, i, j, k, h) );
-            l2div += div;
-            if(div > maxDiv) maxDiv =  div;
-        }
+    struct Err
+    {
+        T L2;
+        T Linf;
+    };
+    Err err;
+    T   l2div{};
+    T   maxDiv{};
 
-        l2div = std::sqrt(h*h*h * l2div);
+    for (auto [k, j, i] : U.int_elems())
+    {
+        const T div = std::abs(numPDE::div(U, i, j, k, h));
+        l2div += div * div;
+        if (div > maxDiv) maxDiv = div;
+    }
 
-        return std::array<T, 2>{l2div, maxDiv};
+    err.L2   = std::sqrt(h * h * h * l2div);
+    err.Linf = maxDiv;
 
+    return err;
 }
 using Real = double;
 int main(int argc, char* argv[])
 {
 
-    size_t                  N = 10;
+    std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
+    if (N < 2) N = 5;
     PETScDecomp<Real>       p_dec(argc, argv, N, N, N);
     NewDecomp<Real>         n_dec(argc, argv, N, N, N);
     numPDE::Constants<Real> csts;
@@ -73,18 +79,18 @@ int main(int argc, char* argv[])
 
     auto u_ex         = exact_sol_poly; //
     auto forc         = forcing_poly;   //
-    scal_bc.BC_NORTH  = numPDE::DirHomo;
-    scal_bc.BC_SOUTH  = numPDE::DirHomo;
-    scal_bc.BC_EAST   = numPDE::DirHomo;
-    scal_bc.BC_WEST   = numPDE::DirHomo;
-    scal_bc.BC_TOP    = numPDE::DirHomo;
-    scal_bc.BC_BOTTOM = numPDE::DirHomo;
+    scal_bc.BC_NORTH  = numPDE::NeuHomo;
+    scal_bc.BC_SOUTH  = numPDE::NeuHomo;
+    scal_bc.BC_EAST   = numPDE::NeuHomo;
+    scal_bc.BC_WEST   = numPDE::NeuHomo;
+    scal_bc.BC_TOP    = numPDE::NeuHomo;
+    scal_bc.BC_BOTTOM = numPDE::NeuHomo;
     scal_bc.f         = forc;
     scal_bc.u_ex      = u_ex;
 
     csts.h = L / (N - 1);
 
-    
+    /*
     numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> pSolve_1(
         p_dec, scal_bc, csts);
 
@@ -95,18 +101,22 @@ int main(int argc, char* argv[])
                                                                                      csts);
     pSolve_2.solve();
     pSolve_2.check_sol();
+*/
 
     numPDE::PressureSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> pSolve_3(n_dec, scal_bc,
                                                                                    csts);
+    /*
     pSolve_3.solve();
     pSolve_3.check_sol();
-
+    */
 
     auto U = numPDE::make_vector_field<Real, 3>(p_dec.dimsWithGhosts());
     auto P = numPDE::make_scalar_field<Real, 3>(p_dec.dimsWithGhosts());
-    
+
     fill_with_random(U);
-    pSolve_3.pressure_correct(U, P, 1.0, false); 
+    pSolve_3.pressure_correct(U, P, 0.0001, false);
     auto ris = check_divergence(U, csts.h);
+    std::cout << "L2 err : " << ris.L2 << " Linf : " << ris.Linf;
+
     return 0;
 }

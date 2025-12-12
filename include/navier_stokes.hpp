@@ -20,7 +20,7 @@ namespace numPDE
         VelocityBC<U> v_BC;
         Constants<U>  constants;
     };
-};
+}; // namespace numPDE
 
 #if 0
     template <typename T = double>
@@ -425,33 +425,31 @@ namespace numPDE
 namespace numPDE
 {
 
-template<typename T>
-struct RKOptCoeffs
-{
-    const T       a21 = 64.0 / 120.0, a31 = 0.25, a32 = 5.0 / 12.0;
-    const T       c1 = a21, c2 = 2.0 / 3.0, b3 = 0.75;
-    T             t = 0;
-};
+    template <typename T>
+    struct RKOptCoeffs
+    {
+        const T a21 = 64.0 / 120.0, a31 = 0.25, a32 = 5.0 / 12.0;
+        const T c1 = a21, c2 = 2.0 / 3.0, b3 = 0.75;
+        T       t = 0;
+    };
 
-template <SolvePolicy solveP, DecomposeConc Decomp>
-struct NSSolver
-{
-    using T = Decomp::type_value;
-    Decomp& r_dec;
-    PressureSolver<solveP, Decomp> pSolve;
-    NS_input<T>&  r_inps;
+    template <SolvePolicy solveP, DecomposeConc Decomp>
+    struct NSSolver
+    {
+        using T = Decomp::type_value;
+        Decomp&                        r_dec;
+        PressureSolver<solveP, Decomp> pSolve;
+        NS_input<T>&                   r_inps;
 
-    NSSolver(Decomp& dec, NS_input<T> inp)
-        : r_dec(dec), pSolve(dec, inp.p_BC, inp.constants), r_inps(inp)
-    {}
+        NSSolver(Decomp& dec, NS_input<T> inp)
+            : r_dec(dec), pSolve(dec, inp.p_BC, inp.constants), r_inps(inp)
+        {
+        }
 
-    // Apply BC
-    // Compute forcing term
-    // Timestep
-
-
-
-};
+        // Apply BC
+        // Compute forcing term
+        // Timestep
+    };
 
 #include "impl/ns_impl.hpp"
 

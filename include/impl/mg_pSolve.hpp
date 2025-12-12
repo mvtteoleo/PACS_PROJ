@@ -3,7 +3,8 @@
 #include "../pressure_solver.hpp"
 #include <type_traits>
 
-namespace numPDE {
+namespace numPDE
+{
 
 #if 0
     template <DecomposeConc Decomp>
@@ -38,5 +39,5 @@ namespace numPDE {
         // Update P
         return;
     }
-#endif 
-};
+#endif
+}; // namespace numPDE
