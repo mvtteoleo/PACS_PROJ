@@ -260,8 +260,6 @@ namespace numPDE
         // Feed the tensor to the solve method
         this->solve(this->m_P_ghosted, this->m_P_ghosted, verbose);
 
-        this->r_dec.exchange_ghosts(m_P_ghosted);
-
         const auto slice = nx * ny;
 
         for (int kp = nz - 1; kp >= 0; --kp)
@@ -270,6 +268,8 @@ namespace numPDE
             auto dst_end_ptr = m_P_ghosted.ptr_at(0, j_g, k_g + kp) + slice;
             std::copy_backward(src_end_it - slice, src_end_it, dst_end_ptr);
         }
+
+        this->r_dec.exchange_ghosts(m_P_ghosted);
 
         for (auto [k, j, _] : this->mo_P->all_elems())
             std::copy_n(this->m_P_ghosted.ptr_at(0, j_g + j, k + k_g), nx,
