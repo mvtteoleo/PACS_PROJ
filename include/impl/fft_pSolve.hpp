@@ -22,9 +22,6 @@ namespace numPDE
         const bool j_g = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
         const bool k_g = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
 
-        // TODO may be enough to write the solution on the stag tensor, solve and copy the solution
-        // in the correct places starting from the row towards WEST TOP)
-
         auto idx = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
         for (const auto [k, j, i] : V.int_elems())
         {
@@ -45,17 +42,21 @@ namespace numPDE
             std::copy_n(this->m_P_ghosted.ptr_at(idx(0, 0, k - 1)), slice,
                         this->m_P_ghosted.ptr_at(0, j_g, k_g + k - 1));
         }
-
         this->r_dec.exchange_ghosts(m_P_ghosted);
 
+
+/*
         for (const auto k : std::views::iota(size_t{j_g}, size_t{nz - 1}))
             for (const auto j : std::views::iota(size_t{j_g}, size_t{ny - 1}))
                 for (const auto i : std::views::iota(size_t{0}, size_t{nx - 1}))
+    */
+        for (const auto [k, j, i] : V.int_elems())
                 {
                     const auto dP = grad(m_P_ghosted, i, j, k, h);
                     V(i, j, k)    = V(i, j, k) - dP;
                 }
 
+        this->r_dec.exchange_ghosts(V);
         // Update P
         P = P + m_P_ghosted;
     }
@@ -196,4 +197,53 @@ namespace numPDE
         }
     }
 
+    template <typename T>
+    void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::test_p_corr(bool verbose)
+    {
+        const auto  h     = this->r_const.h;
+        const auto& sizes = this->r_dec.xSize();
+        const auto& nx    = sizes[0];
+        const auto& ny    = sizes[1];
+        const auto& nz    = sizes[2];
+
+        // Account for the presence of ghost points
+        const bool j_g = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
+        const bool k_g = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
+
+        auto idx = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
+        auto strt = this->r_dec.xStartWGhosts();
+        for (const auto [k, j, i] : this->m_P_ghosted.int_elems())
+        {
+            const size_t l       = idx(i, j - j_g, k - k_g);
+
+            T iG = static_cast<T>(strt[0] + i);
+            T jG = static_cast<T>(strt[1] + j);
+            T kG = static_cast<T>(strt[2] + k);
+            std::vector<T> pos = { h * iG, h*jG, h*kG};
+            this->m_P_ghosted[l] = this->r_BCs.f(pos);
+        }
+
+        this->compute_div_on_sides();
+
+        // Feed the tensor to the solve method
+        this->solve(this->m_P_ghosted, this->m_P_ghosted, verbose);
+
+        // UPDATE V
+        const auto slice = nx * ny;
+
+        for (int k = nz - 1; k > 0; k--)
+        {
+            std::copy_n(this->m_P_ghosted.ptr_at(idx(0, 0, k - 1)), slice,
+                        this->m_P_ghosted.ptr_at(0, j_g, k_g + k - 1));
+        }
+        this->r_dec.exchange_ghosts(m_P_ghosted);
+        
+        this->allocate_P();
+        
+        // Fill P with  with the solution
+        for(auto [k, j, i] : this->mo_P->all_elems())
+            this->mo_P->at(i, j, k) = this->m_P_ghosted(i, j+j_g, k+k_g);
+        
+        this->check_sol();
+    }
 }; // namespace numPDE
