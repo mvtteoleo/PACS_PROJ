@@ -232,7 +232,7 @@ namespace numPDE
                     this->m_P_ghosted[l] = this->r_BCs.f(pos);
                 }
 
-        // this->compute_div_on_sides();
+        this->compute_div_on_sides();
 
         // Feed the tensor to the solve method
         this->solve(this->m_P_ghosted, this->m_P_ghosted, verbose);

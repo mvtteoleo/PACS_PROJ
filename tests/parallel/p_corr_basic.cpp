@@ -58,34 +58,49 @@ int main(int argc, char* argv[])
     const auto Lx = L, Ly = L, Lz = L;
     using FunType = numPDE::PressureBC<>::Function;
 
-    // Polynomial exact solution
-    FunType exact_sol_poly = [=](const std::vector<Real>& pos) -> Real
-    {
-        Real x = pos[0], y = pos[1], z = pos[2];
-        Real Ax = x * x - Lx * x;
-        Real By = y * y - Ly * y;
-        Real Cz = z * z - Lz * z;
-        return Ax * By * Cz;
+    Real scale = 22;
+
+    // List of wave numbers for each harmonic (could be different in x,y,z)
+    std::vector<std::tuple<int, int, int>> harmonics = {
+        {1, 1, 1} //, {2, 1, 1}, {1, 2, 1}, {1, 1, 2} // Add as many as you like
     };
 
-    // Corresponding forcing term
-    FunType forcing_poly = [=](const std::vector<Real>& pos) -> Real
+    FunType exact_sol_harm = [&](const std::vector<Real>& pos) -> Real
     {
         Real x = pos[0], y = pos[1], z = pos[2];
-        Real Ax = x * x - Lx * x;
-        Real By = y * y - Ly * y;
-        Real Cz = z * z - Lz * z;
-        return 2.0 * (By * Cz + Ax * Cz + Ax * By);
+        Real sum = 0.0;
+        for (auto [wx, wy, wz] : harmonics)
+        {
+            sum += scale * std::cos(wx * M_PI * x / Lx) * std::cos(wy * M_PI * y / Ly) *
+                   std::cos(wz * M_PI * z / Lz);
+        }
+        return sum;
     };
 
-    auto u_ex         = exact_sol_poly; //
-    auto forc         = forcing_poly;   //
-    scal_bc.BC_NORTH  = numPDE::DirHomo;
-    scal_bc.BC_SOUTH  = numPDE::DirHomo;
-    scal_bc.BC_EAST   = numPDE::DirHomo;
-    scal_bc.BC_WEST   = numPDE::DirHomo;
-    scal_bc.BC_TOP    = numPDE::DirHomo;
-    scal_bc.BC_BOTTOM = numPDE::DirHomo;
+    FunType forcing_harm = [&](const std::vector<Real>& pos) -> Real
+    {
+        Real x = pos[0], y = pos[1], z = pos[2];
+        Real sum = 0.0;
+        for (auto [wx, wy, wz] : harmonics)
+        {
+            Real u = scale * std::cos(wx * M_PI * x / Lx) * std::cos(wy * M_PI * y / Ly) *
+                     std::cos(wz * M_PI * z / Lz);
+
+            double coeff = -M_PI * M_PI *
+                           ((wx * wx) / (Lx * Lx) + (wy * wy) / (Ly * Ly) + (wz * wz) / (Lz * Lz));
+            sum += coeff * u;
+        }
+        return sum;
+    };
+
+    auto u_ex         = exact_sol_harm; //
+    auto forc         = forcing_harm;   //
+    scal_bc.BC_NORTH  = numPDE::NeuHomo;
+    scal_bc.BC_SOUTH  = numPDE::NeuHomo;
+    scal_bc.BC_EAST   = numPDE::NeuHomo;
+    scal_bc.BC_WEST   = numPDE::NeuHomo;
+    scal_bc.BC_TOP    = numPDE::NeuHomo;
+    scal_bc.BC_BOTTOM = numPDE::NeuHomo;
     scal_bc.f         = forc;
     scal_bc.u_ex      = u_ex;
 
