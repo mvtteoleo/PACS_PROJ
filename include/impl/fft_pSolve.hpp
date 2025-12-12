@@ -260,24 +260,20 @@ namespace numPDE
         // Feed the tensor to the solve method
         this->solve(this->m_P_ghosted, this->m_P_ghosted, verbose);
 
-        // Solve is OK this way!
-        // std::copy_n(beg, this->mo_P->size(), this->mo_P->begin());
-        /*
-        * NOW there is the need to copy back into the relative staggered position
-        */
-            // this->r_dec.exchange_ghosts(m_P_ghosted);
-        
-    for(int kp=nz-1; kp>=0; --kp)
-        for(int jp=ny-1; jp>=0; --jp)
-            for(int ip=nx-1; ip>=0; --ip)
-            {
-                const auto l = idx(ip,  jp, kp);
-                m_P_ghosted(ip,  jp+j_g, kp+k_g) = m_P_ghosted[l];
-            }
-            for(auto [k, j, _] : this->mo_P->all_elems())
-                std::copy_n(this->m_P_ghosted.ptr_at(0,  j_g + j, k + k_g), nx,
-                            this->mo_P->ptr_at(0, j,k));
-        this->check_sol();
+        this->r_dec.exchange_ghosts(m_P_ghosted);
 
+        const auto slice = nx * ny;
+
+        for (int kp = nz - 1; kp >= 0; --kp)
+        {
+            auto src_end_it = beg + (kp * slice) + slice;
+            auto dst_end_ptr = m_P_ghosted.ptr_at(0, j_g, k_g + kp) + slice;
+            std::copy_backward(src_end_it - slice, src_end_it, dst_end_ptr);
+        }
+
+        for (auto [k, j, _] : this->mo_P->all_elems())
+            std::copy_n(this->m_P_ghosted.ptr_at(0, j_g + j, k + k_g), nx,
+                        this->mo_P->ptr_at(0, j, k));
+        this->check_sol();
     }
 }; // namespace numPDE
