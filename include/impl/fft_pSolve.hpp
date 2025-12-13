@@ -63,141 +63,133 @@ namespace numPDE
         P = P + m_P_ghosted;
     }
 
-    template <typename T>
-    void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::compute_div_on_sides()
+template <typename T>
+void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::compute_div_on_sides()
+{
+    const auto& sizes = this->r_dec.xSize();
+    const auto& nx    = sizes[0];
+    const auto& ny    = sizes[1];
+    const auto& nz    = sizes[2];
+
+    constexpr auto coefs = get_appr_coeffs_neu<g_appr_ord, T>();
+    auto           idx   = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
+
+    
+    const auto k_full = std::views::iota(size_t{0}, size_t{nz});
+    const auto j_full = std::views::iota(size_t{0}, size_t{ny});
+    const auto i_full = std::views::iota(size_t{0}, size_t{nx});
+    
+    const auto i_internal = std::views::iota(size_t{1}, size_t{nx - 1});
+    const auto j_internal = std::views::iota(size_t{1}, size_t{ny - 1});
+
+    if (this->m_BC_z == NeuHomo and is_side(SIDES::BOTTOM, this->r_dec))
     {
-        const auto& sizes = this->r_dec.xSize();
-        const auto& nx    = sizes[0];
-        const auto& ny    = sizes[1];
-        const auto& nz    = sizes[2];
+            for (auto j : j_internal) 
+                for (auto i : i_internal) 
+                {
+                    const auto l = idx(i, j, 0);
+                    T val = 0.;
+                    for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
+                        val += coefs.v[el] * this->m_P_ghosted[idx(i, j, el + 1)];
+                    this->m_P_ghosted[l] = val;
+                }
+    }
 
-        const auto k_range = std::views::iota(size_t{0}, size_t{sizes[2]});
-        const auto j_range = std::views::iota(size_t{0}, size_t{sizes[1]});
-        const auto i_range = std::views::iota(size_t{0}, size_t{sizes[0]});
+    if (this->m_BC_z == NeuHomo and is_side(SIDES::TOP, this->r_dec))
+    {
+        size_t k_max = nz - 1;
+            for (auto j : j_internal)
+                for (auto i : i_internal)
+                {
+                    const auto l = idx(i, j, k_max);
+                    T val = 0.;
+                    for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
+                        val += coefs.v[el] * this->m_P_ghosted[idx(i, j, k_max - 1 - el)];
+                    this->m_P_ghosted[l] = val;
+                }
+    }
 
-        constexpr auto coefs = get_appr_coeffs_neu<g_appr_ord, T>();
-        auto           idx   = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
+    if (this->m_BC_y == NeuHomo and is_side(SIDES::WEST, this->r_dec))
+    {
+        size_t j_max = ny - 1;
+            for (auto k : k_full) 
+                for (auto i : i_internal) 
+                {
+                    const auto l = idx(i, j_max, k);
+                    T val = 0.;
+                    for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
+                        val += coefs.v[el] * this->m_P_ghosted[idx(i, j_max - 1 - el, k)];
+                    this->m_P_ghosted[l] = val;
+                }
+    }
 
-        // Apply BC to all x because of the stencil decomposition
-        if (this->m_BC_x == NeuHomo)
-        {
-            T val_s{};
-            T val_e{};
-            for (size_t l = 0; l < nx * ny * nz; l += nx)
+    if (this->m_BC_y == NeuHomo and is_side(SIDES::EAST, this->r_dec))
+    {
+            for (auto k : k_full) 
+                for (auto i : i_internal) 
+                {
+                    const auto l = idx(i, 0, k);
+                    T val = 0.;
+                    for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
+                        val += coefs.v[el] * this->m_P_ghosted[idx(i, el + 1, k)];
+                    this->m_P_ghosted[l] = val;
+                }
+    }
+    
+    
+    if (this->m_BC_x == NeuHomo)
+    {
+        
+        for (auto k : k_full)
+            for (auto j : j_full)
             {
-                // Since the BC is only NeuHomo here the coef.v*g*h is simply 0!!
-                val_e = 0.;
-                val_s = 0.;
+                
+                size_t l_start = idx(0, j, k);
+                
+                T val_s = 0.;
+                T val_e = 0.;
                 for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
                 {
-                    val_s += coefs.v[el] * this->m_P_ghosted[l + el + 1];
-                    val_e += coefs.v[el] * this->m_P_ghosted[l + nx - 2 - el];
+                    val_s += coefs.v[el] * this->m_P_ghosted[l_start + el + 1];
+                    val_e += coefs.v[el] * this->m_P_ghosted[l_start + nx - 2 - el];
                 }
-                // Fix the value on the fist element of the row and on the last one
-                this->m_P_ghosted[l]          = val_s;
-                this->m_P_ghosted[l + nx - 1] = val_e;
+                
+                this->m_P_ghosted[l_start]          = val_s;
+                this->m_P_ghosted[l_start + nx - 1] = val_e;
             }
-        }
-        else if (this->m_BC_x == DirHomo)
-        {
-            for (size_t l = 0; l < nx * ny * nz; l += nx)
-            {
-                this->m_P_ghosted[l]          = T{};
-                this->m_P_ghosted[l + nx - 1] = T{};
-            }
-        }
-
-        if (is_side(SIDES::BOTTOM, this->r_dec))
-        {
-            if (this->m_BC_z == NeuHomo)
-            {
-                for (auto j : j_range)
-                    for (auto i : i_range)
-                    {
-                        const auto l         = idx(i, j, 0);
-                        this->m_P_ghosted[l] = 0.;
-                        for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
-                            this->m_P_ghosted[l] +=
-                                coefs.v[el] * this->m_P_ghosted[idx(i, j, el + 1)];
-                    }
-            }
-            else if (this->m_BC_z == DirHomo)
-            {
-                for (auto j : j_range)
-                    for (auto i : i_range)
-                        this->m_P_ghosted[idx(i, j, 0)] = 0.;
-            }
-        }
-
-        if (is_side(SIDES::TOP, this->r_dec))
-        {
-            size_t k_max = nz - 1;
-            if (this->m_BC_z == NeuHomo)
-            {
-                for (auto j : j_range)
-                    for (auto i : i_range)
-                    {
-                        const auto l         = idx(i, j, k_max);
-                        this->m_P_ghosted[l] = 0.;
-                        for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
-                            this->m_P_ghosted[l] +=
-                                coefs.v[el] * this->m_P_ghosted[idx(i, j, k_max - 1 - el)];
-                    }
-            }
-            else if (this->m_BC_z == DirHomo)
-            {
-                for (auto j : j_range)
-                    for (auto i : i_range)
-                    {
-                        const auto l         = idx(i, j, k_max);
-                        this->m_P_ghosted[l] = 0.;
-                    }
-            }
-        }
-
-        if (is_side(SIDES::WEST, this->r_dec))
-        {
-            size_t j_max = ny - 1;
-            if (this->m_BC_y == NeuHomo)
-            {
-                for (auto k : k_range)
-                    for (auto i : i_range)
-                    {
-                        this->m_P_ghosted[idx(i, j_max, k)] = 0.;
-                        for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
-                            this->m_P_ghosted[idx(i, j_max, k)] +=
-                                coefs.v[el] * this->m_P_ghosted[idx(i, j_max - 1 - el, k)];
-                    }
-            }
-            else if (this->m_BC_y == DirHomo)
-            {
-                for (auto k : k_range)
-                    for (auto i : i_range)
-                        this->m_P_ghosted[idx(i, j_max, k)] = 0.;
-            }
-        }
-
-        if (is_side(SIDES::EAST, this->r_dec))
-        {
-            if (this->m_BC_y == NeuHomo)
-            {
-                for (auto k : k_range)
-                    for (auto i : i_range)
-                    {
-                        this->m_P_ghosted[idx(i, 0, k)] = 0.;
-                        for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
-                            this->m_P_ghosted[idx(i, 0, k)] +=
-                                coefs.v[el] * this->m_P_ghosted[idx(i, el + 1, k)];
-                    }
-            }
-            else if (this->m_BC_z == DirHomo)
-            {
-                for (auto k : k_range)
-                    for (auto i : i_range)
-                        this->m_P_ghosted[idx(i, 0, k)] = 0.;
-            }
-        }
     }
+    if (this->m_BC_z == DirHomo and is_side(SIDES::BOTTOM, this->r_dec))
+    {
+            for (auto j : j_full) 
+                for (auto i : i_full) 
+                    this->m_P_ghosted[idx(i, j, 0)] = 0.;
+    }
+
+    if (this->m_BC_z == DirHomo and is_side(SIDES::TOP, this->r_dec))
+    {
+        size_t k_max = nz - 1;
+            for (auto j : j_full) 
+                for (auto i : i_full) 
+                    this->m_P_ghosted[idx(i, j, k_max)] = 0.;
+    }
+
+    if (this->m_BC_y == DirHomo and is_side(SIDES::WEST, this->r_dec))
+    {
+        size_t j_max = ny - 1;
+        for (auto k : k_full) 
+            for (auto i : i_full) 
+                this->m_P_ghosted[idx(i, j_max, k)] = 0.;
+
+    }
+
+    if (this->m_BC_y == DirHomo and is_side(SIDES::EAST, this->r_dec))
+    {
+        for (auto k : k_full) 
+            for (auto i : i_full) 
+                this->m_P_ghosted[idx(i, 0, k)] = 0.;
+    }
+
+}
 
     template <typename T>
     void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::test_p_corr(bool verbose)
@@ -223,7 +215,7 @@ namespace numPDE
         auto        beg       = m_P_ghosted.begin();
         std::fill(beg, m_P_ghosted.end(), CHECK_VAL);
 
-        // Brute imposition of DirHomo BC
+        // Brute imposition of DirHomo BC and Sanitize
         std::fill(beg, beg + (nx * ny * nz), 0.);
 
         // Fill the internal part of the domain
@@ -244,7 +236,7 @@ namespace numPDE
 
         // WARNING THIS IS THE DANGEROUS FUNCTION !!!
         // DIRICHLET BC ALONG X!!!
-        // this->compute_div_on_sides();
+        this->compute_div_on_sides();
 
         // MORE CHECKS
         auto check_lambda = [&](auto gg) { return gg == CHECK_VAL; };
