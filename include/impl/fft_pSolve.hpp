@@ -26,9 +26,14 @@ namespace numPDE
         const bool k_g = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
 
         auto idx = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
-        for (const auto [k, j, i] : V.int_elems())
+        auto beg = m_P_ghosted.begin();
+        // SANITIZE WORK-ZONE
+        std::fill(beg, beg + (nx * ny * nz), 0.);
+
+        // CHECK THIS
+        for(auto [k, j, i] : V.int_elems())
         {
-            const size_t l       = idx(i, j - j_g, k - k_g);
+            const size_t l       = idx(i, j - j_g, k -k_g);
             this->m_P_ghosted[l] = div(V, i, j, k, h) / dt_step;
         }
 
@@ -40,156 +45,152 @@ namespace numPDE
         // UPDATE V
         const auto slice = nx * ny;
 
-        for (int k = nz - 1; k > 0; k--)
+        for (int kp = nz - 1; kp >= 0; --kp)
         {
-            std::copy_n(this->m_P_ghosted.ptr_at(idx(0, 0, k - 1)), slice,
-                        this->m_P_ghosted.ptr_at(0, j_g, k_g + k - 1));
+            auto src_end_it  = beg + (kp * slice) + slice;
+            auto dst_end_ptr = m_P_ghosted.ptr_at(0, j_g, k_g + kp) + slice;
+            std::copy_backward(src_end_it - slice, src_end_it, dst_end_ptr);
         }
         this->r_dec.exchange_ghosts(m_P_ghosted);
 
-        /*
-                for (const auto k : std::views::iota(size_t{j_g}, size_t{nz - 1}))
-                    for (const auto j : std::views::iota(size_t{j_g}, size_t{ny - 1}))
-                        for (const auto i : std::views::iota(size_t{0}, size_t{nx - 1}))
-            */
-        for (const auto [k, j, i] : V.int_elems())
-        {
-            const auto dP = grad(m_P_ghosted, i, j, k, h);
-            V(i, j, k)    = V(i, j, k) - dP;
-        }
+        // I have to do it for the internal points (Excluding the Ghosted!)
+       for (const auto k : std::views::iota(size_t{1}, size_t{nz + k_g - 1}))
+           for (const auto j : std::views::iota(size_t{1}, size_t{ny + j_g - 1}))
+               // The last one misses the +i point
+               for (const auto i : std::views::iota(size_t{1}, size_t{nx - 1}))
+               {
+                   const auto dP = grad(m_P_ghosted, i, j, k, h);
+                   V(i, j, k)    = V(i, j, k) - dP;
+               }
 
         this->r_dec.exchange_ghosts(V);
         // Update P
         P = P + m_P_ghosted;
     }
 
-template <typename T>
-void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::compute_div_on_sides()
-{
-    const auto& sizes = this->r_dec.xSize();
-    const auto& nx    = sizes[0];
-    const auto& ny    = sizes[1];
-    const auto& nz    = sizes[2];
-
-    constexpr auto coefs = get_appr_coeffs_neu<g_appr_ord, T>();
-    auto           idx   = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
-
-    
-    const auto k_full = std::views::iota(size_t{0}, size_t{nz});
-    const auto j_full = std::views::iota(size_t{0}, size_t{ny});
-    const auto i_full = std::views::iota(size_t{0}, size_t{nx});
-    
-    const auto i_internal = std::views::iota(size_t{1}, size_t{nx - 1});
-    const auto j_internal = std::views::iota(size_t{1}, size_t{ny - 1});
-
-    if (this->m_BC_z == NeuHomo and is_side(SIDES::BOTTOM, this->r_dec))
+    template <typename T>
+    void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::compute_div_on_sides()
     {
-            for (auto j : j_internal) 
-                for (auto i : i_internal) 
+        const auto& sizes = this->r_dec.xSize();
+        const auto& nx    = sizes[0];
+        const auto& ny    = sizes[1];
+        const auto& nz    = sizes[2];
+
+        constexpr auto coefs = get_appr_coeffs_neu<g_appr_ord, T>();
+        auto           idx   = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
+
+        const auto k_full = std::views::iota(size_t{0}, size_t{nz});
+        const auto j_full = std::views::iota(size_t{0}, size_t{ny});
+        const auto i_full = std::views::iota(size_t{0}, size_t{nx});
+
+        const auto i_internal = std::views::iota(size_t{1}, size_t{nx - 1});
+        const auto j_internal = std::views::iota(size_t{1}, size_t{ny - 1});
+
+        if (this->m_BC_z == NeuHomo and is_side(SIDES::BOTTOM, this->r_dec))
+        {
+            for (auto j : j_internal)
+                for (auto i : i_internal)
                 {
-                    const auto l = idx(i, j, 0);
-                    T val = 0.;
+                    const auto l   = idx(i, j, 0);
+                    T          val = 0.;
                     for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
                         val += coefs.v[el] * this->m_P_ghosted[idx(i, j, el + 1)];
                     this->m_P_ghosted[l] = val;
                 }
-    }
+        }
 
-    if (this->m_BC_z == NeuHomo and is_side(SIDES::TOP, this->r_dec))
-    {
-        size_t k_max = nz - 1;
+        if (this->m_BC_z == NeuHomo and is_side(SIDES::TOP, this->r_dec))
+        {
+            size_t k_max = nz - 1;
             for (auto j : j_internal)
                 for (auto i : i_internal)
                 {
-                    const auto l = idx(i, j, k_max);
-                    T val = 0.;
+                    const auto l   = idx(i, j, k_max);
+                    T          val = 0.;
                     for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
                         val += coefs.v[el] * this->m_P_ghosted[idx(i, j, k_max - 1 - el)];
                     this->m_P_ghosted[l] = val;
                 }
-    }
+        }
 
-    if (this->m_BC_y == NeuHomo and is_side(SIDES::WEST, this->r_dec))
-    {
-        size_t j_max = ny - 1;
-            for (auto k : k_full) 
-                for (auto i : i_internal) 
+        if (this->m_BC_y == NeuHomo and is_side(SIDES::WEST, this->r_dec))
+        {
+            size_t j_max = ny - 1;
+            for (auto k : k_full)
+                for (auto i : i_internal)
                 {
-                    const auto l = idx(i, j_max, k);
-                    T val = 0.;
+                    const auto l   = idx(i, j_max, k);
+                    T          val = 0.;
                     for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
                         val += coefs.v[el] * this->m_P_ghosted[idx(i, j_max - 1 - el, k)];
                     this->m_P_ghosted[l] = val;
                 }
-    }
+        }
 
-    if (this->m_BC_y == NeuHomo and is_side(SIDES::EAST, this->r_dec))
-    {
-            for (auto k : k_full) 
-                for (auto i : i_internal) 
+        if (this->m_BC_y == NeuHomo and is_side(SIDES::EAST, this->r_dec))
+        {
+            for (auto k : k_full)
+                for (auto i : i_internal)
                 {
-                    const auto l = idx(i, 0, k);
-                    T val = 0.;
+                    const auto l   = idx(i, 0, k);
+                    T          val = 0.;
                     for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
                         val += coefs.v[el] * this->m_P_ghosted[idx(i, el + 1, k)];
                     this->m_P_ghosted[l] = val;
                 }
-    }
-    
-    
-    if (this->m_BC_x == NeuHomo)
-    {
-        
-        for (auto k : k_full)
-            for (auto j : j_full)
-            {
-                
-                size_t l_start = idx(0, j, k);
-                
-                T val_s = 0.;
-                T val_e = 0.;
-                for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
+        }
+
+        if (this->m_BC_x == NeuHomo)
+        {
+
+            for (auto k : k_full)
+                for (auto j : j_full)
                 {
-                    val_s += coefs.v[el] * this->m_P_ghosted[l_start + el + 1];
-                    val_e += coefs.v[el] * this->m_P_ghosted[l_start + nx - 2 - el];
+
+                    size_t l_start = idx(0, j, k);
+
+                    T val_s = 0.;
+                    T val_e = 0.;
+                    for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
+                    {
+                        val_s += coefs.v[el] * this->m_P_ghosted[l_start + el + 1];
+                        val_e += coefs.v[el] * this->m_P_ghosted[l_start + nx - 2 - el];
+                    }
+
+                    this->m_P_ghosted[l_start]          = val_s;
+                    this->m_P_ghosted[l_start + nx - 1] = val_e;
                 }
-                
-                this->m_P_ghosted[l_start]          = val_s;
-                this->m_P_ghosted[l_start + nx - 1] = val_e;
-            }
-    }
-    if (this->m_BC_z == DirHomo and is_side(SIDES::BOTTOM, this->r_dec))
-    {
-            for (auto j : j_full) 
-                for (auto i : i_full) 
+        }
+        if (this->m_BC_z == DirHomo and is_side(SIDES::BOTTOM, this->r_dec))
+        {
+            for (auto j : j_full)
+                for (auto i : i_full)
                     this->m_P_ghosted[idx(i, j, 0)] = 0.;
-    }
+        }
 
-    if (this->m_BC_z == DirHomo and is_side(SIDES::TOP, this->r_dec))
-    {
-        size_t k_max = nz - 1;
-            for (auto j : j_full) 
-                for (auto i : i_full) 
+        if (this->m_BC_z == DirHomo and is_side(SIDES::TOP, this->r_dec))
+        {
+            size_t k_max = nz - 1;
+            for (auto j : j_full)
+                for (auto i : i_full)
                     this->m_P_ghosted[idx(i, j, k_max)] = 0.;
+        }
+
+        if (this->m_BC_y == DirHomo and is_side(SIDES::WEST, this->r_dec))
+        {
+            size_t j_max = ny - 1;
+            for (auto k : k_full)
+                for (auto i : i_full)
+                    this->m_P_ghosted[idx(i, j_max, k)] = 0.;
+        }
+
+        if (this->m_BC_y == DirHomo and is_side(SIDES::EAST, this->r_dec))
+        {
+            for (auto k : k_full)
+                for (auto i : i_full)
+                    this->m_P_ghosted[idx(i, 0, k)] = 0.;
+        }
     }
-
-    if (this->m_BC_y == DirHomo and is_side(SIDES::WEST, this->r_dec))
-    {
-        size_t j_max = ny - 1;
-        for (auto k : k_full) 
-            for (auto i : i_full) 
-                this->m_P_ghosted[idx(i, j_max, k)] = 0.;
-
-    }
-
-    if (this->m_BC_y == DirHomo and is_side(SIDES::EAST, this->r_dec))
-    {
-        for (auto k : k_full) 
-            for (auto i : i_full) 
-                this->m_P_ghosted[idx(i, 0, k)] = 0.;
-    }
-
-}
 
     template <typename T>
     void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::test_p_corr(bool verbose)
@@ -234,8 +235,6 @@ void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::compute_div_on_sides()
                     this->m_P_ghosted[l] = this->r_BCs.f(pos);
                 }
 
-        // WARNING THIS IS THE DANGEROUS FUNCTION !!!
-        // DIRICHLET BC ALONG X!!!
         this->compute_div_on_sides();
 
         // MORE CHECKS
@@ -256,7 +255,7 @@ void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::compute_div_on_sides()
 
         for (int kp = nz - 1; kp >= 0; --kp)
         {
-            auto src_end_it = beg + (kp * slice) + slice;
+            auto src_end_it  = beg + (kp * slice) + slice;
             auto dst_end_ptr = m_P_ghosted.ptr_at(0, j_g, k_g + kp) + slice;
             std::copy_backward(src_end_it - slice, src_end_it, dst_end_ptr);
         }

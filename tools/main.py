@@ -2,9 +2,9 @@ dx = -0.1
 dy = +0.3
 dz = 1e5
 
-beta_x = dy*dz/dx
-beta_y = dx*dz/dy
-beta_z = dy*dx/dz
+beta_x = dy * dz / dx
+beta_y = dx * dz / dy
+beta_z = dy * dx / dz
 
 print(f"{beta_x = }, {beta_y = }, {beta_z = }")
 
