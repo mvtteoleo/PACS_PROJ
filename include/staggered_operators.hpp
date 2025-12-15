@@ -17,9 +17,9 @@ namespace numPDE
 
     auto div(const VecF<T>& u, const size_t& i, const size_t& j, const size_t& k, const T& h)
     {
-        T du_dx = (u.at(0, i + 1, j, k) - u.at(0, i, j, k)) / h;
-        T dv_dy = (u.at(1, i, j + 1, k) - u.at(1, i, j, k)) / h;
-        T dw_dz = (u.at(2, i, j, k + 1) - u.at(2, i, j, k)) / h;
+        T du_dx = (u.at(0, i, j, k)- u.at(0, i - 1, j, k) ) / h;
+        T dv_dy = (u.at(1, i, j, k)- u.at(1, i, j - 1, k) ) / h;
+        T dw_dz = (u.at(2, i, j, k)- u.at(2, i, j, k - 1) ) / h;
         return du_dx + dv_dy + dw_dz;
     };
 
@@ -60,7 +60,7 @@ namespace numPDE
         const auto& ST = h_U.at(1, i, j - 1, k + 1);
 
         // --- Laplacian (if still needed) ---
-        lap = (E + W + N + S + Top + B - 6.0 * C) / (h * h * Re);
+        lap = (E + W + N + S + Top + B - 6.0 * C) / (4 * h * h * Re);
 
         // Approximate U on x
         U_x[0] = C[0];

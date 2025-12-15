@@ -216,7 +216,7 @@ namespace numPDE
             {
                 size_t lin  = get_linear_index(0, idxs...);
                 T*     base = &m_Datas[lin];
-                return ElementProxy<T, N_DIMS>(base, N_DIMS);
+                return ElementProxy<T, N_DIMS, false>(base, N_DIMS);
             }
         }
 

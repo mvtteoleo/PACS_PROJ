@@ -4,32 +4,59 @@
 #include <vector>
 
 template <typename T>
-void fill_with_random(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U)
+void fill_random(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U)
 {
     std::random_device rd;
     std::mt19937       gen(rd());
 
-    std::uniform_real_distribution<T> dist(-0.0001, 0.0001);
+    std::uniform_real_distribution<T> dist(-1e-6, 1e-6);
 
     for (auto [k, j, i] : U.int_elems())
     {
-        U.at(0, i, j, k) = 0.0 + dist(gen);
+        U.at(0, i, j, k) = 1.0 + dist(gen);
         U.at(1, i, j, k) = 0.0 + dist(gen);
-        U.at(2, i, j, k) = 1.0 + dist(gen);
+        U.at(2, i, j, k) = 0.0 + dist(gen);
     }
+}
+
+template <typename T>
+void fill_irrot_field(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U)
+{
+
+    // Set the given V
+    for (auto [k, j, i] : U.all_elems())
+        U(i, j, k) = {1.0, 0., 0.};
+}
+
+template <typename T>
+auto pseudo_ts(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U, const numPDE::Constants<T>& csts)
+{
+    auto U_new = U;
+    for (auto [k, j, i] : U.int_elems())
+    {
+        const auto f   = csts.dt * predictor_f(U, i, j, k, csts);
+        U_new(i, j, k) = U(i, j, k) + f;
+    }
+
+    return U_new;
 }
 
 template <typename T>
 auto check_divergence(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U, const T h)
 {
+
     struct Err
     {
         T L2;
         T Linf;
     };
     Err err{.L2{}, .Linf{}};
+    
+    auto [l, nx, ny,nz] = U.get_sizes();
 
-    for (auto [k, j, i] : U.int_elems())
+    for(size_t k{2}; k<nz-2; ++k)
+        for(size_t j{2}; j<ny-2; ++j)
+            for(size_t i{2}; i<nz-2; ++i)
     {
         const T div = std::abs(numPDE::div(U, i, j, k, h));
         err.L2 += div * div;
@@ -39,7 +66,7 @@ auto check_divergence(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U, const T h)
     MPI_Allreduce(&err.L2, &err.L2, 1, mpi_get_type<T>(), MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(&err.Linf, &err.Linf, 1, mpi_get_type<T>(), MPI_MAX, MPI_COMM_WORLD);
 
-    err.L2   = std::sqrt(h * h * h * err.L2);
+    err.L2 = std::sqrt(h * h * h * err.L2);
 
     return err;
 }
@@ -104,40 +131,77 @@ int main(int argc, char* argv[])
     scal_bc.f         = forc;
     scal_bc.u_ex      = u_ex;
 
-    csts.h = L / (N - 1);
+    csts.h  = L / (N - 1);
+    csts.Re = 1;
+    csts.dt = csts.h*csts.h*0.0001;
 
-    /*
-    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> pSolve_1(
-        p_dec, scal_bc, csts);
-
-    pSolve_1.solve();
-    pSolve_1.check_sol();
-
-    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, NewDecomp<Real>> pSolve_2(n_dec, scal_bc,
-                                                                                     csts);
-    pSolve_2.solve();
-    pSolve_2.check_sol();
-    */
 
     numPDE::PressureSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> pSolve_3(n_dec, scal_bc,
                                                                                    csts);
-    pSolve_3.solve();
-    pSolve_3.check_sol();
-
 
     auto U = numPDE::make_vector_field<Real, 3>(n_dec.dimsWithGhosts());
     auto P = numPDE::make_scalar_field<Real, 3>(n_dec.dimsWithGhosts());
 
-    fill_with_random(U);
+    enum class fill_meth
+    {
+        random,
+        sincos,
+        dumb
+    };
+    fill_meth fill = fill_meth::sincos;
+
+    if(fill == fill_meth::random)
+        fill_random(U);
+
+    if(fill == fill_meth::dumb)
+     fill_irrot_field(U);
+
+    if(fill == fill_meth::sincos)
+    {
+    auto v_u_ex = [](const std::vector<Real>& pos, const size_t& l)
+    {
+        const auto& x = pos[0];
+        const auto& y = pos[1];
+        const auto& z = pos[2];
+        using std::cos, std::sin;
+        if (l == 0) return cos(x) * sin(y) * cos(z);
+        if (l == 1) return cos(y) * sin(x) * cos(z);
+        if (l == 2) return 2 * sin(y) * sin(x) * sin(z);
+    };
+    for (auto [k, j, i] : U.all_elems())
+    {
+        auto              xsrt = n_dec.xStart();
+        std::vector<Real> pos  = {csts.h * (i + xsrt[0]), csts.h * (j + xsrt[1]),
+                                  csts.h * (k + xsrt[2])};
+
+        for (int l{}; l < 3; ++l)
+        {
+            pos[l] += csts.h * 0.5;
+            U.at(l, i, j, k) = v_u_ex(pos, l);
+            pos[l] -= csts.h * 0.5;
+        }
+    }
+ }
     auto ris = check_divergence(U, csts.h);
-
-    if(!n_dec.rank()) std::cout << "L2 err : " << ris.L2 << " Linf : " << ris.Linf;
-
-    pSolve_3.pressure_correct(U, P, 1., false);
-    ris = check_divergence(U, csts.h);
-    if(!n_dec.rank()) std::cout << "L2 err : " << ris.L2 << " Linf : " << ris.Linf;
+    if (!n_dec.rank()) std::cout << "\nL2 err : " << ris.L2 << " Linf : " << ris.Linf;
     /*
     */
+    U = pseudo_ts(U, csts);
+    n_dec.exchange_ghosts(U);
 
+
+    auto post_ts = check_divergence(U, csts.h);
+    if (!n_dec.rank()) std::cout << "\nL2 err : " << post_ts.L2 << " Linf : " << post_ts.Linf;
+
+
+    pSolve_3.pressure_correct(U, P, csts.dt, false);
+
+    auto after_pcorr = check_divergence(U, csts.h);
+    if (!n_dec.rank()) std::cout << "\nL2 err : " << after_pcorr.L2 << " Linf : " << after_pcorr.Linf;
+
+    auto l2 = 100*(after_pcorr.L2 - post_ts.L2) / after_pcorr.L2;
+    auto linf = 100*(after_pcorr.Linf - post_ts.Linf) / after_pcorr.Linf;
+
+    if (!n_dec.rank()) std::cout << "\n(1 - pre/post) L2 : " << l2 << "% Linf : " << linf << "%";
     return 0;
 }

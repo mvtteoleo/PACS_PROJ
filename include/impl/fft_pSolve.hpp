@@ -30,10 +30,9 @@ namespace numPDE
         // SANITIZE WORK-ZONE
         std::fill(beg, beg + (nx * ny * nz), 0.);
 
-        // CHECK THIS
-        for(auto [k, j, i] : V.int_elems())
+        for (auto [k, j, i] : V.int_elems())
         {
-            const size_t l       = idx(i, j - j_g, k -k_g);
+            const size_t l       = idx(i, j - j_g, k - k_g);
             this->m_P_ghosted[l] = div(V, i, j, k, h) / dt_step;
         }
 
@@ -54,14 +53,14 @@ namespace numPDE
         this->r_dec.exchange_ghosts(m_P_ghosted);
 
         // I have to do it for the internal points (Excluding the Ghosted!)
-       for (const auto k : std::views::iota(size_t{1}, size_t{nz + k_g - 1}))
-           for (const auto j : std::views::iota(size_t{1}, size_t{ny + j_g - 1}))
-               // The last one misses the +i point
-               for (const auto i : std::views::iota(size_t{1}, size_t{nx - 1}))
-               {
-                   const auto dP = grad(m_P_ghosted, i, j, k, h);
-                   V(i, j, k)    = V(i, j, k) - dP;
-               }
+        for (const auto k : std::views::iota(size_t{1}, size_t{nz + k_g - 1}))
+            for (const auto j : std::views::iota(size_t{1}, size_t{ny + j_g - 1}))
+                // The last one misses the +i point
+                for (const auto i : std::views::iota(size_t{1}, size_t{nx - 1}))
+                {
+                    const auto dP = grad(m_P_ghosted, i, j, k, h);
+                    V(i, j, k)    = V(i, j, k) - dt_step*dP;
+                }
 
         this->r_dec.exchange_ghosts(V);
         // Update P
