@@ -1,7 +1,7 @@
 #include <ios>
 #include <optional>
 #include <ranges>
-#define TEST 2
+#define TEST 1
 #include "../../include/MY_LIB.hpp"
 #include <algorithm>
 #include <array>

@@ -53,11 +53,19 @@ namespace numPDE
         using T = Decomp::type_value;
 
         PressureSolver(Decomp& decomp, ScalarBC<T>& Bcs, Constants<T>& constants)
-            : MultiGridPoissonSolver<Decomp>(decomp, Bcs, constants){};
+            : MultiGridPoissonSolver<Decomp>(decomp, Bcs, constants)
+        {
+            DMCreateLocalVector(this->da, &P_local);
+        };
+
+        ~PressureSolver() { VecDestroy(&P_local); };
 
         void pressure_correct(Tensor<T, 4, 3, TypeIndex::ROW_MAJOR>& V,
-                              Tensor<T, 3, 3, TypeIndex::ROW_MAJOR>& P, const VelocityBC<T>& v_bc,
-                              const T dt_step, bool verbose = false);
+                              Tensor<T, 3, 3, TypeIndex::ROW_MAJOR>& P, const T dt_step,
+                              bool verbose = false);
+
+      protected:
+        Vec P_local;
     };
 
 }; // namespace numPDE

@@ -14,12 +14,11 @@ namespace numPDE
     using VecF = numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>;
 
     template <typename T>
-
     auto div(const VecF<T>& u, const size_t& i, const size_t& j, const size_t& k, const T& h)
     {
-        T du_dx = (u.at(0, i, j, k)- u.at(0, i - 1, j, k) ) / h;
-        T dv_dy = (u.at(1, i, j, k)- u.at(1, i, j - 1, k) ) / h;
-        T dw_dz = (u.at(2, i, j, k)- u.at(2, i, j, k - 1) ) / h;
+        T du_dx = (u.at(0, i, j, k) - u.at(0, i - 1, j, k)) / h;
+        T dv_dy = (u.at(1, i, j, k) - u.at(1, i, j - 1, k)) / h;
+        T dw_dz = (u.at(2, i, j, k) - u.at(2, i, j, k - 1)) / h;
         return du_dx + dv_dy + dw_dz;
     };
 

@@ -59,7 +59,7 @@ namespace numPDE
                 for (const auto i : std::views::iota(size_t{1}, size_t{nx - 1}))
                 {
                     const auto dP = grad(m_P_ghosted, i, j, k, h);
-                    V(i, j, k)    = V(i, j, k) - dt_step*dP;
+                    V(i, j, k)    = V(i, j, k) - dt_step * dP;
                 }
 
         this->r_dec.exchange_ghosts(V);
