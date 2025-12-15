@@ -135,10 +135,13 @@ int main(int argc, char* argv[])
     csts.Re = 1;
     csts.dt = csts.h * csts.h * 0.0001;
 
-    numPDE::PressureSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> pSolve_3(n_dec, scal_bc, csts);
+    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, NewDecomp<Real>> pSolve_3(n_dec, scal_bc,
+                                                                                     csts);
 
-    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> pSolve_1( p_dec, scal_bc, csts);
+    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> pSolve_1(
+        p_dec, scal_bc, csts);
 
+    /*
     auto U = numPDE::make_vector_field<Real, 3>(n_dec.dimsWithGhosts());
     auto P = numPDE::make_scalar_field<Real, 3>(n_dec.dimsWithGhosts());
 
@@ -150,13 +153,13 @@ int main(int argc, char* argv[])
             dumb
         };
         fill_meth fill = fill_meth::sincos;
-      
+
         if(fill == fill_meth::random)
             fill_random(U);
-      
+
         if(fill == fill_meth::dumb)
          fill_irrot_field(U);
-      
+
         auto v_u_ex = [](const std::vector<Real>& pos, const size_t& l)
         {
             const auto& x = pos[0];
@@ -174,7 +177,7 @@ int main(int argc, char* argv[])
             auto              xsrt = n_dec.xStart();
             std::vector<Real> pos  = {csts.h * (i + xsrt[0]), csts.h * (j + xsrt[1]),
                                       csts.h * (k + xsrt[2])};
-      
+
             for (int l{}; l < 3; ++l)
             {
                 pos[l] += csts.h * 0.5;
@@ -183,27 +186,26 @@ int main(int argc, char* argv[])
             }
         }
         }
-      
+
         auto ris = check_divergence(U, csts.h);
         if (!n_dec.rank()) std::cout << "\nL2 err : " << ris.L2 << " Linf : " << ris.Linf;
-        /*
-        */
         U = pseudo_ts(U, csts);
         n_dec.exchange_ghosts(U);
-      
-      
+
+
         auto post_ts = check_divergence(U, csts.h);
         if (!n_dec.rank()) std::cout << "\nL2 err : " << post_ts.L2 << " Linf : " << post_ts.Linf;
-      
+
      pSolve_3.pressure_correct(U, P, csts.dt, false);
 
       auto after_pcorr = check_divergence(U, csts.h);
       if (!n_dec.rank()) std::cout << "\nL2 err : " << after_pcorr.L2 << " Linf : " <<
       after_pcorr.Linf;
-    
+
       auto l2 = 100*(after_pcorr.L2 - post_ts.L2) / after_pcorr.L2;
       auto linf = 100*(after_pcorr.Linf - post_ts.Linf) / after_pcorr.Linf;
-    
+
       if (!n_dec.rank()) std::cout << "\n(1 - pre/post) L2 : " << l2 << "% Linf : " << linf <<
       "%"; return 0;
+        */
 }
