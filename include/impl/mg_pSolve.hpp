@@ -44,12 +44,12 @@ namespace numPDE
         this->solve_impl();
 
         // Get GLOBAL data
-        DMGlobalToLocalBegin(this->da, this->x_h, INSERT_VALUES, P_local);
-        DMGlobalToLocalEnd(this->da, this->x_h, INSERT_VALUES, P_local);
+        DMGlobalToLocalBegin(this->da, this->x_h, INSERT_VALUES, m_P_loc);
+        DMGlobalToLocalEnd(this->da, this->x_h, INSERT_VALUES, m_P_loc);
 
         PetscScalar*** pAsTens;
 
-        DMDAVecGetArrayRead(this->da, P_local, &pAsTens);
+        DMDAVecGetArrayRead(this->da, m_P_loc, &pAsTens);
 
         int is_topp = is_side(SIDES::TOP, this->r_dec);  // 1;//
         int is_west = is_side(SIDES::WEST, this->r_dec); // 1;//
@@ -76,6 +76,6 @@ namespace numPDE
         // Update P
 
         // CLEAN UP THE MESS MADE
-        DMDAVecRestoreArray(this->da, P_local, &pAsTens);
+        DMDAVecRestoreArray(this->da, m_P_loc, &pAsTens);
     }
 }; // namespace numPDE

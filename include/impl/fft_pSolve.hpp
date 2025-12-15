@@ -36,7 +36,7 @@ namespace numPDE
             this->m_P_ghosted[l] = div(V, i, j, k, h) / dt_step;
         }
 
-        this->compute_div_on_sides();
+        // this->compute_div_on_sides();
 
         // Feed the tensor to the solve method
         this->solve(this->m_P_ghosted, this->m_P_ghosted, verbose);
