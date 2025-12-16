@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../pressure_solver.hpp"
+#include <cstddef>
 #include <type_traits>
 
 namespace numPDE
@@ -15,15 +16,15 @@ namespace numPDE
         // WRITE DIV ON B
         PetscScalar*** bAsTens;
         DMDAVecGetArray(this->da, this->b, &bAsTens);
-        int xs, ys, zs, xm, ym, zm;
+        PetscInt xs, ys, zs, xm, ym, zm;
         DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
 
         const auto& h     = this->r_const.h;
         auto        coeff = h * h / dt_step;
 
-        for (const auto k_p : _range(zs, zm))
-            for (const auto j_p : _range(ys, ym))
-                for (const auto i_p : _range(xs, xm))
+        for (PetscInt k_p = zs; k_p < zs + zm; ++k_p)
+            for (PetscInt j_p = ys; j_p < ys + ym; ++j_p)
+                for (PetscInt i_p = xs; i_p < xs + xm; ++i_p)
                 {
                     // Here the domain is made only by the internal point so
                     // If there are ghosts
@@ -43,134 +44,116 @@ namespace numPDE
         // SOLVE
         this->solve_impl();
 
-        // Get GLOBAL data
-        DMGlobalToLocalBegin(this->da, this->x_h, INSERT_VALUES, m_P_loc);
-        DMGlobalToLocalEnd(this->da, this->x_h, INSERT_VALUES, m_P_loc);
-
-        PetscScalar*** pAsTens;
-
-        DMDAVecGetArrayRead(this->da, m_P_loc, &pAsTens);
-
-        bool is_topp = is_side(SIDES::TOP, this->r_dec);
-        bool is_west = is_side(SIDES::WEST, this->r_dec);
-        bool is_nord = true;
-
-        coeff = dt_step / h;
-        // UPDATE INTERNAL ELEMENTS (V and P)
-        //  - For V the BCs are applied on
-        //      - 0 => No need for ∇P
-        //      - Last elements (half step out of the domain => Need to update the grad for the
-        //      innermost step)
-
-        const auto xWG = this->r_dec.xStartWGhosts();
-        zs             = xWG[2] + 1;
-        ys             = xWG[1] + 1;
-        xs             = xWG[0] + 1;
-
-        for (const auto k_p : _range(zs, zm - is_topp))
-            for (const auto j_p : _range(ys, ym - is_west))
-                for (const auto i_p : _range(xs, xm - is_nord))
-                {
-                    const auto  i     = i_p - xs + 1;
-                    const auto  j     = j_p - ys + 1;
-                    const auto  k     = k_p - zs + 1;
-                    const auto& p_ijk = pAsTens[k_p][j_p][i_p];
-
-                    // V -= Δt ∇P
-                    V.at(0, i, j, k) -= (pAsTens[k_p][j_p][i_p + 1] - p_ijk) * coeff;
-                    V.at(1, i, j, k) -= (pAsTens[k_p][j_p + 1][i_p] - p_ijk) * coeff;
-                    V.at(2, i, j, k) -= (pAsTens[k_p + 1][j_p][i_p] - p_ijk) * coeff;
-                    P.at(i, j, k) += p_ijk;
-                }
-
-        // UPDATE V ELEMENTS ON THE SIDES (WEST, TOP, NORTH)
-        // int TOP, WEST, NORD
-        // TOP & WEST, TOP & NORD, NORD & WEST
-        // TOP & NORD & WEST
-        constexpr auto appr = get_appr_coeffs_neu<g_appr_ord, PetscScalar>();
-
-        // Update the elements on the internal part of the face
-        const auto dim_w_g = this->r_dec.dimsWithGhosts();
-
-        if (is_topp)
+        PetscScalar*** solution;
+        DMDAVecGetArray(this->da, this->x_h, &solution);
+        // WRITE THE SOLUTION ON THE LOCAL TENSOR
+        // Check the consistency
+     
+        for (const auto [k, j, i] : this->m_P_loc.int_elems())
         {
-            const auto k = zs + zm - 2;
-            for (const auto j_p : _range(ys, ym - is_west))
-                for (const auto i_p : _range(xs, xm - is_nord))
+     
+            const auto kg    = k + zs - 1;
+            const auto jg    = j + ys - 1;
+            const auto ig    = i + xs - 1;
+            m_P_loc(i, j, k) = solution[kg][jg][ig];
+        }
+        DMDAVecRestoreArray(this->da, this->x_h, &solution);
+
+        // Exchange boundaries
+        this->r_dec.exchange_ghosts(m_P_loc);
+
+        this->extrapolate_div_on_side();
+        
+        for(const auto [k, j, i] : V.int_elems())
+        {
+            const auto dP = grad(m_P_loc, i, j, k, h);
+            V.at(0, i, j, k)    = V.at(0, i, j, k) - dt_step * dP[0];
+            V.at(1, i, j, k)    = V.at(1, i, j, k) - dt_step * dP[1];
+            V.at(2, i, j, k)    = V.at(2, i, j, k) - dt_step * dP[2];
+        }
+            
+        this->r_dec.exchange_ghosts(V);
+        
+        P = P  + m_P_loc;
+    }
+
+    template <DecomposeConc Decomp>
+    void PressureSolver<SolvePolicy::MultiGrid, Decomp>::extrapolate_div_on_side()
+    {
+        constexpr auto cfs = get_appr_coeffs_neu<g_appr_ord, typename Decomp::type_value>();
+
+        const auto [nx, ny, nz] = m_P_loc.get_sizes();
+        const auto i_range       = std::views::iota(size_t{1}, size_t{nx - 1});
+        const auto j_range       = std::views::iota(size_t{1}, size_t{ny - 1});
+        const auto k_range       = std::views::iota(size_t{1}, size_t{nz - 1});
+
+        if (is_side(SIDES::TOP, this->r_dec))
+        {
+            for (const auto j : j_range)
+                for (const auto i : i_range)
                 {
-                    // Compute P_appr top
-                    auto p_top = 0;
-                    for (const auto el : _range(0, g_appr_ord))
-                        p_top += pAsTens[k - el][j_p][i_p] * appr.v[el];
-
-                    // Update P
-                    const auto k_top_tens = dim_w_g[2] - 1;
-                    const auto i_t        = i_p - xs + 1;
-                    const auto j_t        = j_p - ys + 1;
-
-                    P.at(i_t, j_t, k_top_tens) += p_top;
-
-                    const auto& p_ijk = pAsTens[k][j_p][i_p];
-                    // Update V
-                    V.at(0, i_t, j_t, k_top_tens) -= coeff * (pAsTens[k][j_p][i_p + 1] - p_ijk);
-                    V.at(1, i_t, j_t, k_top_tens) -= coeff * (pAsTens[k][j_p + 1][i_p] - p_ijk);
-                    V.at(2, i_t, j_t, k_top_tens) -= coeff * (p_top - p_ijk);
+                    m_P_loc(i, j, nz - 1) = 0.;
+                    for (auto el = 0; el < g_appr_ord; ++el)
+                        m_P_loc(i, j, nz - 1) += cfs.v[el] * m_P_loc(i, j, nz - 2 - el);
                 }
         }
 
-        if (is_west)
+        if (is_side(SIDES::BOTTOM, this->r_dec))
         {
-
-            const auto j = ys + ym - 2;
-            for (const auto k_p : _range(zs, zm - is_topp))
-                for (const auto i_p : _range(xs, xm - is_nord))
+            for (const auto j : j_range)
+                for (const auto i : i_range)
                 {
-                    // Compute P_appr top
-                    auto p_top = 0;
-                    for (const auto el : _range(0, g_appr_ord))
-                        p_top += pAsTens[k_p][j - el][i_p] * appr.v[el];
-
-                    // Update P
-                    const auto j_lim_tens = dim_w_g[1] - 1;
-                    const auto i_t        = i_p - xs + 1;
-                    const auto k_t        = k_p - zs + 1;
-
-                    P.at(i_t, j_lim_tens, k_t) += p_top;
-
-                    const auto& p_ijk = pAsTens[k_p][j][i_p];
-                    // Update V
-                    V.at(0, i_t, j_lim_tens, k_t) -= coeff * (pAsTens[k_p][j][i_p + 1] - p_ijk);
-                    V.at(1, i_t, j_lim_tens, k_t) -= coeff * (p_top - p_ijk);
-                    V.at(2, i_t, j_lim_tens, k_t) -= coeff * (pAsTens[k_p + 1][j][i_p] - p_ijk);
+                    m_P_loc(i, j, 0) = 0.;
+                    for (auto el = 0; el < g_appr_ord; ++el)
+                        m_P_loc(i, j, 0) += cfs.v[el] * m_P_loc(i, j, el + 1);
+                }
+        }
+        if (is_side(SIDES::EAST, this->r_dec))
+        {
+            constexpr auto j = 0;
+            for (const auto k : k_range)
+                for (const auto i : i_range)
+                {
+                    m_P_loc(i, j, k) = 0.;
+                    for (auto el = 0; el < g_appr_ord; ++el)
+                        m_P_loc(i, j, k) += cfs.v[el] * m_P_loc(i, j + el + 1, k);
                 }
         }
 
-        if (is_nord)
+        if (is_side(SIDES::WEST, this->r_dec))
         {
-            const auto i = xs + xm - 2;
-            for (const auto k_p : _range(zs, zm - is_topp))
-                for (const auto j_p : _range(ys, ym - is_west))
+            const auto j = ny-1;
+            for (const auto k : k_range)
+                for (const auto i : i_range)
                 {
-                    // Compute P_appr top
-                    auto p_top = 0;
-                    for (const auto el : _range(0, g_appr_ord))
-                        p_top += pAsTens[k_p][j_p][i - el] * appr.v[el];
-
-                    // Update P
-                    const auto j_t = j_p - ys + 1;
-                    const auto k_t = k_p - zs + 1;
-
-                    P.at(i, j_t, k_t) += p_top;
-
-                    const auto& p_ijk = pAsTens[k_p][j_p][i];
-                    // Update V
-                    V.at(0, i, j_t, k_t) -= coeff * (p_top - p_ijk);
-                    V.at(1, i, j_t, k_t) -= coeff * (pAsTens[k_p][j_p + 1][i] - p_ijk);
-                    V.at(2, i, j_t, k_t) -= coeff * (pAsTens[k_p + 1][j_p][i] - p_ijk);
+                    m_P_loc(i, j, k) = 0.;
+                    for (auto el = 0; el < g_appr_ord; ++el)
+                        m_P_loc(i, j, k) += cfs.v[el] * m_P_loc(i, j - el - 1, k);
+                }
+        }
+        
+        // SIDE SOUTH
+        {
+            constexpr auto i = 0;
+            for (const auto k : k_range)
+                for (const auto j : j_range)
+                {
+                    m_P_loc(i, j, k) = 0.;
+                    for (auto el = 0; el < g_appr_ord; ++el)
+                        m_P_loc(i, j, k) += cfs.v[el] * m_P_loc(i + el +1, j, k);
                 }
         }
 
-        // CLEAN UP THE MESS MADE
-        DMDAVecRestoreArray(this->da, m_P_loc, &pAsTens);
+        // SIDE NORTH
+        {
+            const auto i = nx-1;
+            for (const auto k : k_range)
+                for (const auto j : j_range)
+                {
+                    m_P_loc(i, j, k) = 0.;
+                    for (auto el = 0; el < g_appr_ord; ++el)
+                        m_P_loc(i, j, k) += cfs.v[el] * m_P_loc(i - el -1, j, k);
+                }
+        }
     }
 }; // namespace numPDE
