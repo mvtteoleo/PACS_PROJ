@@ -55,6 +55,12 @@ namespace numPDE
         PressureSolver(Decomp& decomp, ScalarBC<T>& Bcs, Constants<T>& constants)
             : MultiGridPoissonSolver<Decomp>(decomp, Bcs, constants)
         {
+
+            PetscScalar reltol{1e-8};
+            PetscScalar abstol{1e-10};
+            auto        maxits{5e2};
+            this->MG_solver = true;
+            KSPSetTolerances(this->ksp, reltol, abstol, PETSC_DEFAULT, maxits);
             DMCreateLocalVector(this->da, &m_P_loc);
         };
 

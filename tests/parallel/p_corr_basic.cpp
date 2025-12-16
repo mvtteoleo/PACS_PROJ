@@ -133,45 +133,40 @@ int main(int argc, char* argv[])
 
     csts.h  = L / (N - 1);
     csts.Re = 1;
-    csts.dt = csts.h * csts.h * 0.0001;
+    csts.dt = csts.h * csts.h * 0.001;
 
-    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, NewDecomp<Real>> pSolve_3(n_dec, scal_bc,
-                                                                                     csts);
+    numPDE::PressureSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> fft(n_dec, scal_bc, csts);
 
-    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> pSolve_1(
-        p_dec, scal_bc, csts);
+    // numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> mg(n_dec, scal_bc,
+    // csts);
 
-    /*
     auto U = numPDE::make_vector_field<Real, 3>(n_dec.dimsWithGhosts());
     auto P = numPDE::make_scalar_field<Real, 3>(n_dec.dimsWithGhosts());
 
-    pSolve_1.pressure_correct(U, P, csts.dt, false);
-        enum class fill_meth
-        {
-            random,
-            sincos,
-            dumb
-        };
-        fill_meth fill = fill_meth::sincos;
+    enum class fill_meth
+    {
+        random,
+        sincos,
+        dumb
+    };
+    fill_meth fill = fill_meth::sincos;
 
-        if(fill == fill_meth::random)
-            fill_random(U);
+    if (fill == fill_meth::random) fill_random(U);
 
-        if(fill == fill_meth::dumb)
-         fill_irrot_field(U);
+    if (fill == fill_meth::dumb) fill_irrot_field(U);
 
-        auto v_u_ex = [](const std::vector<Real>& pos, const size_t& l)
-        {
-            const auto& x = pos[0];
-            const auto& y = pos[1];
-            const auto& z = pos[2];
-            using std::cos, std::sin;
-            if (l == 0) return cos(x) * sin(y) * cos(z);
-            if (l == 1) return cos(y) * sin(x) * cos(z);
-            if (l == 2) return 2 * sin(y) * sin(x) * sin(z);
-        };
-        if(fill == fill_meth::sincos)
-        {
+    auto v_u_ex = [](const std::vector<Real>& pos, const size_t& l)
+    {
+        const auto& x = pos[0];
+        const auto& y = pos[1];
+        const auto& z = pos[2];
+        using std::cos, std::sin;
+        if (l == 0) return cos(x) * sin(y) * cos(z);
+        if (l == 1) return cos(y) * sin(x) * cos(z);
+        if (l == 2) return 2 * sin(y) * sin(x) * sin(z);
+    };
+    if (fill == fill_meth::sincos)
+    {
         for (auto [k, j, i] : U.all_elems())
         {
             auto              xsrt = n_dec.xStart();
@@ -185,27 +180,26 @@ int main(int argc, char* argv[])
                 pos[l] -= csts.h * 0.5;
             }
         }
-        }
 
         auto ris = check_divergence(U, csts.h);
         if (!n_dec.rank()) std::cout << "\nL2 err : " << ris.L2 << " Linf : " << ris.Linf;
         U = pseudo_ts(U, csts);
         n_dec.exchange_ghosts(U);
+    }
 
+    auto post_ts = check_divergence(U, csts.h);
+    if (!n_dec.rank()) std::cout << "\nL2 err : " << post_ts.L2 << " Linf : " << post_ts.Linf;
 
-        auto post_ts = check_divergence(U, csts.h);
-        if (!n_dec.rank()) std::cout << "\nL2 err : " << post_ts.L2 << " Linf : " << post_ts.Linf;
+    // mg.pressure_correct(U, P, csts.dt, false);
+    fft.pressure_correct(U, P, csts.dt, false);
 
-     pSolve_3.pressure_correct(U, P, csts.dt, false);
+    auto after_pcorr = check_divergence(U, csts.h);
+    if (!n_dec.rank())
+        std::cout << "\nL2 err : " << after_pcorr.L2 << " Linf : " << after_pcorr.Linf;
 
-      auto after_pcorr = check_divergence(U, csts.h);
-      if (!n_dec.rank()) std::cout << "\nL2 err : " << after_pcorr.L2 << " Linf : " <<
-      after_pcorr.Linf;
+    auto l2   = after_pcorr.L2 / (post_ts.L2);
+    auto linf = after_pcorr.Linf / (post_ts.Linf);
 
-      auto l2 = 100*(after_pcorr.L2 - post_ts.L2) / after_pcorr.L2;
-      auto linf = 100*(after_pcorr.Linf - post_ts.Linf) / after_pcorr.Linf;
-
-      if (!n_dec.rank()) std::cout << "\n(1 - pre/post) L2 : " << l2 << "% Linf : " << linf <<
-      "%"; return 0;
-        */
+    if (!n_dec.rank()) std::cout << "\n(post / pre) L2 : " << l2 << " Linf : " << linf << " ";
+    return 0;
 }

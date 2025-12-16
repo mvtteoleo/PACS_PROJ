@@ -78,7 +78,7 @@ void print_vals(T& decomp)
             /// std::boolalpha /            << is_side(numPDE::SIDES::NORTH, decomp); /  std::cout
             /// <<
             ///"\nIs WEST   : " << std::boolalpha << is_side(numPDE::SIDES::WEST, decomp); /
-            ///std::cout
+            /// std::cout
             ///<< "\nIs TOP    : " << std::boolalpha << is_side(numPDE::SIDES::TOP, decomp);
 
             ////  std::cout << std::endl;

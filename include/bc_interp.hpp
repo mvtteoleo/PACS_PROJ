@@ -19,7 +19,7 @@ namespace numPDE
      * Coefficents to feed to PETSc for the Neumann BC case
      * For the Dirichlet just impose the value...
      */
-    template <size_t appr_ord, typename T>
+    template <size_t appr_ord = g_appr_ord, typename T>
     consteval auto get_appr_coeffs_neu()
     {
         struct InterpData
