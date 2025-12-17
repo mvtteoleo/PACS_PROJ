@@ -83,7 +83,7 @@ namespace numPDE
 
         MPI_Barrier(MPI_COMM_WORLD);
 
-         print_vals<Decomp>(r_dec);
+        print_vals<Decomp>(r_dec);
 
         if constexpr (std::is_same_v<Decomp, PETScDecomp<>>)
         {
@@ -115,9 +115,9 @@ namespace numPDE
             int top    = ranks[22];
             MPI_Barrier(MPI_COMM_WORLD);
             MPI_Barrier(MPI_COMM_WORLD);
-                if (r_dec.rank() == r)
-                    printf("Rank : %d | X ( %d, %d, %d)  | T %d , B %d, R %d, L %d |\n", r, xs, ys,
-               zs, top, bottom, right, left);
+            if (r_dec.rank() == r)
+                printf("Rank : %d | X ( %d, %d, %d)  | T %d , B %d, R %d, L %d |\n", r, xs, ys, zs,
+                       top, bottom, right, left);
         }
     }
 

@@ -48,10 +48,10 @@ namespace numPDE
         DMDAVecGetArray(this->da, this->x_h, &solution);
         // WRITE THE SOLUTION ON THE LOCAL TENSOR
         // Check the consistency
-     
+
         for (const auto [k, j, i] : this->m_P_loc.int_elems())
         {
-     
+
             const auto kg    = k + zs - 1;
             const auto jg    = j + ys - 1;
             const auto ig    = i + xs - 1;
@@ -63,18 +63,18 @@ namespace numPDE
         this->r_dec.exchange_ghosts(m_P_loc);
 
         this->extrapolate_div_on_side();
-        
-        for(const auto [k, j, i] : V.int_elems())
+
+        for (const auto [k, j, i] : V.int_elems())
         {
-            const auto dP = grad(m_P_loc, i, j, k, h);
-            V.at(0, i, j, k)    = V.at(0, i, j, k) - dt_step * dP[0];
-            V.at(1, i, j, k)    = V.at(1, i, j, k) - dt_step * dP[1];
-            V.at(2, i, j, k)    = V.at(2, i, j, k) - dt_step * dP[2];
+            const auto dP    = grad(m_P_loc, i, j, k, h);
+            V.at(0, i, j, k) = V.at(0, i, j, k) - dt_step * dP[0];
+            V.at(1, i, j, k) = V.at(1, i, j, k) - dt_step * dP[1];
+            V.at(2, i, j, k) = V.at(2, i, j, k) - dt_step * dP[2];
         }
-            
+
         this->r_dec.exchange_ghosts(V);
-        
-        P = P  + m_P_loc;
+
+        P = P + m_P_loc;
     }
 
     template <DecomposeConc Decomp>
@@ -83,9 +83,9 @@ namespace numPDE
         constexpr auto cfs = get_appr_coeffs_neu<g_appr_ord, typename Decomp::value_type>();
 
         const auto [nx, ny, nz] = m_P_loc.get_sizes();
-        const auto i_range       = std::views::iota(size_t{1}, size_t{nx - 1});
-        const auto j_range       = std::views::iota(size_t{1}, size_t{ny - 1});
-        const auto k_range       = std::views::iota(size_t{1}, size_t{nz - 1});
+        const auto i_range      = std::views::iota(size_t{1}, size_t{nx - 1});
+        const auto j_range      = std::views::iota(size_t{1}, size_t{ny - 1});
+        const auto k_range      = std::views::iota(size_t{1}, size_t{nz - 1});
 
         if (is_side(SIDES::TOP, this->r_dec))
         {
@@ -122,7 +122,7 @@ namespace numPDE
 
         if (is_side(SIDES::WEST, this->r_dec))
         {
-            const auto j = ny-1;
+            const auto j = ny - 1;
             for (const auto k : k_range)
                 for (const auto i : i_range)
                 {
@@ -131,7 +131,7 @@ namespace numPDE
                         m_P_loc(i, j, k) += cfs.v[el] * m_P_loc(i, j - el - 1, k);
                 }
         }
-        
+
         // SIDE SOUTH
         {
             constexpr auto i = 0;
@@ -140,19 +140,19 @@ namespace numPDE
                 {
                     m_P_loc(i, j, k) = 0.;
                     for (auto el = 0; el < g_appr_ord; ++el)
-                        m_P_loc(i, j, k) += cfs.v[el] * m_P_loc(i + el +1, j, k);
+                        m_P_loc(i, j, k) += cfs.v[el] * m_P_loc(i + el + 1, j, k);
                 }
         }
 
         // SIDE NORTH
         {
-            const auto i = nx-1;
+            const auto i = nx - 1;
             for (const auto k : k_range)
                 for (const auto j : j_range)
                 {
                     m_P_loc(i, j, k) = 0.;
                     for (auto el = 0; el < g_appr_ord; ++el)
-                        m_P_loc(i, j, k) += cfs.v[el] * m_P_loc(i - el -1, j, k);
+                        m_P_loc(i, j, k) += cfs.v[el] * m_P_loc(i - el - 1, j, k);
                 }
         }
     }

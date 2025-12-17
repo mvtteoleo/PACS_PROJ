@@ -23,8 +23,8 @@ namespace numPDE
     };
 
     template <typename T>
-    inline numPDE::MyVec<T> grad(const ScalF<T>& p, const size_t& i, const size_t& j, const size_t& k,
-                          const T& h)
+    inline numPDE::MyVec<T> grad(const ScalF<T>& p, const size_t& i, const size_t& j,
+                                 const size_t& k, const T& h)
     {
         T dp_dx = (p(i + 1, j, k) - p(i, j, k)) / h;
         T dp_dy = (p(i, j + 1, k) - p(i, j, k)) / h;
@@ -32,37 +32,38 @@ namespace numPDE
         return {dp_dx, dp_dy, dp_dz};
     };
 
-template <typename T>
-inline numPDE::MyVec<T, 3> predictor_f(const VecF<T>& h_U, const size_t& i, const size_t& j, const size_t& k,
-                                    const Constants<T>& r_cstns)
-{
-    const auto& h  = r_cstns.h;
-    const auto& Re = r_cstns.Re;
-    
-    numPDE::MyVec<T, 3> U_x, U_y, U_z, dU_dx, dU_dy, dU_dz, lap, Conv, ris;
+    template <typename T>
+    inline numPDE::MyVec<T, 3> predictor_f(const VecF<T>& h_U, const size_t& i, const size_t& j,
+                                           const size_t& k, const Constants<T>& r_cstns)
+    {
+        const auto& h  = r_cstns.h;
+        const auto& Re = r_cstns.Re;
 
-    auto get_proxy = [&](size_t x, size_t y, size_t z) {
-        auto sp = h_U(x, y, z); 
-        return numPDE::ElementProxy<T, 3, true>(sp.data(), 3);
-    };
+        numPDE::MyVec<T, 3> U_x, U_y, U_z, dU_dx, dU_dy, dU_dz, lap, Conv, ris;
 
-    auto C   = get_proxy(i, j, k);     // center 
-    auto E   = get_proxy(i + 1, j, k); // east
-    auto W   = get_proxy(i - 1, j, k); // west
-    auto N   = get_proxy(i, j + 1, k); // north
-    auto S   = get_proxy(i, j - 1, k); // south
-    auto Top = get_proxy(i, j, k + 1); // top
-    auto B   = get_proxy(i, j, k - 1); // bottom
+        // Evil lambda to enforce the constant ElementProxy return.
+        auto get_proxy = [&](size_t x, size_t y, size_t z)
+        {
+            auto sp = h_U(x, y, z);
+            return numPDE::ElementProxy<T, 3, true>(sp.data(), 3);
+        };
 
-    const auto& NW = h_U.at(0, i - 1, j + 1, k);
-    const auto& SE = h_U.at(1, i + 1, j - 1, k);
-    const auto& WT = h_U.at(0, i - 1, j, k + 1);
-    const auto& EB = h_U.at(2, i + 1, j, k - 1);
-    const auto& NB = h_U.at(2, i, j + 1, k - 1);
-    const auto& ST = h_U.at(1, i, j - 1, k + 1);
+        auto C   = get_proxy(i, j, k);     // center
+        auto E   = get_proxy(i + 1, j, k); // east
+        auto W   = get_proxy(i - 1, j, k); // west
+        auto N   = get_proxy(i, j + 1, k); // north
+        auto S   = get_proxy(i, j - 1, k); // south
+        auto Top = get_proxy(i, j, k + 1); // top
+        auto B   = get_proxy(i, j, k - 1); // bottom
+
+        const auto& NW = h_U.at(0, i - 1, j + 1, k);
+        const auto& SE = h_U.at(1, i + 1, j - 1, k);
+        const auto& WT = h_U.at(0, i - 1, j, k + 1);
+        const auto& EB = h_U.at(2, i + 1, j, k - 1);
+        const auto& NB = h_U.at(2, i, j + 1, k - 1);
+        const auto& ST = h_U.at(1, i, j - 1, k + 1);
 
         lap = (E + W + N + S + Top + B - 6.0 * C) / (4 * h * h * Re);
-
 
         // Approximate U on x
         U_x[0] = C[0];
@@ -79,7 +80,6 @@ inline numPDE::MyVec<T, 3> predictor_f(const VecF<T>& h_U, const size_t& i, cons
         U_z[1] = 0.25 * (C[1] + S[1] + Top[1] + ST);
         U_z[2] = C[2];
 
-
         dU_dx = (E - W) / (2 * h);
         dU_dy = (N - S) / (2 * h);
         dU_dz = (Top - B) / (2 * h);
@@ -91,7 +91,7 @@ inline numPDE::MyVec<T, 3> predictor_f(const VecF<T>& h_U, const size_t& i, cons
 
         ris = lap / Re - Conv;
 
-        return ris; 
-}
+        return ris;
+    }
 
 }; // namespace numPDE

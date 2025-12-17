@@ -88,7 +88,6 @@ namespace numPDE
         T T_max{1};
     };
 
-
 } // namespace numPDE
 
 template <typename ENUM>
@@ -129,4 +128,3 @@ bool is_side(numPDE::SIDES const side, COMM const& r_dec)
             return false;
     }
 };
-

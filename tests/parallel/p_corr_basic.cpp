@@ -135,9 +135,11 @@ int main(int argc, char* argv[])
     csts.Re = 1;
     csts.dt = csts.h * csts.h * 0.001;
 
-    // numPDE::PressureSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> fft(p_dec, scal_bc, csts);
+    // numPDE::PressureSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> fft(p_dec, scal_bc,
+    // csts);
 
-    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> mg(p_dec, scal_bc, csts);
+    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> mg(p_dec, scal_bc,
+                                                                                 csts);
 
     auto U = numPDE::make_vector_field<Real, 3>(p_dec.dimsWithGhosts());
     auto P = numPDE::make_scalar_field<Real, 3>(p_dec.dimsWithGhosts());

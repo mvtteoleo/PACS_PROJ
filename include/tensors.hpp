@@ -40,9 +40,13 @@ namespace numPDE
       public:
         using Small_vec  = std::array<size_t, RANK>;
         using value_type = T;
-        ~Tensor()        = default;
 
-        Tensor() = default;
+        Tensor()                             = default;
+        Tensor(const Tensor&)                = default;
+        Tensor(Tensor&&) noexcept            = default;
+        Tensor& operator=(const Tensor&)     = default;
+        Tensor& operator=(Tensor&&) noexcept = default;
+        ~Tensor()                            = default;
 
         // -----------------------------//
         // *****   CONSTRUCTORS   ***** //

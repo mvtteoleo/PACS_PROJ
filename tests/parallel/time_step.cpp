@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
     inputs.constants.dt    = dt;
     inputs.constants.T_max = Tmax;
 
-    constexpr auto pSolvePolicy = numPDE::SolvePolicy::Fourier;
+    constexpr auto                                  pSolvePolicy = numPDE::SolvePolicy::Fourier;
     numPDE::NSSolver<pSolvePolicy, NewDecomp<Real>> ns(decomposer, inputs);
 
     ns.solve();
