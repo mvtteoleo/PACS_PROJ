@@ -3,6 +3,7 @@
 #include "poisson_solver.hpp"
 #include "staggered_operators.hpp"
 #include "tensors.hpp"
+#include "time_stepper.hpp"
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -424,31 +425,89 @@ namespace numPDE
 
 namespace numPDE
 {
-
-    template <typename T>
-    struct RKOptCoeffs
-    {
-        const T a21 = 64.0 / 120.0, a31 = 0.25, a32 = 5.0 / 12.0;
-        const T c1 = a21, c2 = 2.0 / 3.0, b3 = 0.75;
-        T       t = 0;
-    };
-
     template <SolvePolicy solveP, DecomposeConc Decomp>
     struct NSSolver
     {
         using T = Decomp::type_value;
+        using type_solve = Tensor<T, 4, 3, TypeIndex::ROW_MAJOR>;
+
         Decomp&                        r_dec;
         PressureSolver<solveP, Decomp> pSolve;
         NS_input<T>&                   r_inps;
+        // Latest timestep solution tensors
+        type_solve m_V;
+        RKStepper<type_solve> stepper;
+
+        bool m_verbose = false;
+        Tensor<T, 3, 3, TypeIndex::ROW_MAJOR> m_P;
 
         NSSolver(Decomp& dec, NS_input<T> inp)
-            : r_dec(dec), pSolve(dec, inp.p_BC, inp.constants), r_inps(inp)
+            : r_dec(dec), pSolve(dec, inp.p_BC, inp.constants), r_inps(inp),
+              m_P(dec.dimsWithGhosts()), m_V(numPDE::make_vector_field(dec.dimsWithGhosts())),
+                stepper(m_V)
         {
         }
+        
+        // Returns a deep copy of the m_V object
+        auto get_x() const { return m_V;};
+        
+        auto solve(bool verbose=false)
+        {
+            while( stepper.coeffs.t < r_inps.constants.T_max)
+            {
+                // TODO 
+                //   - ADD CHECKS ON DT
+                //   - Log time and error once in a while 
+                //   - Check the exchange of sides
+              
+                // Applies BC to m_V (Enforces U_new on ∂Ω)
+                // Computes intermediate steps and writes on m_V and m_P the latest solution
+                // Calls pseudoTS !!
+                stepper.advance();
+            }
+        }
+        
+        // Predictor + Corrector -> Returns VecF with the new U and ScalF with the New P
+        void pseudoTS(type_solve &Buff, type_solve &Un, T dt_step, T a=1.0)
+        {
+            const auto& h = r_inps.constants.h;
+            const auto adt = a*dt_step;
+            
+            for(const auto [k, j, i] : m_U.int_elems())
+            {
+                m_U(i, j, k) = Buff(i, j, k) + adt * predictor_f(Un, i, j, k, r_cstns) -
+                               dt_step * (grad(Pn, i, j, k, h) /*+ r_inps.v_BC.f(pos)*/);
+            }
+            
+            r_dec.exchange_ghosts(m_V);
 
-        // Apply BC
-        // Compute forcing term
-        // Timestep
+            pSolve.pressure_correct(m_V, m_P, dt_step, this->m_verbose);
+        }   
+
+        void pseudoTS(type_solve &Buff, T dt_step, T a)
+        {
+            const auto& h = r_inps.constants.h;
+            const auto adt = d * dt_step;
+            for(const auto [k, j, i] : m_U.int_elems())
+            {
+                m_V(i, j, k) = m_V(i, j, k) + adt * Buff(i, j, k) - dt_step * (grad(Pn, i, j, k, h) /*+ r_inps.v_BC.f(pos)*/);
+            }
+            
+            r_dec.exchange_ghosts(m_V);
+
+            pSolve.pressure_correct(m_V, m_P, dt_step, this->m_verbose);
+        }         
+        
+        type_solve compute_buff_init(type_solve& U)
+        {
+            type_solve Buff{U};
+            for(const auto [k, j, i] : U.int_elems())
+                Buff(i, j, k) = predictor_f(Un, i, j, k, r_cstns);
+            // Exchange sides of the BUFF
+            r_dec.exchange_ghosts(Buff);
+        }
+        // Applies the BC for the velocity on m_V
+        void apply_bc();
     };
 
 #include "impl/ns_impl.hpp"

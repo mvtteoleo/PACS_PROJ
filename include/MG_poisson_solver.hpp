@@ -79,7 +79,7 @@ namespace numPDE
         Constants<T>& r_const;
     };
 
-    auto _range(PetscInt s, PetscInt m) noexcept { return std::views::iota(s, s + m); }
+    auto _range(PetscInt s, PetscInt m) noexcept { return std::views::iota(size_t{s}, size_t{s + m}); }
     struct MGSideInfo
     {
         BC bc;

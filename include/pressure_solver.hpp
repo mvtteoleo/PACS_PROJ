@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pde_helper.hpp"
 #include "poisson_solver.hpp"
 #include "staggered_operators.hpp"
 #include "tensors.hpp"
@@ -53,25 +54,24 @@ namespace numPDE
         using T = Decomp::type_value;
 
         PressureSolver(Decomp& decomp, ScalarBC<T>& Bcs, Constants<T>& constants)
-            : MultiGridPoissonSolver<Decomp>(decomp, Bcs, constants)
+            : MultiGridPoissonSolver<Decomp>(decomp, Bcs, constants),
+              m_P_loc(decomp.dimsWithGhosts())
         {
 
             PetscScalar reltol{1e-8};
-            PetscScalar abstol{1e-10};
+            PetscScalar abstol{1e-9};
             auto        maxits{5e2};
             this->MG_solver = true;
             KSPSetTolerances(this->ksp, reltol, abstol, PETSC_DEFAULT, maxits);
-            DMCreateLocalVector(this->da, &m_P_loc);
         };
-
-        ~PressureSolver() { VecDestroy(&m_P_loc); };
 
         void pressure_correct(Tensor<T, 4, 3, TypeIndex::ROW_MAJOR>& V,
                               Tensor<T, 3, 3, TypeIndex::ROW_MAJOR>& P, const T dt_step,
                               bool verbose = false);
 
       protected:
-        Vec m_P_loc;
+        numPDE::Tensor<T, 3, 3, TypeIndex::ROW_MAJOR> m_P_loc;
+        void                                          extrapolate_div_on_side();
     };
 
 }; // namespace numPDE

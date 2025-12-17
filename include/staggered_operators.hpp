@@ -14,7 +14,7 @@ namespace numPDE
     using VecF = numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>;
 
     template <typename T>
-    auto div(const VecF<T>& u, const size_t& i, const size_t& j, const size_t& k, const T& h)
+    inline T div(const VecF<T>& u, const size_t& i, const size_t& j, const size_t& k, const T& h)
     {
         T du_dx = (u.at(0, i, j, k) - u.at(0, i - 1, j, k)) / h;
         T dv_dy = (u.at(1, i, j, k) - u.at(1, i, j - 1, k)) / h;
@@ -23,7 +23,7 @@ namespace numPDE
     };
 
     template <typename T>
-    numPDE::MyVec<T> grad(const ScalF<T>& p, const size_t& i, const size_t& j, const size_t& k,
+    inline numPDE::MyVec<T> grad(const ScalF<T>& p, const size_t& i, const size_t& j, const size_t& k,
                           const T& h)
     {
         T dp_dx = (p(i + 1, j, k) - p(i, j, k)) / h;
@@ -33,7 +33,7 @@ namespace numPDE
     };
 
     template <typename T>
-    numPDE::MyVec<T, 3> predictor_f(VecF<T>& h_U, const size_t& i, const size_t& j, const size_t& k,
+    inline numPDE::MyVec<T, 3> predictor_f(VecF<T>& h_U, const size_t& i, const size_t& j, const size_t& k,
                                     const Constants<T>& r_cstns)
     {
 
