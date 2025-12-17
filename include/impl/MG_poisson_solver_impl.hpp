@@ -83,7 +83,7 @@ namespace numPDE
 
         MPI_Barrier(MPI_COMM_WORLD);
 
-        print_vals<Decomp>(r_dec);
+        // print_vals<Decomp>(r_dec);
 
         if constexpr (std::is_same_v<Decomp, PETScDecomp<>>)
         {
@@ -94,8 +94,8 @@ namespace numPDE
         if constexpr (std::is_same_v<Decomp, NewDecomp<>>)
         {
             ierr = DMDACreate3d(r_dec.get_cart_comm(), DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED,
-                                DM_BOUNDARY_GHOSTED, DMDA_STENCIL_BOX, NxLoc, NzLoc, NyLoc, 1, pz,
-                                py, 1, 2, lx.data(), lz.data(), ly.data(), &this->da);
+                                DM_BOUNDARY_GHOSTED, DMDA_STENCIL_BOX, NxLoc, NzLoc, NyLoc, 1, py,
+                                pz, 1, 2, lx.data(), ly.data(), lz.data(), &this->da);
         }
         DMSetUp(this->da);
         MPI_Barrier(MPI_COMM_WORLD);
@@ -113,11 +113,21 @@ namespace numPDE
             int right  = ranks[16];
             int bottom = ranks[4];
             int top    = ranks[22];
+            const auto neigs = r_dec.get_neighbors();
+
+            // Ensure that the Decomposition is coherent
+            assert( top == neigs[neighbour_directions::TOP])
+            assert( bottom == neigs[neighbour_directions::BOTTOM])
+            assert( left == neigs[neighbour_directions::LEFT])
+            assert( right == neigs[neighbour_directions::RIGHT])
+
             MPI_Barrier(MPI_COMM_WORLD);
             MPI_Barrier(MPI_COMM_WORLD);
+        /*
             if (r_dec.rank() == r)
                 printf("Rank : %d | X ( %d, %d, %d)  | T %d , B %d, R %d, L %d |\n", r, xs, ys, zs,
                        top, bottom, right, left);
+             */
         }
     }
 
