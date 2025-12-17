@@ -27,7 +27,7 @@ namespace numPDE
     template <typename U>
     struct PressureSolver<SolvePolicy::Fourier, NewDecomp<U>> : FastPoissonSolver<U>
     {
-        using T = typename NewDecomp<U>::type_value;
+        using T = typename NewDecomp<U>::value_type;
 
         PressureSolver(NewDecomp<U>& decomp, ScalarBC<U>& Bcs, Constants<U>& constants)
             : FastPoissonSolver<U>(decomp, Bcs, constants), m_P_ghosted(decomp.dimsWithGhosts()){};
@@ -51,7 +51,7 @@ namespace numPDE
     template <DecomposeConc Decomp>
     struct PressureSolver<SolvePolicy::MultiGrid, Decomp> : MultiGridPoissonSolver<Decomp>
     {
-        using T = Decomp::type_value;
+        using T = Decomp::value_type;
 
         PressureSolver(Decomp& decomp, ScalarBC<T>& Bcs, Constants<T>& constants)
             : MultiGridPoissonSolver<Decomp>(decomp, Bcs, constants),

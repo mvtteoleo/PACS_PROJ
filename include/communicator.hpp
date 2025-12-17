@@ -31,7 +31,7 @@ class Communicator
     bool m_owns_mpi_lifecycle = true;
 
   public:
-    using type_value = T;
+    using value_type = T;
     Communicator(int argc, char** argv);
 
     ~Communicator();

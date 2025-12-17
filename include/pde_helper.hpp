@@ -88,14 +88,6 @@ namespace numPDE
         T T_max{1};
     };
 
-    template <typename T>
-    struct RKOptCoeffs
-    {
-        const T a21 = 64.0 / 120.0, a31 = 0.25, a32 = 5.0 / 12.0;
-        const T c1 = a21, c2 = 2.0 / 3.0, b3 = 0.75;
-        T       t = 0;
-    };
-
 
 } // namespace numPDE
 

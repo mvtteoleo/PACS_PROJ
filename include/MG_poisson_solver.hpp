@@ -21,8 +21,8 @@ namespace numPDE
     class MultiGridPoissonSolver
     {
       public:
-        using T          = Decomp::type_value;
-        using type_value = T;
+        using T          = Decomp::value_type;
+        using value_type = T;
 
         // Type alias, going to be substituted by the Concept ASAP
         MultiGridPoissonSolver(Decomp& decomp, numPDE::ScalarBC<T>& Bcs,

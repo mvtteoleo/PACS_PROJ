@@ -135,13 +135,12 @@ int main(int argc, char* argv[])
     csts.Re = 1;
     csts.dt = csts.h * csts.h * 0.001;
 
-    numPDE::PressureSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> fft(n_dec, scal_bc, csts);
+    // numPDE::PressureSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> fft(p_dec, scal_bc, csts);
 
-    // numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> mg(n_dec, scal_bc,
-    // csts);
+    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> mg(p_dec, scal_bc, csts);
 
-    auto U = numPDE::make_vector_field<Real, 3>(n_dec.dimsWithGhosts());
-    auto P = numPDE::make_scalar_field<Real, 3>(n_dec.dimsWithGhosts());
+    auto U = numPDE::make_vector_field<Real, 3>(p_dec.dimsWithGhosts());
+    auto P = numPDE::make_scalar_field<Real, 3>(p_dec.dimsWithGhosts());
 
     enum class fill_meth
     {
@@ -169,7 +168,7 @@ int main(int argc, char* argv[])
     {
         for (auto [k, j, i] : U.all_elems())
         {
-            auto              xsrt = n_dec.xStart();
+            auto              xsrt = p_dec.xStartWGhosts();
             std::vector<Real> pos  = {csts.h * (i + xsrt[0]), csts.h * (j + xsrt[1]),
                                       csts.h * (k + xsrt[2])};
 
@@ -182,24 +181,24 @@ int main(int argc, char* argv[])
         }
 
         auto ris = check_divergence(U, csts.h);
-        if (!n_dec.rank()) std::cout << "\nL2 err : " << ris.L2 << " Linf : " << ris.Linf;
+        if (!p_dec.rank()) std::cout << "\nL2 err : " << ris.L2 << " Linf : " << ris.Linf;
         U = pseudo_ts(U, csts);
-        n_dec.exchange_ghosts(U);
+        p_dec.exchange_ghosts(U);
     }
 
-    auto post_ts = check_divergence(U, csts.h);
-    if (!n_dec.rank()) std::cout << "\nL2 err : " << post_ts.L2 << " Linf : " << post_ts.Linf;
+    auto pre_pcorr = check_divergence(U, csts.h);
+    if (!p_dec.rank()) std::cout << "\nL2 err : " << pre_pcorr.L2 << " Linf : " << pre_pcorr.Linf;
 
-    // mg.pressure_correct(U, P, csts.dt, false);
-    fft.pressure_correct(U, P, csts.dt, false);
+    mg.pressure_correct(U, P, csts.dt, true);
+    // fft.pressure_correct(U, P, csts.dt, false);
 
     auto after_pcorr = check_divergence(U, csts.h);
-    if (!n_dec.rank())
+    if (!p_dec.rank())
         std::cout << "\nL2 err : " << after_pcorr.L2 << " Linf : " << after_pcorr.Linf;
 
-    auto l2   = after_pcorr.L2 / (post_ts.L2);
-    auto linf = after_pcorr.Linf / (post_ts.Linf);
+    auto l2   = after_pcorr.L2 / (pre_pcorr.L2);
+    auto linf = after_pcorr.Linf / (pre_pcorr.Linf);
 
-    if (!n_dec.rank()) std::cout << "\n(post / pre) L2 : " << l2 << " Linf : " << linf << " ";
+    if (!p_dec.rank()) std::cout << "\n(post / pre) L2 : " << l2 << " Linf : " << linf << " ";
     return 0;
 }

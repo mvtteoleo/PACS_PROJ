@@ -16,7 +16,7 @@ namespace numPDE
     class FastPoissonSolver
     {
       public:
-        using type_value = T;
+        using value_type = T;
 
         FastPoissonSolver(NewDecomp<T>& decomp, ScalarBC<T>& Bcs, Constants<T>& constants);
         ~FastPoissonSolver();

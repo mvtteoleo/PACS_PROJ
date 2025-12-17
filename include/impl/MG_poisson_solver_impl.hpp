@@ -8,8 +8,8 @@ namespace numPDE
 {
     template <DecomposeConc Decomp>
     MultiGridPoissonSolver<Decomp>::MultiGridPoissonSolver(
-        Decomp& decomp, numPDE::ScalarBC<typename Decomp::type_value>& Bcs,
-        numPDE::Constants<typename Decomp::type_value>& constants)
+        Decomp& decomp, numPDE::ScalarBC<typename Decomp::value_type>& Bcs,
+        numPDE::Constants<typename Decomp::value_type>& constants)
         : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
     {
         this->build_local_dm();
@@ -83,7 +83,7 @@ namespace numPDE
 
         MPI_Barrier(MPI_COMM_WORLD);
 
-        // print_vals<Decomp>(r_dec);
+         print_vals<Decomp>(r_dec);
 
         if constexpr (std::is_same_v<Decomp, PETScDecomp<>>)
         {
@@ -115,11 +115,9 @@ namespace numPDE
             int top    = ranks[22];
             MPI_Barrier(MPI_COMM_WORLD);
             MPI_Barrier(MPI_COMM_WORLD);
-            /*
                 if (r_dec.rank() == r)
                     printf("Rank : %d | X ( %d, %d, %d)  | T %d , B %d, R %d, L %d |\n", r, xs, ys,
                zs, top, bottom, right, left);
-                 */
         }
     }
 

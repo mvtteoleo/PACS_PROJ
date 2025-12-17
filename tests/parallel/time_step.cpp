@@ -2,8 +2,7 @@
 #include <functional>
 #include <utility>
 using Real = double;
-#include "../../include/MY_LIB.hpp"
-#include "../../include/poisson_solver.hpp"
+#include "../../include/navier_stokes.hpp"
 #include <climits>
 #include <cmath>
 #include <fftw3.h>
@@ -46,11 +45,10 @@ int main(int argc, char* argv[])
     inputs.constants.dt    = dt;
     inputs.constants.T_max = Tmax;
 
-    /*
-    numPDE::NS_problem<Real> ns(inputs, decomposer);
+    constexpr auto pSolvePolicy = numPDE::SolvePolicy::Fourier;
+    numPDE::NSSolver<pSolvePolicy, NewDecomp<Real>> ns(decomposer, inputs);
 
-    auto [V_new, P_new] = ns.solve(V, P);
-    */
+    ns.solve();
 
     return 0;
 }

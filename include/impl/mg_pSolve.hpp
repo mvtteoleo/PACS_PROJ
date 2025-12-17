@@ -9,9 +9,9 @@ namespace numPDE
 
     template <DecomposeConc Decomp>
     void PressureSolver<SolvePolicy::MultiGrid, Decomp>::pressure_correct(
-        Tensor<typename Decomp::type_value, 4, 3, TypeIndex::ROW_MAJOR>& V,
-        Tensor<typename Decomp::type_value, 3, 3, TypeIndex::ROW_MAJOR>& P,
-        const typename Decomp::type_value dt_step, bool verbose)
+        Tensor<typename Decomp::value_type, 4, 3, TypeIndex::ROW_MAJOR>& V,
+        Tensor<typename Decomp::value_type, 3, 3, TypeIndex::ROW_MAJOR>& P,
+        const typename Decomp::value_type dt_step, bool verbose)
     {
         // WRITE DIV ON B
         PetscScalar*** bAsTens;
@@ -80,7 +80,7 @@ namespace numPDE
     template <DecomposeConc Decomp>
     void PressureSolver<SolvePolicy::MultiGrid, Decomp>::extrapolate_div_on_side()
     {
-        constexpr auto cfs = get_appr_coeffs_neu<g_appr_ord, typename Decomp::type_value>();
+        constexpr auto cfs = get_appr_coeffs_neu<g_appr_ord, typename Decomp::value_type>();
 
         const auto [nx, ny, nz] = m_P_loc.get_sizes();
         const auto i_range       = std::views::iota(size_t{1}, size_t{nx - 1});
