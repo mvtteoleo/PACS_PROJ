@@ -92,9 +92,9 @@ int main(int argc, char* argv[])
         {1, 1, 1} //, {2, 1, 1}, {1, 2, 1}, {1, 1, 2} // Add as many as you like
     };
 
-    FunType exact_sol_harm = [&](const std::vector<Real>& pos) -> Real
+    FunType exact_sol_harm = [&](const numPDE::Node<Real>& pos) -> Real
     {
-        Real x = pos[0], y = pos[1], z = pos[2];
+        Real x = pos.x, y = pos.y, z = pos.z;
         Real sum = 0.0;
         for (auto [wx, wy, wz] : harmonics)
         {
@@ -104,9 +104,9 @@ int main(int argc, char* argv[])
         return sum;
     };
 
-    FunType forcing_harm = [&](const std::vector<Real>& pos) -> Real
+    FunType forcing_harm = [&](const numPDE::Node<Real>& pos) -> Real
     {
-        Real x = pos[0], y = pos[1], z = pos[2];
+        Real x = pos.x, y = pos.y, z = pos.z;
         Real sum = 0.0;
         for (auto [wx, wy, wz] : harmonics)
         {
@@ -120,16 +120,12 @@ int main(int argc, char* argv[])
         return sum;
     };
 
-    auto u_ex         = exact_sol_harm; //
-    auto forc         = forcing_harm;   //
-    scal_bc.BC_NORTH  = numPDE::NeuHomo;
-    scal_bc.BC_SOUTH  = numPDE::NeuHomo;
-    scal_bc.BC_EAST   = numPDE::NeuHomo;
-    scal_bc.BC_WEST   = numPDE::NeuHomo;
-    scal_bc.BC_TOP    = numPDE::NeuHomo;
-    scal_bc.BC_BOTTOM = numPDE::NeuHomo;
-    scal_bc.f         = forc;
-    scal_bc.u_ex      = u_ex;
+    auto u_ex = exact_sol_harm; //
+    auto forc = forcing_harm;   //
+    std::fill(scal_bc.g_s.begin(), scal_bc.g_s.end(), exact_sol_harm);
+    std::fill(scal_bc.BC_s.begin(), scal_bc.BC_s.end(), numPDE::DirHomo);
+    scal_bc.f    = forc;
+    scal_bc.u_ex = u_ex;
 
     csts.h  = L / (N - 1);
     csts.Re = 1;
@@ -156,29 +152,28 @@ int main(int argc, char* argv[])
 
     if (fill == fill_meth::dumb) fill_irrot_field(U);
 
-    auto v_u_ex = [](const std::vector<Real>& pos, const size_t& l)
+    auto v_u_ex = [&csts](const numPDE::Node<Real>& pos, const size_t& l)
     {
-        const auto& x = pos[0];
-        const auto& y = pos[1];
-        const auto& z = pos[2];
+        const auto& x = pos.x;
+        const auto& y = pos.y;
+        const auto& z = pos.z;
         using std::cos, std::sin;
-        if (l == 0) return cos(x) * sin(y) * cos(z);
-        if (l == 1) return cos(y) * sin(x) * cos(z);
-        if (l == 2) return 2 * sin(y) * sin(x) * sin(z);
+        if (l == 0) return cos(x + csts.h * 0.5) * sin(y) * cos(z);
+        if (l == 1) return cos(y + csts.h * 0.5) * sin(x) * cos(z);
+        if (l == 2) return 2 * sin(y) * sin(x) * sin(z + csts.h * 0.5);
     };
     if (fill == fill_meth::sincos)
     {
         for (auto [k, j, i] : U.all_elems())
         {
-            auto              xsrt = p_dec.xStartWGhosts();
-            std::vector<Real> pos  = {csts.h * (i + xsrt[0]), csts.h * (j + xsrt[1]),
-                                      csts.h * (k + xsrt[2])};
+            auto               xsrt = p_dec.xStartWGhosts();
+            numPDE::Node<Real> pos{.x = csts.h * (i + xsrt[0]),
+                                   .y = csts.h * (j + xsrt[1]),
+                                   .z = csts.h * (k + xsrt[2])};
 
             for (int l{}; l < 3; ++l)
             {
-                pos[l] += csts.h * 0.5;
                 U.at(l, i, j, k) = v_u_ex(pos, l);
-                pos[l] -= csts.h * 0.5;
             }
         }
 

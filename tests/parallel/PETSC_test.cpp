@@ -56,9 +56,9 @@ int main(int argc, char** argv)
     using FunType = numPDE::PressureBC<>::Function;
 
     // Polynomial exact solution
-    FunType exact_sol_poly = [=](const std::vector<Real>& pos) -> Real
+    FunType exact_sol_poly = [=](const numPDE::Node<Real>& pos) -> Real
     {
-        Real x = pos[0], y = pos[1], z = pos[2];
+        Real x = pos.x, y = pos.y, z = pos.z;
         Real Ax = x * x - Lx * x;
         Real By = y * y - Ly * y;
         Real Cz = z * z - Lz * z;
@@ -66,9 +66,9 @@ int main(int argc, char** argv)
     };
 
     // Corresponding forcing term
-    FunType forcing_poly = [=](const std::vector<Real>& pos) -> Real
+    FunType forcing_poly = [=](const numPDE::Node<Real>& pos) -> Real
     {
-        Real x = pos[0], y = pos[1], z = pos[2];
+        Real x = pos.x, y = pos.y, z = pos.z;
         Real Ax = x * x - Lx * x;
         Real By = y * y - Ly * y;
         Real Cz = z * z - Lz * z;
@@ -80,9 +80,9 @@ int main(int argc, char** argv)
         {1, 0, 0} //, {2, 1, 1}, {1, 2, 1}, {1, 1, 2} // Add as many as you like
     };
     // Cosine-based exact solution
-    FunType u_ex_harm = [&](const std::vector<Real>& pos) -> Real
+    FunType u_ex_harm = [&](const numPDE::Node<Real>& pos) -> Real
     {
-        Real x = pos[0], y = pos[1], z = pos[2];
+        Real x = pos.x, y = pos.y, z = pos.z;
         Real sum = 0.0;
 
         for (auto [wx, wy, wz] : harmonics)
@@ -95,9 +95,9 @@ int main(int argc, char** argv)
     };
 
     // Forcing term f(x,y,z) = -Δu
-    FunType forc_harm = [=](const std::vector<Real>& pos) -> Real
+    FunType forc_harm = [=](const numPDE::Node<Real>& pos) -> Real
     {
-        Real x = pos[0], y = pos[1], z = pos[2];
+        Real x = pos.x, y = pos.y, z = pos.z;
         Real sum = 0.0;
 
         for (const auto& [wx, wy, wz] : harmonics)
@@ -117,14 +117,14 @@ int main(int argc, char** argv)
     };
 
     // Generic manufactured solution (example)
-    FunType uex_GenDir = [](const std::vector<Real>& pos) -> Real
+    FunType uex_GenDir = [](const numPDE::Node<Real>& pos) -> Real
     {
-        Real x = pos[0], y = pos[1], z = pos[2];
+        Real x = pos.x, y = pos.y, z = pos.z;
         return x * x + y * y + z * z;
     };
 
     // Corresponding Laplacian or forcing term
-    FunType forc_GenDir = [](const std::vector<Real>& pos) -> Real
+    FunType forc_GenDir = [](const numPDE::Node<Real>& pos) -> Real
     {
         (void) pos; // silence unused var warning if not used
         return 6;
@@ -138,22 +138,11 @@ int main(int argc, char** argv)
     // ----------------------------------------------------------
     numPDE::PressureBC<Real> bc;
 
-    auto& g_    = u_ex; //[](std::vector<Real> const& pos) -> Real { return 0.1; };
-    bc.g_north  = g_;
-    bc.g_south  = g_;
-    bc.g_east   = g_;
-    bc.g_west   = g_;
-    bc.g_top    = g_;
-    bc.g_bottom = g_;
-
-    bc.BC_NORTH  = numPDE::NeuHomo;
-    bc.BC_SOUTH  = numPDE::NeuHomo;
-    bc.BC_EAST   = numPDE::NeuHomo;
-    bc.BC_WEST   = numPDE::NeuHomo;
-    bc.BC_TOP    = numPDE::NeuHomo;
-    bc.BC_BOTTOM = numPDE::NeuHomo;
-    bc.f         = forc;
-    bc.u_ex      = u_ex;
+    auto& g_ = u_ex; //[](numPDE::Node<Real> const& pos) -> Real { return 0.1; };
+    std::fill(bc.g_s.begin(), bc.g_s.end(), g_);
+    std::fill(bc.BC_s.begin(), bc.BC_s.end(), numPDE::NeuHomo);
+    bc.f    = forc;
+    bc.u_ex = u_ex;
 
     numPDE::Constants<Real> constants;
     constants.h = h;

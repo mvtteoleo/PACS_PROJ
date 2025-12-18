@@ -109,25 +109,25 @@ namespace numPDE
             const PetscInt* ranks;
             DMDAGetNeighbors(da, &ranks);
 
-            int left   = ranks[10];
-            int right  = ranks[16];
-            int bottom = ranks[4];
-            int top    = ranks[22];
-            const auto neigs = r_dec.get_neighbors();
+            int        left   = ranks[10];
+            int        right  = ranks[16];
+            int        bottom = ranks[4];
+            int        top    = ranks[22];
+            const auto neigs  = r_dec.get_neighbors();
 
             // Ensure that the Decomposition is coherent
-            assert( top == neigs[neighbour_directions::TOP])
-            assert( bottom == neigs[neighbour_directions::BOTTOM])
-            assert( left == neigs[neighbour_directions::LEFT])
-            assert( right == neigs[neighbour_directions::RIGHT])
-
+            assert(top == neigs[neighbour_directions::TOP]);
+            assert(bottom == neigs[neighbour_directions::BOTTOM]);
+            assert(left == neigs[neighbour_directions::LEFT]);
+            assert(right == neigs[neighbour_directions::RIGHT]);
+            ;
             MPI_Barrier(MPI_COMM_WORLD);
             MPI_Barrier(MPI_COMM_WORLD);
-        /*
-            if (r_dec.rank() == r)
-                printf("Rank : %d | X ( %d, %d, %d)  | T %d , B %d, R %d, L %d |\n", r, xs, ys, zs,
-                       top, bottom, right, left);
-             */
+            /*
+                if (r_dec.rank() == r)
+                    printf("Rank : %d | X ( %d, %d, %d)  | T %d , B %d, R %d, L %d |\n", r, xs, ys,
+               zs, top, bottom, right, left);
+                 */
         }
     }
 
@@ -191,17 +191,19 @@ namespace numPDE
         DMDAVecGetArray(this->da, this->b, &bAsTens);
         PetscInt xs, ys, zs, xm, ym, zm;
         DMDAGetCorners(this->da, &xs, &ys, &zs, &xm, &ym, &zm);
-        const T h = r_const.h;
+        const T h   = r_const.h;
+        const T h_2 = h * h;
 
+        numPDE::Node<T> pos{};
         for (PetscInt k = zs; k < zs + zm; ++k)
             for (PetscInt j = ys; j < ys + ym; ++j)
                 for (PetscInt i = xs; i < xs + xm; ++i)
                 {
                     // +1 due to restricted domain
-                    const T x        = h * (i + 1);
-                    const T y        = h * (j + 1);
-                    const T z        = h * (k + 1);
-                    bAsTens[k][j][i] = static_cast<PetscScalar>(r_BCs.f({x, y, z}) * h * h);
+                    pos.x            = h * (i + 1);
+                    pos.y            = h * (j + 1);
+                    pos.z            = h * (k + 1);
+                    bAsTens[k][j][i] = static_cast<PetscScalar>(r_BCs.f(pos) * h_2);
                 }
         DMDAVecRestoreArray(this->da, this->b, &bAsTens);
         VecAssemblyBegin(this->b);
@@ -385,9 +387,9 @@ namespace numPDE
                 for (auto j : info.j_range())
                     for (auto i : info.i_range())
                     {
-                        const auto pos = std::vector<T>{(i + info.offset[0]) * r_const.h,
-                                                        (j + info.offset[1]) * r_const.h,
-                                                        (k + info.offset[2]) * r_const.h};
+                        const numPDE::Node<T> pos{.x = (i + info.offset[0]) * r_const.h,
+                                                  .y = (j + info.offset[1]) * r_const.h,
+                                                  .z = (k + info.offset[2]) * r_const.h};
                         bAsTens[k][j][i] += scale * static_cast<PetscScalar>(info.fun(pos));
                     }
             DMDAVecRestoreArray(this->da, this->b, &bAsTens);
@@ -411,11 +413,11 @@ namespace numPDE
             for (PetscInt j = ys; j < ys + ym; ++j)
                 for (PetscInt i = xs; i < xs + xm; ++i)
                 {
-                    const auto pos   = std::vector<T>{h * (i + 1), h * (j + 1), h * (k + 1)};
-                    const auto exact = static_cast<PetscScalar>(r_BCs.u_ex(pos));
-                    const auto num   = x_hTens[k][j][i];
-                    const auto err   = std::abs(exact - num);
-                    x_hTens[k][j][i] = err;
+                    numPDE::Node<T> pos{.x = h * (i + 1), .y = h * (j + 1), .z = h * (k + 1)};
+                    const auto      exact = static_cast<PetscScalar>(r_BCs.u_ex(pos));
+                    const auto      num   = x_hTens[k][j][i];
+                    const auto      err   = std::abs(exact - num);
+                    x_hTens[k][j][i]      = err;
                 }
         DMDAVecRestoreArray(this->da, check, &x_hTens);
         VecAssemblyBegin(check);
@@ -482,8 +484,8 @@ namespace numPDE
         {
             info.xs        = nx - 3;
             info.xm        = 1;
-            info.bc        = r_BCs.BC_NORTH;
-            info.fun       = r_BCs.g_north;
+            info.bc        = r_BCs.BC_s[side];
+            info.fun       = r_BCs.g_s[side];
             info.offset[0] = 2;
             info.normal    = {-1, 0, 0};
         }
@@ -491,8 +493,8 @@ namespace numPDE
         {
             info.xs        = 0;
             info.xm        = 1;
-            info.bc        = r_BCs.BC_SOUTH;
-            info.fun       = r_BCs.g_south;
+            info.bc        = r_BCs.BC_s[side];
+            info.fun       = r_BCs.g_s[side];
             info.offset[0] = 0;
             info.normal    = {1, 0, 0};
         }
@@ -500,8 +502,8 @@ namespace numPDE
         {
             info.ys        = 0;
             info.ym        = 1;
-            info.bc        = r_BCs.BC_EAST;
-            info.fun       = r_BCs.g_east;
+            info.bc        = r_BCs.BC_s[side];
+            info.fun       = r_BCs.g_s[side];
             info.offset[1] = 0;
             info.normal    = {0, 1, 0};
         }
@@ -509,8 +511,8 @@ namespace numPDE
         {
             info.ys        = ny - 3;
             info.ym        = 1;
-            info.bc        = r_BCs.BC_WEST;
-            info.fun       = r_BCs.g_west;
+            info.bc        = r_BCs.BC_s[side];
+            info.fun       = r_BCs.g_s[side];
             info.offset[1] = 2;
             info.normal    = {0, -1, 0};
         }
@@ -518,8 +520,8 @@ namespace numPDE
         {
             info.zs        = nz - 3;
             info.zm        = 1;
-            info.bc        = r_BCs.BC_TOP;
-            info.fun       = r_BCs.g_top;
+            info.bc        = r_BCs.BC_s[side];
+            info.fun       = r_BCs.g_s[side];
             info.offset[2] = 2;
             info.normal    = {0, 0, -1};
         }
@@ -527,8 +529,8 @@ namespace numPDE
         {
             info.zs        = 0;
             info.zm        = 1;
-            info.bc        = r_BCs.BC_BOTTOM;
-            info.fun       = r_BCs.g_bottom;
+            info.bc        = r_BCs.BC_s[side];
+            info.fun       = r_BCs.g_s[side];
             info.offset[2] = 0;
             info.normal    = {0, 0, 1};
         }

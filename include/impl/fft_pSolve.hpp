@@ -227,10 +227,10 @@ namespace numPDE
                     assert(l == this->mo_P->get_linear_index(i, j, k) &&
                            "Error in the index computation");
 
-                    T              iG    = static_cast<T>(strt[0] + i);
-                    T              jG    = static_cast<T>(strt[1] + j);
-                    T              kG    = static_cast<T>(strt[2] + k);
-                    std::vector<T> pos   = {h * iG, h * jG, h * kG};
+                    const T               iG = static_cast<T>(strt[0] + i);
+                    const T               jG = static_cast<T>(strt[1] + j);
+                    const T               kG = static_cast<T>(strt[2] + k);
+                    const numPDE::Node<T> pos{.x = h * iG, .y = h * jG, .z = h * kG};
                     this->m_P_ghosted[l] = this->r_BCs.f(pos);
                 }
 

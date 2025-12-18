@@ -1,5 +1,6 @@
 #pragma once
 #include "decompose.hpp"
+#include "tensorExpressionTemplates.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -47,32 +48,29 @@ namespace numPDE
         Function f    = f_0<OT, IT>; // forcing term
         Function u_ex = f_0<OT, IT>; // exact solution
 
-        Function g_north  = f_0<OT, IT>;
-        Function g_south  = f_0<OT, IT>;
-        Function g_east   = f_0<OT, IT>;
-        Function g_west   = f_0<OT, IT>;
-        Function g_top    = f_0<OT, IT>;
-        Function g_bottom = f_0<OT, IT>;
+        std::array<Function, 6> g_s{f_0<OT, IT>, f_0<OT, IT>, f_0<OT, IT>,
+                                    f_0<OT, IT>, f_0<OT, IT>, f_0<OT, IT>};
 
-        BC BC_NORTH  = DirHomo;
-        BC BC_SOUTH  = DirHomo;
-        BC BC_EAST   = DirHomo;
-        BC BC_WEST   = DirHomo;
-        BC BC_TOP    = DirHomo;
-        BC BC_BOTTOM = DirHomo;
-
-        OT def_val{};
+        std::array<BC, 6> BC_s{DirHomo, DirHomo, DirHomo, DirHomo, DirHomo, DirHomo};
     };
 
-    // std::vectors in order to keep it generic and be safe in case of time dependence
-    // (Maybe a struct with x, y, z, t would be nice)
     template <typename T = double>
-    struct VelocityBC : generic_BC<std::vector<T>, std::vector<T>>
+    struct Node
+    {
+        T x;
+        T y;
+        T z;
+        T t;
+    };
+
+    // Using MyVec to leverage the Nice ET that took 1 month to do
+    template <typename T = double>
+    struct VelocityBC : generic_BC<numPDE::MyVec<T>, numPDE::Node<T>>
     {
     };
 
     template <typename T = double>
-    struct ScalarBC : generic_BC<T, std::vector<T>>
+    struct ScalarBC : generic_BC<T, numPDE::Node<T>>
     {
     };
 

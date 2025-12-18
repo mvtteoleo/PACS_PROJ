@@ -1,4 +1,4 @@
-#define TEST 0
+#define TEST 1
 #include "../../include/MY_LIB.hpp"
 #include "../../include/poisson_solver.hpp"
 #include <climits>
@@ -32,21 +32,21 @@ int main(int argc, char* argv[])
     // INITIALIZE MAIN/EXPOSED DATA STRUCTURES
     auto P = numPDE::make_scalar_field<Real, N_DIMS>(decomposer.xSize());
 
-    numPDE::PressureBC<> bc;
+    numPDE::PressureBC<> Bcs;
 
-    bc.BC_NORTH                = numPDE::NeuHomo;
-    bc.BC_SOUTH                = numPDE::NeuHomo;
-    bc.BC_EAST                 = numPDE::NeuHomo;
-    bc.BC_WEST                 = numPDE::NeuHomo;
-    bc.BC_TOP                  = numPDE::NeuHomo;
-    bc.BC_BOTTOM               = numPDE::NeuHomo;
+    Bcs.BC_NORTH               = numPDE::NeuHomo;
+    Bcs.BC_SOUTH               = numPDE::NeuHomo;
+    Bcs.BC_EAST                = numPDE::NeuHomo;
+    Bcs.BC_WEST                = numPDE::NeuHomo;
+    Bcs.BC_TOP                 = numPDE::NeuHomo;
+    Bcs.BC_BOTTOM              = numPDE::NeuHomo;
     Real                    Lx = 1; // 2*M_PI;
     Real                    h  = Lx / (nx - 1);
     Real                    Ly = h * (ny - 1), Lz = h * (nz - 1);
     numPDE::Constants<Real> csts;
     csts.h = h;
 
-    numPDE::FastPoissonSolver pSolver(decomposer, bc, csts);
+    numPDE::FastPoissonSolver pSolver(decomposer, Bcs, csts);
 
     auto exact = P;
     auto f     = P;
@@ -181,9 +181,9 @@ int main(int argc, char** argv)
     using FunType = numPDE::PressureBC<>::Function;
 
     // Polynomial exact solution
-    FunType exact_sol_poly = [=](const std::vector<Real>& pos) -> Real
+    FunType exact_sol_poly = [=](const numPDE::Node<Real>& pos) -> Real
     {
-        Real x = pos[0], y = pos[1], z = pos[2];
+        Real x = pos.x, y = pos.y, z = pos.z;
         Real Ax = x * x - Lx * x;
         Real By = y * y - Ly * y;
         Real Cz = z * z - Lz * z;
@@ -191,9 +191,9 @@ int main(int argc, char** argv)
     };
 
     // Corresponding forcing term
-    FunType forcing_poly = [=](const std::vector<Real>& pos) -> Real
+    FunType forcing_poly = [=](const numPDE::Node<Real>& pos) -> Real
     {
-        Real x = pos[0], y = pos[1], z = pos[2];
+        Real x = pos.x, y = pos.y, z = pos.z;
         Real Ax = x * x - Lx * x;
         Real By = y * y - Ly * y;
         Real Cz = z * z - Lz * z;
@@ -205,9 +205,9 @@ int main(int argc, char** argv)
         {1, 1, 1} // , {2, 1, 1}, {1, 2, 1}, {1, 1, 2} // Add as many as you like
     };
     // Cosine-based exact solution
-    FunType u_ex_harm = [&](const std::vector<Real>& pos) -> Real
+    FunType u_ex_harm = [&](const numPDE::Node<Real>& pos) -> Real
     {
-        Real x = pos[0], y = pos[1], z = pos[2];
+        Real x = pos.x, y = pos.y, z = pos.z;
         Real sum = 0.0;
 
         for (auto [wx, wy, wz] : harmonics)
@@ -220,9 +220,9 @@ int main(int argc, char** argv)
     };
 
     // Forcing term f(x,y,z) = -Δu
-    FunType forc_harm = [=](const std::vector<Real>& pos) -> Real
+    FunType forc_harm = [=](const numPDE::Node<Real>& pos) -> Real
     {
-        Real x = pos[0], y = pos[1], z = pos[2];
+        Real x = pos.x, y = pos.y, z = pos.z;
         Real sum = 0.0;
 
         for (const auto& [wx, wy, wz] : harmonics)
@@ -249,21 +249,11 @@ int main(int argc, char** argv)
     // ----------------------------------------------------------
     numPDE::PressureBC<Real> Bcs;
 
-    auto& g_      = u_ex; //[](std::vector<Real> const& pos) -> Real { return 0.1; };
-    Bcs.g_north   = g_;
-    Bcs.g_south   = g_;
-    Bcs.g_east    = g_;
-    Bcs.g_west    = g_;
-    Bcs.g_top     = g_;
-    Bcs.g_bottom  = g_;
-    Bcs.BC_NORTH  = numPDE::DirHomo;
-    Bcs.BC_SOUTH  = numPDE::DirHomo;
-    Bcs.BC_EAST   = numPDE::DirHomo;
-    Bcs.BC_WEST   = numPDE::DirHomo;
-    Bcs.BC_TOP    = numPDE::DirHomo;
-    Bcs.BC_BOTTOM = numPDE::DirHomo;
-    Bcs.f         = forc;
-    Bcs.u_ex      = u_ex;
+    auto& g_ = u_ex; //[](numPDE::Node<Real> const& pos) -> Real { return 0.1; };
+    std::fill(Bcs.g_s.begin(), Bcs.g_s.end(), g_);
+    std::fill(Bcs.BC_s.begin(), Bcs.BC_s.end(), numPDE::DirHomo);
+    Bcs.f    = forc;
+    Bcs.u_ex = u_ex;
 
     numPDE::Constants<Real> constants;
     constants.h = h;

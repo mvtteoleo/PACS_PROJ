@@ -81,16 +81,22 @@ fz = (
     - my_lap(w)
 )
 
-#fx = sp.simplify(fx)
-#fy = sp.simplify(fy)
-#fz = sp.simplify(fz)
+fx = sp.simplify(fx)
+fy = sp.simplify(fy)
+fz = sp.simplify(fz)
 
 
 print("C++ style code")
-print("\nfx : ")
+
+# a -ppend
+# w-rite
+# x-create ... If does not exists gets created
+with open("manufactured_sols.hpp", "a") as f:
+  f.write("namespace numPDE {\n")
+
 print(sp.cxxcode(fx, standard='C++17'))
-print("\nfy : ")
 print(sp.cxxcode(fy, standard='C++17'))
-print("\nfz : ")
 print(sp.cxxcode(fz, standard='C++17'))
 
+with open("manufactured_sols.hpp", "a") as f:
+  f.write("namespace numPDE {\n")

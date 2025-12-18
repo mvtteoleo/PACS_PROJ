@@ -43,17 +43,9 @@ namespace numPDE
             return BC::DirHomo;
         };
 
-        m_BC_x = check_pair(r_BCs.BC_NORTH, r_BCs.BC_SOUTH, "x");
-        m_BC_y = check_pair(r_BCs.BC_WEST, r_BCs.BC_EAST, "y");
-        m_BC_z = check_pair(r_BCs.BC_TOP, r_BCs.BC_BOTTOM, "z");
-
-        std::array<BC, 3> bc_values = {m_BC_x, m_BC_y, m_BC_z};
-        if (std::any_of(bc_values.begin(), bc_values.end(),
-                        [](BC bc) { return bc == BC::Dirichlet; }))
-        {
-            std::cerr
-                << "Warning: Dirichlet supported only as homogeneous. Select numPDE::DirHomo.\n";
-        }
+        m_BC_x = check_pair(r_BCs.BC_s[SIDES::NORTH], r_BCs.BC_s[SIDES::SOUTH], "x");
+        m_BC_y = check_pair(r_BCs.BC_s[SIDES::WEST], r_BCs.BC_s[SIDES::EAST], "y");
+        m_BC_z = check_pair(r_BCs.BC_s[SIDES::TOP], r_BCs.BC_s[SIDES::BOTTOM], "z");
     }
 
     template <typename T>
@@ -110,12 +102,13 @@ namespace numPDE
         const auto& ks    = xstrt[2];
         const auto& h     = r_const.h;
 
+        numPDE::Node<T> pos{};
         for (auto [kp, jp, ip] : mo_P->all_elems())
         {
-            const T x           = h * static_cast<T>(is + ip);
-            const T y           = h * static_cast<T>(js + jp);
-            const T z           = h * static_cast<T>(ks + kp);
-            (*mo_P)(ip, jp, kp) = r_BCs.f({x, y, z});
+            pos.x               = h * static_cast<T>(is + ip);
+            pos.y               = h * static_cast<T>(js + jp);
+            pos.z               = h * static_cast<T>(ks + kp);
+            (*mo_P)(ip, jp, kp) = r_BCs.f(pos);
         }
         this->solve(*mo_P, *mo_P, verbose);
     }
@@ -329,12 +322,13 @@ namespace numPDE
         const auto& js      = xstrt[1];
         const auto& ks      = xstrt[2];
 
+        numPDE::Node<T> pos{};
         for (auto [kp, jp, ip] : mo_P->all_elems())
         {
-            const T x       = h * static_cast<T>(is + ip);
-            const T y       = h * static_cast<T>(js + jp);
-            const T z       = h * static_cast<T>(ks + kp);
-            const T abs_err = std::abs((*mo_P)(ip, jp, kp) - r_BCs.u_ex({x, y, z}));
+            pos.x           = h * static_cast<T>(is + ip);
+            pos.y           = h * static_cast<T>(js + jp);
+            pos.z           = h * static_cast<T>(ks + kp);
+            const T abs_err = std::abs((*mo_P)(ip, jp, kp) - r_BCs.u_ex(pos));
             L2err += abs_err * abs_err;
             if (abs_err > max_err) max_err = abs_err;
         }
