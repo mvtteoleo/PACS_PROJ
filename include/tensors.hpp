@@ -267,13 +267,13 @@ namespace numPDE
         template <typename... Ts>
             requires UnsignedInt<Ts...>
         auto operator()(Ts... idxs) const
-            -> std::conditional_t<(N_DIMS == RANK), const T&, std::span<const T>>
+            -> std::conditional_t<(N_DIMS == RANK), const T&, ElementProxy<T, N_DIMS, true>>
         {
             return access(idxs...);
         }
 
         auto operator()(std::initializer_list<size_t> idxs) const
-            -> std::conditional_t<(N_DIMS == RANK), const T&, std::span<const T>>
+            -> std::conditional_t<(N_DIMS == RANK), const T&, ElementProxy<T, N_DIMS, true>>
         {
             std::array<size_t, N_DIMS> arr{};
             std::copy(idxs.begin(), idxs.end(), arr.begin());
