@@ -79,8 +79,8 @@ namespace numPDE
                 // Applies BC to m_V (Enforces U_new on ∂Ω)
                 // Computes intermediate steps and writes on m_V and m_P the latest solution
                 // Calls pseudoTS !!
-                stepper.advance(*this);
                 this->check_sol(stepper.get_t());
+                stepper.advance(*this);
             }
         }
 
