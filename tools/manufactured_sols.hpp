@@ -4,19 +4,19 @@
 namespace numPDE
 {
     template <typename T>
-    auto ux(const T& x, const T& y, const T& z, const T& t, const T& Re) -> T
+    auto ux(const T& x, const T& y, const T& z, const T& t) -> T
     {
         return std::sin(std::numbers::pi_v<T> * t) * std::sin(std::numbers::pi_v<T> * y) *
                std::cos(std::numbers::pi_v<T> * x) * std::cos(std::numbers::pi_v<T> * z);
     }
     template <typename T>
-    auto uy(const T& x, const T& y, const T& z, const T& t, const T& Re) -> T
+    auto uy(const T& x, const T& y, const T& z, const T& t) -> T
     {
         return std::sin(std::numbers::pi_v<T> * t) * std::sin(std::numbers::pi_v<T> * x) *
                std::cos(std::numbers::pi_v<T> * y) * std::cos(std::numbers::pi_v<T> * z);
     }
     template <typename T>
-    auto uz(const T& x, const T& y, const T& z, const T& t, const T& Re) -> T
+    auto uz(const T& x, const T& y, const T& z, const T& t) -> T
     {
         return 2 * std::sin(std::numbers::pi_v<T> * t) * std::sin(std::numbers::pi_v<T> * x) *
                std::sin(std::numbers::pi_v<T> * y) * std::sin(std::numbers::pi_v<T> * z);
