@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <numeric>
 #include <ranges>
+#include <tuple>
 #include <vector>
 
 /*
@@ -90,9 +91,9 @@ namespace numPDE
             T                   L2err   = 0.0;
             const auto&         h       = r_inps.constants.h;
             numPDE::MyVec<T, 3> err;
-            auto                pos = get_pos();
             for (auto [kp, jp, ip] : m_V.all_elems())
             {
+                auto pos = get_pos();
                 pos.x += h * static_cast<T>(ip);
                 pos.y += h * static_cast<T>(jp);
                 pos.z += h * static_cast<T>(kp);
@@ -120,7 +121,7 @@ namespace numPDE
             MPI_Reduce(&L2err, &glob_L2, 1, mpi_get_type<T>(), MPI_SUM, 0, MPI_COMM_WORLD);
             MPI_Reduce(&max_err, &glob_max, 1, mpi_get_type<T>(), MPI_MAX, 0, MPI_COMM_WORLD);
 
-            L2err *= h * h * h;
+            glob_L2 *= h * h * h;
 
             if (!r_dec.rank())
             {
@@ -138,9 +139,9 @@ namespace numPDE
             const auto& h   = r_inps.constants.h;
             const auto  adt = a * dt_step;
 
-            numPDE::Node<T> pos = get_pos();
             for (const auto [k, j, i] : m_V.int_elems())
             {
+                auto pos = get_pos();
                 pos.x += h * i;
                 pos.y += h * j;
                 pos.z += h * k;
@@ -165,10 +166,9 @@ namespace numPDE
             const auto& h   = r_inps.constants.h;
             const auto  adt = a * dt_step;
 
-            numPDE::Node<T> pos = get_pos();
-
             for (const auto [k, j, i] : m_V.int_elems())
             {
+                auto pos = get_pos();
                 pos.x += h * i;
                 pos.y += h * j;
                 pos.z += h * k;
@@ -184,10 +184,10 @@ namespace numPDE
         // To avoid copy construct assign and all the move semantics I just pass it as reference
         void compute_buff_init(type_solve& Buff) const noexcept
         {
-            const auto&     h   = r_inps.constants.h;
-            numPDE::Node<T> pos = get_pos();
+            const auto& h = r_inps.constants.h;
             for (const auto [k, j, i] : m_V.int_elems())
             {
+                numPDE::Node<T> pos = get_pos();
                 pos.x += h * i;
                 pos.y += h * j;
                 pos.z += h * k;
@@ -201,9 +201,101 @@ namespace numPDE
             return;
         }
         // Applies the BC for the velocity on m_V
+        // Note that the position is at the node center is duty of
+        // the u_ex to handle the staggered grid as of now
         void apply_bc(T time)
         {
-            if (!r_dec.rank()) printf("No BC impl yet");
+            /*
+             for(const auto side : enum_range<SIDES>() )
+                 if(is_side(side, r_dec)
+                     this->apply_bc_impl(side);
+            */
+            // Dumb bc (Apply exact sol)
+            const auto& [l, nx, ny, nz] = m_V.get_sizes();
+            const auto  i_range         = std::views::iota(size_t{0}, nx);
+            const auto  j_range         = std::views::iota(size_t{0}, ny);
+            const auto  k_range         = std::views::iota(size_t{0}, nz);
+            const auto& h               = r_inps.constants.h;
+            if (is_side(SIDES::TOP, r_dec))
+            {
+                auto       pos = get_pos();
+                const auto k   = nz - 1;
+                pos.z += k * h;
+                for (const auto j : j_range)
+                {
+                    pos.y += j * h;
+                    for (const auto i : i_range)
+                    {
+                        pos.x += i * h;
+                        m_V(i, j, k) = r_inps.v_BC.u_ex(pos);
+                    }
+                }
+            }
+            if (is_side(SIDES::BOTTOM, r_dec))
+            {
+                auto           pos = get_pos();
+                constexpr auto k   = 0;
+                pos.z              = 0.0;
+                for (const auto j : j_range)
+                {
+                    pos.y += j * h;
+                    for (const auto i : i_range)
+                    {
+                        pos.x += i * h;
+                        m_V(i, j, k) = r_inps.v_BC.u_ex(pos);
+                    }
+                }
+            }
+            if (is_side(SIDES::EAST, r_dec))
+            {
+                auto           pos = get_pos();
+                constexpr auto j   = 0;
+                pos.y              = 0.0;
+                for (const auto k : k_range)
+                {
+                    pos.z += k * h;
+                    for (const auto i : i_range)
+                    {
+                        pos.x += i * h;
+                        m_V(i, j, k) = r_inps.v_BC.u_ex(pos);
+                    }
+                }
+            }
+            if (is_side(SIDES::WEST, r_dec))
+            {
+                auto       pos = get_pos();
+                const auto j   = ny - 1;
+                pos.y += j * h;
+                for (const auto k : k_range)
+                {
+                    pos.z += k * h;
+                    for (const auto i : i_range)
+                    {
+                        pos.x += i * h;
+                        m_V(i, j, k) = r_inps.v_BC.u_ex(pos);
+                    }
+                }
+            }
+
+            // Keep the in their scope to avoid mess
+            {
+                auto pos_i = get_pos();
+                auto pos_e = get_pos();
+                pos_i.x    = 0.0;
+                pos_e.x    = (nx - 1) * h;
+                for (const auto k : k_range)
+                {
+                    pos_e.z += k * h;
+                    pos_i.z += k * h;
+                    for (const auto j : j_range)
+                    {
+                        pos_e.y += j * h;
+                        pos_i.y += j * h;
+                        m_V(0, j, k)      = r_inps.v_BC.u_ex(pos_i);
+                        m_V(nx - 1, j, k) = r_inps.v_BC.u_ex(pos_e);
+                    }
+                }
+            }
         }
     };
 

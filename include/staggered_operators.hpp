@@ -57,7 +57,6 @@ namespace numPDE
         const auto& NB = h_U.at(2, i, j + 1, k - 1);
         const auto& ST = h_U.at(1, i, j - 1, k + 1);
 
-        // For some strange reason the ElementProxy does not like ET concatenation
         auto lap = (E + W + N + S + Top + B - 6.0 * C) * inv_4Re_h_2;
         ris      = lap;
 
@@ -85,61 +84,4 @@ namespace numPDE
 
         return ris;
     }
-
-#if 0
-    template <typename T>
-    inline numPDE::MyVec<T, 3> predictor_f(const VecF<T>& h_U, const size_t& i, const size_t& j,
-                                           const size_t& k, const Constants<T>& r_cstns)
-    {
-        const auto& h  = r_cstns.h;
-        const auto& Re = r_cstns.Re;
-
-        numPDE::MyVec<T, 3> U_x, U_y, U_z, dU_dx, dU_dy, dU_dz, lap, Conv, ris;
-
-        auto C   = h_U(i, j, k);     // center
-        auto E   = h_U(i + 1, j, k); // east
-        auto W   = h_U(i - 1, j, k); // west
-        auto N   = h_U(i, j + 1, k); // north
-        auto S   = h_U(i, j - 1, k); // south
-        auto Top = h_U(i, j, k + 1); // top
-        auto B   = h_U(i, j, k - 1); // bottom
-
-        const auto& NW = h_U.at(0, i - 1, j + 1, k);
-        const auto& SE = h_U.at(1, i + 1, j - 1, k);
-        const auto& WT = h_U.at(0, i - 1, j, k + 1);
-        const auto& EB = h_U.at(2, i + 1, j, k - 1);
-        const auto& NB = h_U.at(2, i, j + 1, k - 1);
-        const auto& ST = h_U.at(1, i, j - 1, k + 1);
-
-        lap = (E + W + N + S + Top + B - 6.0 * C) / (4 * h * h * Re);
-
-        // Approximate U on x
-        U_x[0] = C[0];
-        U_x[1] = 0.25 * (C[1] + S[1] + E[1] + SE);
-        U_x[2] = 0.25 * (C[2] + B[2] + E[2] + EB);
-
-        // Approximate U on y
-        U_y[0] = 0.25 * (C[0] + W[0] + N[0] + NW);
-        U_y[1] = C[1];
-        U_y[2] = 0.25 * (C[2] + B[2] + N[2] + NB);
-
-        // Approximate U on z
-        U_z[0] = 0.25 * (C[0] + W[0] + Top[0] + WT);
-        U_z[1] = 0.25 * (C[1] + S[1] + Top[1] + ST);
-        U_z[2] = C[2];
-
-        dU_dx = (E - W) / (2 * h);
-        dU_dy = (N - S) / (2 * h);
-        dU_dz = (Top - B) / (2 * h);
-
-        // plain conservative form (component-wise)
-        Conv[0] = dU_dx[0] * U_x[0] + U_x[1] * dU_dy[0] + U_x[2] * dU_dz[0];
-        Conv[1] = dU_dx[1] * U_y[0] + U_y[1] * dU_dy[1] + U_y[2] * dU_dz[1];
-        Conv[2] = dU_dx[2] * U_z[0] + U_z[1] * dU_dy[2] + U_z[2] * dU_dz[2];
-
-        ris = lap / Re - Conv;
-
-        return ris;
-    }
-#endif
 }; // namespace numPDE

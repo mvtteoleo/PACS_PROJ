@@ -109,8 +109,8 @@ namespace numPDE
             const PetscInt* ranks;
             DMDAGetNeighbors(da, &ranks);
 
-            int        left   = ranks[10];
-            int        right  = ranks[16];
+            int        right  = ranks[10];
+            int        left   = ranks[16];
             int        bottom = ranks[4];
             int        top    = ranks[22];
             const auto neigs  = r_dec.get_neighbors();

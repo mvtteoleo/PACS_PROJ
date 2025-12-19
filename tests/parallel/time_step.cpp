@@ -13,22 +13,20 @@ int main(int argc, char* argv[])
 {
 
     // MPI AND DOMAIN DECOMPOSITION LOGIC
-    NewDecomp<Real> decomposer(argc, argv);
+    // NewDecomp<Real> decomposer(argc, argv);
+    PETScDecomp<Real> decomposer(argc, argv);
 
-    // GEOMETRY CONSTRAINTS
-    constexpr std::size_t N_DIMS = 3;
-    std::size_t           N      = (argc > 1) ? std::stoul(argv[1]) : 5;
+    std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
     std::size_t nx = N, ny = N, nz = N;
-
-    std::array<size_t, N_DIMS> n_nodes{{nx, ny, nz}};
-    Real                       h = 1.0 / static_cast<Real>(nx - 1);
 
     decomposer.initialize_decomp(nx, ny, nz);
 
     // TIME AND PROBLEM RELATED CONSTANTS
-    Real           t{0.}, dt{0.5};
-    constexpr Real Tmax{2};
+    Real t{0.};
+    Real h  = 1.0 / static_cast<Real>(nx - 1);
+    Real dt = h * h * 0.01;
+    Real Tmax{dt};
 
     numPDE::NS_input<Real> inputs;
     std::fill(inputs.p_BC.BC_s.begin(), inputs.p_BC.BC_s.end(), numPDE::NeuHomo);
@@ -37,90 +35,37 @@ int main(int argc, char* argv[])
     inputs.constants.dt    = dt;
     inputs.constants.T_max = Tmax;
 
-    inputs.v_BC.u_ex = [&inputs](const numPDE::Node<Real>& pos)
+    inputs.v_BC.u_ex = [&](const numPDE::Node<Real>& p) -> numPDE::MyVec<Real, 3>
     {
-        const auto& x = pos.x;
-        const auto& y = pos.y;
-        const auto& z = pos.z;
-        const auto& t = pos.t;
-        const auto& h = inputs.constants.h;
-        using std::cos, std::sin;
-        auto ux = cos(x + h * 0.5) * sin(y) * cos(z) * sin(t);
-        auto uy = cos(y + h * 0.5) * sin(x) * cos(z) * sin(t);
-        auto uz = 2 * sin(y) * sin(x) * sin(z + h * 0.5) * sin(t);
-        return numPDE::MyVec{ux, uy, uz};
+        const auto& t   = p.t;
+        const auto& Re  = inputs.constants.Re;
+        const auto  x_s = p.x + 0.5 * inputs.constants.h;
+        const auto  y_s = p.y + 0.5 * inputs.constants.h;
+        const auto  z_s = p.z + 0.5 * inputs.constants.h;
+
+        const auto u_x = ux(x_s, p.y, p.z, p.t);
+        const auto u_y = uy(p.x, y_s, p.z, p.t);
+        const auto u_z = uz(p.x, p.s, z_s, p.t);
+
+        return numPDE::MyVec{u_x, u_y, u_z};
+    };
+    inputs.v_BC.f = [&](const numPDE::Node<Real>& pos)
+    {
+        const auto& t   = pos.t;
+        const auto& Re  = inputs.constants.Re;
+        const auto  x_s = pos.x + 0.5 * inputs.constants.h;
+        const auto  y_s = pos.y + 0.5 * inputs.constants.h;
+        const auto  z_s = pos.z + 0.5 * inputs.constants.h;
+
+        const auto fx_c = fx(x_s, y, z, t, Re);
+        const auto fy_c = fy(x, y_s, z, t, Re);
+        const auto fz_c = fz(x, y, z_s, t, Re);
+        return numPDE::MyVec<Real, 3>{fx_c, fy_c, fz_c};
     };
 
-    auto fx = [&inputs](const numPDE::Node<Real>& pos)
-    {
-        const auto& h  = inputs.constants.h;
-        const auto& Re = inputs.constants.Re;
-        const auto& t  = pos.t;
-        const auto  x  = pos.x + 0.5 * h;
-        const auto& y  = pos.y;
-        const auto& z  = pos.z;
-        return -2 * M_PI * std::pow(std::sin(M_PI * t), 2) * std::sin(M_PI * x) *
-                   std::pow(std::sin(M_PI * y), 2) * std::pow(std::sin(M_PI * z), 2) *
-                   std::cos(M_PI * x) -
-               M_PI * std::pow(std::sin(M_PI * t), 2) * std::sin(M_PI * x) *
-                   std::pow(std::sin(M_PI * y), 2) * std::cos(M_PI * x) *
-                   std::pow(std::cos(M_PI * z), 2) +
-               M_PI * std::pow(std::sin(M_PI * t), 2) * std::sin(M_PI * x) * std::cos(M_PI * x) *
-                   std::pow(std::cos(M_PI * y), 2) * std::pow(std::cos(M_PI * z), 2) -
-               M_PI * std::sin(M_PI * x) * std::cos(M_PI * y) * std::cos(M_PI * z) +
-               M_PI * std::sin(M_PI * y) * std::cos(M_PI * t) * std::cos(M_PI * x) *
-                   std::cos(M_PI * z) +
-               3 * std::pow(M_PI, 2) * std::sin(M_PI * t) * std::sin(M_PI * y) *
-                   std::cos(M_PI * x) * std::cos(M_PI * z) / Re;
-    };
-
-    auto fy = [&inputs](const numPDE::Node<Real>& pos)
-    {
-        const auto& h  = inputs.constants.h;
-        const auto& Re = inputs.constants.Re;
-        const auto& t  = pos.t;
-        const auto& x  = pos.x;
-        const auto  y  = pos.y + 0.5 * h;
-        const auto& z  = pos.z;
-        return -2 * M_PI * std::pow(std::sin(M_PI * t), 2) * std::pow(std::sin(M_PI * x), 2) *
-                   std::sin(M_PI * y) * std::pow(std::sin(M_PI * z), 2) * std::cos(M_PI * y) -
-               M_PI * std::pow(std::sin(M_PI * t), 2) * std::pow(std::sin(M_PI * x), 2) *
-                   std::sin(M_PI * y) * std::cos(M_PI * y) * std::pow(std::cos(M_PI * z), 2) +
-               M_PI * std::pow(std::sin(M_PI * t), 2) * std::sin(M_PI * y) *
-                   std::pow(std::cos(M_PI * x), 2) * std::cos(M_PI * y) *
-                   std::pow(std::cos(M_PI * z), 2) +
-               M_PI * std::sin(M_PI * x) * std::cos(M_PI * t) * std::cos(M_PI * y) *
-                   std::cos(M_PI * z) -
-               M_PI * std::sin(M_PI * y) * std::cos(M_PI * x) * std::cos(M_PI * z) +
-               3 * std::pow(M_PI, 2) * std::sin(M_PI * t) * std::sin(M_PI * x) *
-                   std::cos(M_PI * y) * std::cos(M_PI * z) / Re;
-    };
-
-    auto fz = [&inputs](const numPDE::Node<Real>& pos)
-    {
-        const auto& h  = inputs.constants.h;
-        const auto& Re = inputs.constants.Re;
-        const auto& t  = pos.t;
-        const auto& x  = pos.x;
-        const auto& y  = pos.y;
-        const auto  z  = pos.z + 0.5 * h;
-        return 4 * M_PI * std::pow(std::sin(M_PI * t), 2) * std::pow(std::sin(M_PI * x), 2) *
-                   std::pow(std::sin(M_PI * y), 2) * std::sin(M_PI * z) * std::cos(M_PI * z) +
-               2 * M_PI * std::pow(std::sin(M_PI * t), 2) * std::pow(std::sin(M_PI * x), 2) *
-                   std::sin(M_PI * z) * std::pow(std::cos(M_PI * y), 2) * std::cos(M_PI * z) +
-               2 * M_PI * std::pow(std::sin(M_PI * t), 2) * std::pow(std::sin(M_PI * y), 2) *
-                   std::sin(M_PI * z) * std::pow(std::cos(M_PI * x), 2) * std::cos(M_PI * z) +
-               2 * M_PI * std::sin(M_PI * x) * std::sin(M_PI * y) * std::sin(M_PI * z) *
-                   std::cos(M_PI * t) -
-               M_PI * std::sin(M_PI * z) * std::cos(M_PI * x) * std::cos(M_PI * y) +
-               6 * std::pow(M_PI, 2) * std::sin(M_PI * t) * std::sin(M_PI * x) *
-                   std::sin(M_PI * y) * std::sin(M_PI * z) / Re;
-    };
-
-    constexpr auto                                  pSolvePolicy = numPDE::SolvePolicy::Fourier;
-    numPDE::NSSolver<pSolvePolicy, NewDecomp<Real>> ns(decomposer, inputs);
+    numPDE::NSSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> ns(decomposer, inputs);
 
     ns.solve();
 
     return 0;
-}
+};
