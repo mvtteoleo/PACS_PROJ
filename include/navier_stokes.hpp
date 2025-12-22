@@ -69,6 +69,7 @@ namespace numPDE
 
         auto solve(bool verbose = false)
         {
+            std::vector<Error<T>> errs;
             while (stepper.get_t() <= r_inps.constants.T_max)
             {
                 // TODO
@@ -79,18 +80,39 @@ namespace numPDE
                 // Applies BC to m_V (Enforces U_new on ∂Ω)
                 // Computes intermediate steps and writes on m_V and m_P the latest solution
                 // Calls pseudoTS !!
-                this->check_sol(stepper.get_t());
+                errs.emplace_back(compute_err(stepper.get_t()));
                 stepper.advance(*this);
             }
+
+            auto err = check_sol(errs);
         }
 
-        void check_sol(const T time)
+        Error<T> check_sol(const std::vector<Error<T>>& errs) const
+        {
+            Error<T> err{};
+            if (!r_dec.rank())
+            {
+                for (const auto& e : errs)
+                {
+                    err.l_2 += e.l_2 * e.l_2;
+                    err.l_inf = std::max(err.l_inf, e.l_inf);
+                }
+                err.l_2 = std::sqrt(err.l_2 * get_dt());
+
+                std::cout << "Time stepper error : \n";
+                err.print_errs(r_dec.rank());
+            }
+            return err;
+        }
+
+        Error<T> compute_err(const T time)
         {
 
             T                   max_err = 0.0;
             T                   L2err   = 0.0;
             const auto&         h       = r_inps.constants.h;
-            numPDE::MyVec<T, 3> err;
+            numPDE::MyVec<T, 3> loc_err;
+            numPDE::Error<T>    err{};
             for (auto [kp, jp, ip] : m_V.all_elems())
             {
                 auto pos = get_pos();
@@ -102,34 +124,25 @@ namespace numPDE
                 // https://math.stackexchange.com/questions/507950/can-we-define-the-l2-norm-for-a-vector-field-f-omega-subseteq-mathbbr
                 // L2_glob = sqrt ( dμ ∑|F|^2 )
                 // |F| = sqrt(u^2 + v^2 + w^2)
-                err = m_V(ip, jp, kp) - r_inps.v_BC.u_ex(pos);
+                loc_err = m_V(ip, jp, kp) - r_inps.v_BC.u_ex(pos);
 
                 const auto max_loc = std::transform_reduce(
-                    err.begin(), err.end(), 0.0, [](double a, double b) { return std::max(a, b); },
+                    loc_err.begin(), loc_err.end(), 0.0,
+                    [](double a, double b) { return std::max(a, b); },
                     [](T x) { return std::abs(x); });
 
                 // Here I compute |F|^2
-                const auto l2_loc = std::transform_reduce(err.begin(), err.end(), 0.0, std::plus{},
-                                                          [](auto val) { return val * val; });
+                err.l_2 += std::transform_reduce(loc_err.begin(), loc_err.end(), 0.0, std::plus{},
+                                                 [](auto val) { return val * val; });
 
-                L2err += l2_loc;
-                if (max_loc > max_err) max_err = max_loc;
+                err.l_inf = std::max(max_loc, err.l_inf);
             }
-            T glob_max = 0.0;
-            T glob_L2  = 0.0;
 
-            MPI_Reduce(&L2err, &glob_L2, 1, mpi_get_type<T>(), MPI_SUM, 0, MPI_COMM_WORLD);
-            MPI_Reduce(&max_err, &glob_max, 1, mpi_get_type<T>(), MPI_MAX, 0, MPI_COMM_WORLD);
+            err.reduce(h * h * h);
 
-            glob_L2 *= h * h * h;
+            // err.print_errs(r_dec.rank());
 
-            if (!r_dec.rank())
-            {
-                std::cout << "\n\nMax err  " << std::scientific << std::setprecision(4) << glob_max
-                          << "\n";
-                std::cout << "L2  err  " << std::scientific << std::setprecision(4)
-                          << std::sqrt(glob_L2) << "\n";
-            }
+            return err;
         };
 
         // Predictor + Corrector -> Returns VecF with the new U and ScalF with the New P

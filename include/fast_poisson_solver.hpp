@@ -35,7 +35,7 @@ namespace numPDE
             this->mo_P.emplace(numPDE::make_scalar_field<T, 3>(this->r_dec.xSize()));
         };
 
-        auto check_sol();
+        Error<T> check_sol();
 
       protected:
         // --- Initialization Helpers ---

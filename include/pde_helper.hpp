@@ -1,11 +1,13 @@
 #pragma once
 #include "decompose.hpp"
 #include "tensorExpressionTemplates.hpp"
+#include "third_party/MPI_types.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <functional>
+#include <iomanip>
 #include <iostream>
 #include <ranges>
 #include <string>
@@ -86,6 +88,38 @@ namespace numPDE
         T T_max{1};
     };
 
+    template <typename T>
+    struct Error
+    {
+        T l_2{};
+        T l_inf{};
+        /*
+         *  Handle the global reductions.
+         * WARNING
+         * !!Results are stored in rank 0!!
+         * !!All other ranks see just T{}!!
+         */
+        void reduce(T dmu = 1.0)
+        {
+            double glob_max = 0.0;
+            double glob_L2  = 0.0;
+
+            MPI_Reduce(&this->l_2, &glob_L2, 1, mpi_get_type<T>(), MPI_SUM, 0, MPI_COMM_WORLD);
+            MPI_Reduce(&this->l_inf, &glob_max, 1, mpi_get_type<T>(), MPI_MAX, 0, MPI_COMM_WORLD);
+            this->l_2   = std::sqrt(glob_L2 * dmu);
+            this->l_inf = glob_max;
+        };
+
+        void print_errs(int rank0)
+        {
+            if (!rank0)
+            {
+                std::cout << "Max err  " << std::scientific << std::setprecision(4) << l_inf
+                          << "\n";
+                std::cout << "L2  err  " << std::scientific << std::setprecision(4) << l_2 << "\n";
+            }
+        };
+    };
 } // namespace numPDE
 
 template <typename ENUM>

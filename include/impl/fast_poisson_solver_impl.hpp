@@ -306,21 +306,20 @@ namespace numPDE
     }
 
     template <typename T>
-    auto FastPoissonSolver<T>::check_sol()
+    numPDE::Error<T> FastPoissonSolver<T>::check_sol()
     {
+        numPDE::Error<T> err{};
         if (!this->mo_P.has_value())
         {
-            if (!r_dec.rank()) std::cout << "No values in mo_P";
-            return;
+            if (!r_dec.rank()) std::cout << "No values in mo_P to check_sol() on !!";
+            return err;
         }
 
-        T           max_err = 0.0;
-        T           L2err   = 0.0;
-        const auto& h       = r_const.h;
-        const auto& xstrt   = r_dec.xStart();
-        const auto& is      = xstrt[0];
-        const auto& js      = xstrt[1];
-        const auto& ks      = xstrt[2];
+        const auto& h     = r_const.h;
+        const auto& xstrt = r_dec.xStart();
+        const auto& is    = xstrt[0];
+        const auto& js    = xstrt[1];
+        const auto& ks    = xstrt[2];
 
         numPDE::Node<T> pos{};
         for (auto [kp, jp, ip] : mo_P->all_elems())
@@ -329,23 +328,15 @@ namespace numPDE
             pos.y           = h * static_cast<T>(js + jp);
             pos.z           = h * static_cast<T>(ks + kp);
             const T abs_err = std::abs((*mo_P)(ip, jp, kp) - r_BCs.u_ex(pos));
-            L2err += abs_err * abs_err;
-            if (abs_err > max_err) max_err = abs_err;
+            err.l_2 += abs_err * abs_err;
+            err.l_inf = std::max(err.l_inf, abs_err);
         }
-        L2err *= h * h * h;
 
-        double glob_max = 0.0;
-        double glob_L2  = 0.0;
+        err.reduce(h * h * h);
 
-        MPI_Reduce(&L2err, &glob_L2, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-        MPI_Reduce(&max_err, &glob_max, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+        err.print_errs(!r_dec.rank());
 
-        if (!r_dec.rank())
-        {
-            std::cout << "Max err  " << std::scientific << std::setprecision(4) << glob_max << "\n";
-            std::cout << "L2  err  " << std::scientific << std::setprecision(4)
-                      << std::sqrt(glob_L2) << "\n";
-        }
+        return err;
     }
 
 } // namespace numPDE

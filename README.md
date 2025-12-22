@@ -16,7 +16,8 @@ Milestones:
 TODO:
 
   - Update pos in the outermost loop because efficiency (and correct the wrong updates)
-  - Write u_ex, f and so on from inv.py and call them from the config file / main
+  - Make ErrorHandler struct to avoid the MPI_Reduce etc and make it cleaner.
+  - Check the L2 norm for time integration ( L2 = √( dt * ∑ err(t)^2) )!!!
 
 Some more notes:
 

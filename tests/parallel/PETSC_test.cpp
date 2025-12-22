@@ -154,8 +154,7 @@ int main(int argc, char** argv)
     mg.solve();
 
     if (!decomp.rank()) time.print_time();
-
-    mg.check_sol();
+    auto err = mg.check_sol();
 
     return 0;
 }

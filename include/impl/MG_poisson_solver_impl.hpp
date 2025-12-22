@@ -397,7 +397,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MultiGridPoissonSolver<Decomp>::check_sol()
+    numPDE::Error<typename Decomp::value_type> MultiGridPoissonSolver<Decomp>::check_sol()
     {
         PetscScalar*** x_hTens;
         Vec            check;
@@ -423,14 +423,16 @@ namespace numPDE
         VecAssemblyBegin(check);
         VecAssemblyEnd(check);
 
-        T residual{1};
-        VecNorm(check, NORM_2, &residual);
-        if (!r_dec.rank()) std::cout << "L2 err : " << residual * std::sqrt(h * h * h) << "\n";
+        numPDE::Error<typename Decomp::value_type> err{};
+        VecNorm(check, NORM_2, &err.l_2);
+        err.l_2 *= std::sqrt(h * h * h);
 
-        VecNorm(check, NORM_INFINITY, &residual);
-        if (!r_dec.rank()) std::cout << "Linf err: " << residual << "\n";
+        VecNorm(check, NORM_INFINITY, &err.l_inf);
+
+        err.print_errs(r_dec.rank());
 
         VecDestroy(&check);
+        return err;
     }
     template <DecomposeConc Decomp>
     template <TypeIndex TYPE>

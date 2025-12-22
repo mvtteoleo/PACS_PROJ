@@ -42,7 +42,7 @@ namespace numPDE
         template <bool NEEDS_UPDATE_BC = true, TypeIndex TYPE>
         auto solve(numPDE::Tensor<T, 3, 3, TYPE> const& b_t);
 
-        auto check_sol();
+        numPDE::Error<typename Decomp::value_type> check_sol();
 
         template <TypeIndex TYPE>
         auto write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t);

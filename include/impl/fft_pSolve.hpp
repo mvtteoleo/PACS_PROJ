@@ -264,6 +264,6 @@ namespace numPDE
         for (auto [k, j, _] : this->mo_P->all_elems())
             std::copy_n(this->m_P_ghosted.ptr_at(0, j_g + j, k + k_g), nx,
                         this->mo_P->ptr_at(0, j, k));
-        this->check_sol();
+        auto err = this->check_sol();
     }
 }; // namespace numPDE
