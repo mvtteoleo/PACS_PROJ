@@ -20,8 +20,8 @@ LDLIBS   += $(NIX_LDLIBS)
 DEBUG_FLAGS := -O0 -g  
 OPT_FLAGS := -O3 
 
-GEN_FLAGS   := $(DEBUG_FLAGS)
-C2DEC_FLAGS := $(DEBUG_FLAGS)
+GEN_FLAGS   := $(OPT_FLAGS)
+C2DEC_FLAGS := $(OPT_FLAGS)
 
 
 
@@ -50,7 +50,7 @@ SERIAL_TESTS := $(patsubst $(SERIAL_DIR)/%.cpp,$(BUILD_DIR)/serial/%,$(SERIAL_SR
 
 PARALLEL_SRCS  := $(wildcard $(PARALLEL_DIR)/*.cpp)
 PARALLEL_TESTS := $(patsubst $(PARALLEL_DIR)/%.cpp,$(BUILD_DIR)/parallel/%,$(PARALLEL_SRCS))
-TODAYS_TEST := $(patsubst $(PARALLEL_DIR)/PETSC_test.cpp,$(BUILD_DIR)/parallel/PETSC_test,$(PARALLEL_SRCS))
+TODAYS_TEST := $(patsubst $(PARALLEL_DIR)/time_step.cpp,$(BUILD_DIR)/parallel/time_step,$(PARALLEL_SRCS))
 
 # Default MPI processes
 NP ?= 4

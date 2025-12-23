@@ -57,9 +57,8 @@ namespace numPDE
         const auto& NB = h_U.at(2, i, j + 1, k - 1);
         const auto& ST = h_U.at(1, i, j - 1, k + 1);
 
-        auto lap = (E + W + N + S + Top + B - 6.0 * C) * inv_4Re_h_2;
-        ris      = lap;
 
+        ris      = (E + W + N + S + Top + B - 6.0 * C) * inv_4Re_h_2;
         // Convective term
         auto& Ux = U;
         Ux[0]    = C[0];

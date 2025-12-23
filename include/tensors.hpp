@@ -86,7 +86,7 @@ namespace numPDE
             // Cast expression to Derived type
             const E& e = static_cast<const E&>(expr);
             // Loop over all elements of the tensor
-            for (size_t i = 0; i < e.size(); ++i)
+            for (size_t i = 0; i < m_Datas.size(); ++i)
             {
                 // assert (false && std::cout << i << std::endl);
                 m_Datas[i] = e[i]; // assign expression value

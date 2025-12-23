@@ -18,23 +18,24 @@ int main(int argc, char* argv[])
 
     std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
-    std::size_t nx = N, ny = N, nz = N;
     // TIME AND PROBLEM RELATED CONSTANTS
-    Real t{0.};
+    std::size_t nx = N, ny = N, nz = N;
     Real h  = 1.0 / static_cast<Real>(nx - 1);
     Real dt = (argc > 2) ? std::stod(argv[2]) : h * h;
     assert(dt <= 1 * h * h && "dt is too big for space discretization");
     Real Tmax{h * h};
 
-    for (int i = 0; i < 3; ++i)
-    {
+         auto scale = 1;
+        nx = N *scale;
+        ny = N *scale;
+        nz = N *scale;
         decomposer.initialize_decomp(nx, ny, nz);
 
         numPDE::NS_input<Real> inputs;
         std::fill(inputs.p_BC.BC_s.begin(), inputs.p_BC.BC_s.end(), numPDE::NeuHomo);
 
-        inputs.constants.h     = h / (std::pow(2, i));
-        inputs.constants.dt    = dt / (std::pow(2, i));
+        inputs.constants.h     = h / scale;
+        inputs.constants.dt    = dt /scale;
         inputs.constants.T_max = Tmax;
 
         inputs.v_BC.u_ex = [&](const numPDE::Node<Real>& p) -> numPDE::MyVec<Real, 3>
@@ -68,7 +69,6 @@ int main(int argc, char* argv[])
         numPDE::NSSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> ns(decomposer, inputs);
 
         ns.solve();
-    }
 
     return 0;
 };

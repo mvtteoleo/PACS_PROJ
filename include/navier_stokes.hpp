@@ -49,7 +49,7 @@ namespace numPDE
         RKStepper<type_solve>                 stepper;
         bool                                  m_verbose = false;
 
-        NSSolver(Decomp& dec, NS_input<T> inp)
+        NSSolver(Decomp& dec, NS_input<T>& inp)
             : r_dec(dec), pSolve(dec, inp.p_BC, inp.constants), r_inps(inp),
               m_P(dec.dimsWithGhosts()), m_V(numPDE::make_vector_field<T, 3>(dec.dimsWithGhosts())),
               stepper(m_V)
@@ -80,7 +80,9 @@ namespace numPDE
                 // Applies BC to m_V (Enforces U_new on ∂Ω)
                 // Computes intermediate steps and writes on m_V and m_P the latest solution
                 // Calls pseudoTS !!
-                errs.emplace_back(compute_err(stepper.get_t()));
+                auto t_curr = stepper.get_t();
+                auto err =compute_err(t_curr);
+                errs.emplace_back(err);
                 stepper.advance(*this);
             }
 
@@ -160,8 +162,7 @@ namespace numPDE
                 pos.z += h * k;
                 const auto f_V   = predictor_f(Un, i, j, k, r_inps.constants);
                 const auto f_ext = r_inps.v_BC.f(pos);
-                const auto f_tot = adt * (f_V + f_ext);
-                m_V(i, j, k)     = Buff(i, j, k) + f_tot - dt_step * (grad(m_P, i, j, k, h));
+                m_V(i, j, k)     = Buff(i, j, k) + adt * (f_V + f_ext) - dt_step * (grad(m_P, i, j, k, h));
             }
 
             r_dec.exchange_ghosts(m_V);
