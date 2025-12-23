@@ -1,6 +1,7 @@
 
 #include "../../include/pde_helper.hpp"
 #include <cmath>
+#include <cstddef>
 #include <iomanip>
 #include <iostream>
 #include <vector>
@@ -103,15 +104,19 @@ int main(int argc, char** argv)
     double T_max = 1.0;
     double y0    = u_ex(0);
 
-    size_t N = 20;
+    size_t N = 10;
 
-    for (const auto s : std::views::iota(0, 3))
+    size_t N_tests{8};
+    std::vector<numPDE::Error<double>> errs(N_tests);
+    std::vector<double> dts(N_tests);
+    for (const auto s : std::views::iota(size_t{0}, N_tests))
     {
         const auto          n_steps = N * std::pow(2, s) + 1;
         std::vector<double> u_s(n_steps), u_exact(n_steps);
-        double              dt = T_max / (n_steps - 1);
+        dts[s] = T_max / (n_steps - 1); 
+        const auto& dt =      dts[s];
 
-        numPDE::Error<double> err{};
+        auto& err = errs[s];
         MockSolver            solver(y0, dt);
         for (int i = 0; i < n_steps; ++i)
         {
@@ -124,7 +129,17 @@ int main(int argc, char** argv)
             u_exact[i] = u_ex(t);
         }
         err.l_2 = std::sqrt( dt * err.l_2);
-        err.print_errs(0);
+    }
+
+             std::cout << "Convergence rate : L2 |   Linf" << std::endl;
+    for (const auto s : std::views::iota(size_t{1}, N_tests))
+    {
+         const auto& err_n = errs[s];
+         const auto& err_p = errs[s-1];
+        auto conv_l2 = std::log(err_n.l_2 / err_p.l_2) / std::log(dts[s] / dts[s-1]);
+        auto conv_li = std::log(err_n.l_inf / err_p.l_inf) / std::log(dts[s] / dts[s-1]);
+
+         std::cout << conv_l2 << "    |   " << conv_li << "\n";
     }
 
     return 0;

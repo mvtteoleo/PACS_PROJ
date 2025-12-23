@@ -59,6 +59,15 @@ namespace numPDE
         // Returns a deep copy of the m_V object
         auto       get_x() const { return m_V; };
         const auto get_dt() const { return r_inps.constants.dt; };
+
+        template<typename I>
+        auto       get_pos(const I i,const  I j, const I k) const
+        {
+            return Node<T>{.x = r_dec.xStartWGhosts()[0],
+                           .y = r_dec.xStartWGhosts()[1],
+                           .z = r_dec.xStartWGhosts()[2],
+                           .t = stepper.get_t()};
+        }
         auto       get_pos() const
         {
             return Node<T>{.x = r_dec.xStartWGhosts()[0],
@@ -90,8 +99,19 @@ namespace numPDE
             auto err = check_sol(errs);
         }
 
-        // Implement it !!
-        void initialize_u0() { return; };
+    // Implement it !!
+        void initialize_u0()
+        { 
+
+            for(const auto [k, j, i] : m_V.all_elems())
+            {
+                auto pos = get_pos(i, j, k);
+
+                m_V(i, j, k) = r_inps.v_BC.u_0(pos);
+            }
+
+            return;
+        };
 
         Error<T> check_sol(const std::vector<Error<T>>& errs) const
         {
@@ -174,7 +194,6 @@ namespace numPDE
             r_dec.exchange_ghosts(m_V);
 
             pSolve.pressure_correct(m_V, m_P, dt_step, this->m_verbose);
-            stepper.update_t(dt_step);
             this->apply_bc(stepper.get_t());
 
             r_dec.exchange_ghosts(m_V);

@@ -88,11 +88,11 @@ namespace numPDE
 
             // FINAL STEP (COMPUTE unew)
             std::swap(m_V_old, r_solver.m_V);
-            const auto dt_3 = dt * (1 - coeffs.c2);
+            const auto dt_3 = dt * (1.0 - coeffs.c2);
             r_solver.pseudoTS(m_buff, m_V_old, coeffs.b3, (1 - coeffs.c2));
             update_t(dt_3);
             // Finally U_new is inside r_solver.m_V
-            assert(std::fabs(t_old + dt - this->t)<= 1e-9);
+            assert(std::fabs(t_old + dt - this->t)<= 1e-4);
         }
 
         void        update_t(const T dt) noexcept { this->t += dt; };

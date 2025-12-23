@@ -48,6 +48,7 @@ namespace numPDE
         using Function    = std::function<OT(const IT&)>;
 
         Function f    = f_0<OT, IT>; // forcing term
+        Function u_0  = f_0<OT, IT>; // exact solution
         Function u_ex = f_0<OT, IT>; // exact solution
 
         std::array<Function, 6> g_s{f_0<OT, IT>, f_0<OT, IT>, f_0<OT, IT>,

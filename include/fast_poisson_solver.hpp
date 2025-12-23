@@ -55,10 +55,13 @@ namespace numPDE
         // 3. IFFTs and Transposes (Z -> Y -> X)
         void transform_backward(T* u1, T* u2, T* u3);
 
+        // Precompute the eigenvalues, just too big advantage when there are multiple solve called (ie for NS problem)
+        void precompute_eigenvals();
+
         NewDecomp<T>&                             r_dec;
         ScalarBC<T>&                              r_BCs;
         Constants<T>&                             r_const;
-        std::vector<T>                            m_data2, m_data3;
+        std::vector<T>                            m_data2, m_data3, eigenvals;
         std::optional<Tensor<T, 3, 3, ROW_MAJOR>> mo_P;
 
         int Lx, Ly, Lz;
