@@ -70,6 +70,7 @@ namespace numPDE
         auto solve(bool verbose = false)
         {
             std::vector<Error<T>> errs;
+            initialize_u0();
             while (stepper.get_t() <= r_inps.constants.T_max)
             {
                 // TODO
@@ -81,7 +82,7 @@ namespace numPDE
                 // Computes intermediate steps and writes on m_V and m_P the latest solution
                 // Calls pseudoTS !!
                 auto t_curr = stepper.get_t();
-                auto err =compute_err(t_curr);
+                auto err    = compute_err(t_curr);
                 errs.emplace_back(err);
                 stepper.advance(*this);
             }
@@ -89,11 +90,15 @@ namespace numPDE
             auto err = check_sol(errs);
         }
 
+        // Implement it !!
+        void initialize_u0() { return; };
+
         Error<T> check_sol(const std::vector<Error<T>>& errs) const
         {
             Error<T> err{};
             if (!r_dec.rank())
             {
+                std::cout << errs.size() << " timesteps \n";
                 for (const auto& e : errs)
                 {
                     err.l_2 += e.l_2 * e.l_2;
@@ -162,7 +167,8 @@ namespace numPDE
                 pos.z += h * k;
                 const auto f_V   = predictor_f(Un, i, j, k, r_inps.constants);
                 const auto f_ext = r_inps.v_BC.f(pos);
-                m_V(i, j, k)     = Buff(i, j, k) + adt * (f_V + f_ext) - dt_step * (grad(m_P, i, j, k, h));
+                m_V(i, j, k) =
+                    Buff(i, j, k) + adt * (f_V + f_ext) - dt_step * (grad(m_P, i, j, k, h));
             }
 
             r_dec.exchange_ghosts(m_V);

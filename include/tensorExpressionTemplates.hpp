@@ -22,6 +22,7 @@ namespace numPDE
     struct MyVec : Expr<MyVec<T, N>>
     {
       public:
+        using value_type = T;
         MyVec() = default;
         MyVec(std::initializer_list<T> l)
         {

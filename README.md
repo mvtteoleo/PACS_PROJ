@@ -13,12 +13,6 @@ Milestones:
   - Full solver (And validation)
   - Test the Poisson solvers for this part:
 
-TODO:
-
-  - Update pos in the outermost loop because efficiency (and correct the wrong updates)
-  - Make ErrorHandler struct to avoid the MPI_Reduce etc and make it cleaner.
-  - Check the L2 norm for time integration ( L2 = √( dt * ∑ err(t)^2) )!!!
-
 Some more notes:
 
   - Curiously recurring templates instead of inheritance from virtual

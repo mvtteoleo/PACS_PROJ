@@ -14,18 +14,48 @@ def RK3(un, t, dt):
     a21 = 64.0/120
     a31 = 30.0/120
     a32 = 50.0/120
-    b1 = 30.0/120
+    b1 = a31
     b3 = 90.0/120
+    c1 = a21
+    c2 = 80.0/120
+    # Compute buff
     f1 =  f(un, t)
+    # pTS_1(un, f1, dt, a21)
     Y2 = un + a21*dt*f1
-    t2 = t + dt * 64.0/120
-    t3 = t + dt * 80.0/120
-    f2 = f(Y2, t2)
-    Y3 = un + dt*(a31*f1 + a32*f2)
-    f3 = f(Y3, t3)
-    u_new = un + dt*(b1*f1 + b3 * f3)
+
+    # Buff updated
+    buff = dt*a31 * f1 + un
+
+    t2 = t + dt * c1 
+    Y3 = buff + a32*dt*f(Y2, t2)
+
+    t3 = t + dt * c2
+    u_new = buff + b3*dt * f(Y3, t3)
     return u_new
 
+def RK3_Williamson(un, t, dt):
+    # Williamson 3rd Order Coefficients
+    # These match your fixed C++ code exactly.
+    a = [0.0,      -5.0/9.0,  -153.0/128.0]
+    b = [1.0/3.0,  15.0/16.0,    8.0/15.0]
+    c = [0.0,       1.0/3.0,     3.0/4.0]  # c accumulates dt for time t
+
+    # Initialize variables
+    u = np.copy(un)
+    Q = np.zeros_like(u) # The "Buffer"
+    
+    for k in range(3):
+        t_curr = t + c[k] * dt
+        rhs = f(u, t_curr)
+        
+        if k == 0:
+            Q = dt * rhs 
+        else:
+            Q = a[k] * Q + dt * rhs
+            
+        u = u + b[k] * Q
+        
+    return u
 
 
 
@@ -40,6 +70,7 @@ def testRK(t, t_max, dt):
     uex = u_ex(ts)
     for i in range(1, np.size(ts)):
         u[i] = RK3(u[i-1], ts[i-1], dt)
+        # u[i] = RK3_Williamson(u[i-1], ts[i-1], dt)
 
     l2 = np.linalg.norm(u-uex)
     l2 *= np.sqrt(dt) 

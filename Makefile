@@ -18,10 +18,10 @@ LDLIBS   += $(NIX_LDLIBS)
 
 # Optimization flags
 DEBUG_FLAGS := -O0 -g  
-OPT_FLAGS := -O3 
+OPT_FLAGS := -O3  -march=native
 
-GEN_FLAGS   := $(OPT_FLAGS)
-C2DEC_FLAGS := $(OPT_FLAGS)
+GEN_FLAGS   := $(DEBUG_FLAGS)
+C2DEC_FLAGS := $(DEBUG_FLAGS)
 
 
 
