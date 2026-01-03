@@ -207,13 +207,12 @@ namespace numPDE
             }
     }
 
-
     template <typename T>
     void FastPoissonSolver<T>::precompute_eigenvals()
     {
         const auto& zSizeArr = r_dec.zSize();
-        eigenvals.resize(zSizeArr[0] * zSizeArr[1] *zSizeArr[2]);
-        const T&    h        = r_const.h;
+        eigenvals.resize(zSizeArr[0] * zSizeArr[1] * zSizeArr[2]);
+        const T& h = r_const.h;
 
         auto eig = [](int index, int N, T h) -> T
         { return (2.0 * std::cos(index * M_PI / (N - 1)) - 2.0) / (h * h); };
@@ -231,14 +230,14 @@ namespace numPDE
                     const int jglob = r_dec.zStart()[1] + jp;
                     const int kglob = r_dec.zStart()[2] + kp;
                     const T   denom = eig_x(iglob) + eig_y(jglob) + eig_z(kglob);
-                    eigenvals[ii] = 1.0/denom;
+                    eigenvals[ii]   = 1.0 / denom;
                 }
     }
 
     template <typename T>
     void FastPoissonSolver<T>::solve_spectral()
     {
-        for(const auto ii : std::views::iota(size_t{0}, size_t{eigenvals.size()}))
+        for (const auto ii : std::views::iota(size_t{0}, size_t{eigenvals.size()}))
             m_data3[ii] *= eigenvals[ii];
 
         // Set mean mode to 0 if relevant

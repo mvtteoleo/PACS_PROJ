@@ -71,12 +71,12 @@ namespace numPDE
             const auto dt_1 = dt * coeffs.c1;
 
             // r_s.m_V += a21 * dt * m_buff
-            r_solver.pseudoTS(m_buff, dt, coeffs.c1);
+            r_solver.pseudoTS(m_buff, coeffs.a21, coeffs.c1);
             // Now Y2 is inside r_solver.m_V
             update_t(dt_1);
 
             // Update the BUFFER
-            m_buff = m_V_old +  coeffs.a31 * dt * m_buff ;
+            m_buff = m_V_old + coeffs.a31 * dt * m_buff;
 
             // SECOND STEP
             // Swap them, now there is no need to keep the actual solution in solver.m_V
@@ -92,7 +92,7 @@ namespace numPDE
             r_solver.pseudoTS(m_buff, m_V_old, coeffs.b3, (1 - coeffs.c2));
             update_t(dt_3);
             // Finally U_new is inside r_solver.m_V
-            assert(std::fabs(t_old + dt - this->t)<= 1e-4);
+            assert(std::fabs(t_old + dt - this->t) <= 1e-4);
         }
 
         void        update_t(const T dt) noexcept { this->t += dt; };

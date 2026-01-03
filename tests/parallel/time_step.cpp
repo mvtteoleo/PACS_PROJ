@@ -5,7 +5,6 @@ using Real = double;
 #include "../../include/navier_stokes.hpp"
 #include <climits>
 #include <cmath>
-#include <fftw3.h>
 
 #include "../../tools/manufactured_sols.hpp"
 

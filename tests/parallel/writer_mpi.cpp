@@ -29,7 +29,7 @@ int main(int argc, char* argv[])
 {
     std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
-    std::size_t nx = 4, ny = N, nz = N;
+    std::size_t nx = N, ny = N, nz = N;
 
     /*
      */

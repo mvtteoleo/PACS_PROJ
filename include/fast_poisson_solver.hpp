@@ -55,7 +55,8 @@ namespace numPDE
         // 3. IFFTs and Transposes (Z -> Y -> X)
         void transform_backward(T* u1, T* u2, T* u3);
 
-        // Precompute the eigenvalues, just too big advantage when there are multiple solve called (ie for NS problem)
+        // Precompute the eigenvalues, just too big advantage when there are multiple solve called
+        // (ie for NS problem)
         void precompute_eigenvals();
 
         NewDecomp<T>&                             r_dec;

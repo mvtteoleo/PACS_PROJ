@@ -23,7 +23,7 @@ namespace numPDE
     {
       public:
         using value_type = T;
-        MyVec() = default;
+        MyVec()          = default;
         MyVec(std::initializer_list<T> l)
         {
             assert(l.size() <= N && "Value bigger than the size of the  element");
