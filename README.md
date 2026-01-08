@@ -1,6 +1,6 @@
 Repo fatta con l'idea di sviluppare il codice per la tesi
 
-nix develop per attivare la shell con tutto.
+Nix develop per attivare la shell con tutto.
 tests in ```./tests/```
 ```make <nome_test(SENZA.cpp)>``` per generare l'eseguibile
 
@@ -29,5 +29,14 @@ Some more notes:
   - Scalability test
   - Parse from text
 
+
+
+ERRORS TABLE
+
+
+| BC     | Serial | Parallel |
+| ------------- | -------------- | -------------- |
+| NeuHomo | OK   |  NO |
+| DirHomo | OK   | OK    |
 
 

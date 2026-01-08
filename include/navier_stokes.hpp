@@ -209,11 +209,14 @@ namespace numPDE
             }
 
             r_dec.exchange_ghosts(m_V);
+            r_dec.exchange_ghosts(m_P);
 
             pSolve.pressure_correct(m_V, m_P, adt, this->m_verbose);
+            r_dec.exchange_ghosts(m_P);
             r_dec.exchange_ghosts(m_V);
             this->apply_bc(stepper.get_t());
             r_dec.exchange_ghosts(m_V);
+            r_dec.exchange_ghosts(m_P);
         }
         // Predictor + Corrector -> Returns VecF with the new U and ScalF with the New P
         void pseudoTS(type_solve& Buff, const type_solve& Un, const T a, const T c)
@@ -232,11 +235,13 @@ namespace numPDE
             }
 
             r_dec.exchange_ghosts(m_V);
+            r_dec.exchange_ghosts(m_P);
 
             pSolve.pressure_correct(m_V, m_P, c * dt, this->m_verbose);
             this->apply_bc(stepper.get_t());
 
             r_dec.exchange_ghosts(m_V);
+            r_dec.exchange_ghosts(m_P);
         }
 
         // Applies the BC for the velocity on m_V

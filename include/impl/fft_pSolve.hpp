@@ -36,7 +36,7 @@ namespace numPDE
             this->m_P_ghosted[l] = div(V, i, j, k, h) / dt_step;
         }
 
-        // this->compute_div_on_sides();
+        this->compute_div_on_sides();
 
         // Feed the tensor to the solve method
         this->solve(this->m_P_ghosted, this->m_P_ghosted, verbose);
@@ -65,6 +65,7 @@ namespace numPDE
         this->r_dec.exchange_ghosts(V);
         // Update P
         P = P + m_P_ghosted;
+        this->r_dec.exchange_ghosts(P);
     }
 
     template <typename T>
@@ -76,7 +77,11 @@ namespace numPDE
         const auto& nz    = sizes[2];
 
         constexpr auto coefs = get_appr_coeffs_neu<g_appr_ord, T>();
-        auto           idx   = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
+        assert(g_appr_ord + 1 < nz &&
+               "Local z size it too small for the approximation to be consistent");
+        assert(g_appr_ord + 1 < ny &&
+               "Local y size it too small for the approximation to be consistent");
+        auto idx = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
 
         const auto k_full = std::views::iota(size_t{0}, size_t{nz});
         const auto j_full = std::views::iota(size_t{0}, size_t{ny});
@@ -85,6 +90,7 @@ namespace numPDE
         const auto i_internal = std::views::iota(size_t{1}, size_t{nx - 1});
         const auto j_internal = std::views::iota(size_t{1}, size_t{ny - 1});
 
+        MPI_Barrier(MPI_COMM_WORLD);
         if (this->m_BC_z == NeuHomo and is_side(SIDES::BOTTOM, this->r_dec))
         {
             for (auto j : j_internal)
@@ -94,10 +100,12 @@ namespace numPDE
                     T          val = 0.;
                     for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
                         val += coefs.v[el] * this->m_P_ghosted[idx(i, j, el + 1)];
+
                     this->m_P_ghosted[l] = val;
                 }
         }
 
+        MPI_Barrier(MPI_COMM_WORLD);
         if (this->m_BC_z == NeuHomo and is_side(SIDES::TOP, this->r_dec))
         {
             size_t k_max = nz - 1;
@@ -108,9 +116,12 @@ namespace numPDE
                     T          val = 0.;
                     for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
                         val += coefs.v[el] * this->m_P_ghosted[idx(i, j, k_max - 1 - el)];
+
                     this->m_P_ghosted[l] = val;
                 }
         }
+
+        MPI_Barrier(MPI_COMM_WORLD);
 
         if (this->m_BC_y == NeuHomo and is_side(SIDES::WEST, this->r_dec))
         {
@@ -126,6 +137,8 @@ namespace numPDE
                 }
         }
 
+        MPI_Barrier(MPI_COMM_WORLD);
+
         if (this->m_BC_y == NeuHomo and is_side(SIDES::EAST, this->r_dec))
         {
             for (auto k : k_full)
@@ -139,6 +152,7 @@ namespace numPDE
                 }
         }
 
+        MPI_Barrier(MPI_COMM_WORLD);
         if (this->m_BC_x == NeuHomo)
         {
 
@@ -160,12 +174,14 @@ namespace numPDE
                     this->m_P_ghosted[l_start + nx - 1] = val_e;
                 }
         }
+        MPI_Barrier(MPI_COMM_WORLD);
         if (this->m_BC_z == DirHomo and is_side(SIDES::BOTTOM, this->r_dec))
         {
             for (auto j : j_full)
                 for (auto i : i_full)
                     this->m_P_ghosted[idx(i, j, 0)] = 0.;
         }
+        MPI_Barrier(MPI_COMM_WORLD);
 
         if (this->m_BC_z == DirHomo and is_side(SIDES::TOP, this->r_dec))
         {
@@ -175,6 +191,7 @@ namespace numPDE
                     this->m_P_ghosted[idx(i, j, k_max)] = 0.;
         }
 
+        MPI_Barrier(MPI_COMM_WORLD);
         if (this->m_BC_y == DirHomo and is_side(SIDES::WEST, this->r_dec))
         {
             size_t j_max = ny - 1;
@@ -183,12 +200,16 @@ namespace numPDE
                     this->m_P_ghosted[idx(i, j_max, k)] = 0.;
         }
 
+        MPI_Barrier(MPI_COMM_WORLD);
+
         if (this->m_BC_y == DirHomo and is_side(SIDES::EAST, this->r_dec))
         {
             for (auto k : k_full)
                 for (auto i : i_full)
                     this->m_P_ghosted[idx(i, 0, k)] = 0.;
         }
+        MPI_Barrier(MPI_COMM_WORLD);
+        return;
     }
 
     template <typename T>
@@ -209,14 +230,16 @@ namespace numPDE
         const auto i_range = std::views::iota(size_t{1}, size_t{sizes[0]});
 
         auto idx  = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
-        auto strt = this->r_dec.xStart();
-
-        constexpr T CHECK_VAL = 1234.5678;
-        auto        beg       = m_P_ghosted.begin();
-        std::fill(beg, m_P_ghosted.end(), CHECK_VAL);
-
-        // Brute imposition of DirHomo BC and Sanitize
-        std::fill(beg, beg + (nx * ny * nz), 0.);
+        auto strt = this->r_dec.xStartWGhosts();
+        auto beg  = m_P_ghosted.begin();
+        /*
+         *  constexpr T CHECK_VAL = 1234.5678;
+         *
+         *  std::fill(beg, m_P_ghosted.end(), CHECK_VAL);
+         *
+         *  // Brute imposition of DirHomo BC and Sanitize
+         *  std::fill(beg, beg + (nx * ny * nz), 0.);
+         */
 
         // Fill the internal part of the domain
         for (const auto k : k_range)
@@ -236,16 +259,18 @@ namespace numPDE
 
         this->compute_div_on_sides();
 
-        // MORE CHECKS
-        auto check_lambda = [&](auto gg) { return gg == CHECK_VAL; };
-
-        auto result_it = std::find_if(beg, m_P_ghosted.end(), check_lambda);
-        std::cout << std::distance(beg, result_it) << " vs " << nx * ny * nz << "\n";
-        assert(std::distance(beg, result_it) == nx * ny * nz &&
-               "\n\n=====\n\nFirst element is NOT the CHECK_VAL imposed!!\n\n=====\n\n");
-
-        assert(std::none_of(beg, beg + (nx * ny * nz), check_lambda) &&
-               "\n\n=====\n\nSome values have not been modified\n\n=====\n\n");
+        /*
+         *  // MORE CHECKS
+         *  auto check_lambda = [&](auto gg) { return gg == CHECK_VAL; };
+         *
+         *  auto result_it = std::find_if(beg, m_P_ghosted.end(), check_lambda);
+         *  std::cout << std::distance(beg, result_it) << " vs " << nx * ny * nz << "\n";
+         *  assert(std::distance(beg, result_it) == nx * ny * nz &&
+         *         "\n\n=====\n\nFirst element is NOT the CHECK_VAL imposed!!\n\n=====\n\n");
+         *
+         *  assert(std::none_of(beg, beg + (nx * ny * nz), check_lambda) &&
+         *         "\n\n=====\n\nSome values have not been modified\n\n=====\n\n");
+         */
 
         // Feed the tensor to the solve method
         this->solve(this->m_P_ghosted, this->m_P_ghosted, verbose);

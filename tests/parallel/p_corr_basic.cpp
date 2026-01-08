@@ -3,13 +3,13 @@
 #include <random>
 #include <vector>
 
-template <typename T>
-void fill_random(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U)
+template <typename Real>
+void fill_random(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U)
 {
     std::random_device rd;
     std::mt19937       gen(rd());
 
-    std::uniform_real_distribution<T> dist(-1e-6, 1e-6);
+    std::uniform_real_distribution<Real> dist(-1e-6, 1e-6);
 
     for (auto [k, j, i] : U.int_elems())
     {
@@ -19,36 +19,14 @@ void fill_random(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U)
     }
 }
 
-template <typename T>
-void fill_irrot_field(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U)
-{
-
-    // Set the given V
-    for (auto [k, j, i] : U.all_elems())
-        U(i, j, k) = {1.0, 0., 0.};
-}
-
-template <typename T>
-auto pseudo_ts(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U, const numPDE::Constants<T>& csts)
-{
-    auto U_new = U;
-    for (auto [k, j, i] : U.int_elems())
-    {
-        const auto f   = csts.dt * predictor_f(U, i, j, k, csts);
-        U_new(i, j, k) = U(i, j, k) + f;
-    }
-
-    return U_new;
-}
-
-template <typename T>
-auto check_divergence(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U, const T h)
+template <typename Real>
+auto check_divergence(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U, const Real h)
 {
 
     struct Err
     {
-        T L2;
-        T Linf;
+        Real L2;
+        Real Linf;
     };
     Err err{.L2{}, .Linf{}};
 
@@ -58,144 +36,137 @@ auto check_divergence(numPDE::Tensor<T, 4, 3, numPDE::ROW_MAJOR>& U, const T h)
         for (size_t j{2}; j < ny - 2; ++j)
             for (size_t i{2}; i < nz - 2; ++i)
             {
-                const T div = std::abs(numPDE::div(U, i, j, k, h));
+                const Real div = std::abs(numPDE::div(U, i, j, k, h));
                 err.L2 += div * div;
                 if (div > err.Linf) err.Linf = div;
             }
 
-    MPI_Allreduce(&err.L2, &err.L2, 1, mpi_get_type<T>(), MPI_SUM, MPI_COMM_WORLD);
-    MPI_Allreduce(&err.Linf, &err.Linf, 1, mpi_get_type<T>(), MPI_MAX, MPI_COMM_WORLD);
+    MPI_Allreduce(&err.L2, &err.L2, 1, mpi_get_type<Real>(), MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce(&err.Linf, &err.Linf, 1, mpi_get_type<Real>(), MPI_MAX, MPI_COMM_WORLD);
 
     err.L2 = std::sqrt(h * h * h * err.L2);
 
     return err;
 }
 using Real = double;
+#define MG 1
 int main(int argc, char* argv[])
 {
 
     std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
-    PETScDecomp<Real>       p_dec(argc, argv, N, N, N);
-    NewDecomp<Real>         n_dec(argc, argv, N, N, N);
+#if MG == 1
+    PETScDecomp<Real> dec(argc, argv, N, N, N);
+#elif MG == 0
+    NewDecomp<Real> dec(argc, argv, N, N, N);
+#endif
     numPDE::Constants<Real> csts;
     numPDE::ScalarBC<Real>  scal_bc;
 
-    Real       L  = 1.0;
+    Real       L  = M_PI;
     const auto Lx = L, Ly = L, Lz = L;
     using FunType = numPDE::PressureBC<>::Function;
-
-    Real scale = 22;
-
-    // List of wave numbers for each harmonic (could be different in x,y,z)
-    std::vector<std::tuple<int, int, int>> harmonics = {
-        {1, 1, 1} //, {2, 1, 1}, {1, 2, 1}, {1, 1, 2} // Add as many as you like
-    };
-
-    FunType exact_sol_harm = [&](const numPDE::Node<Real>& pos) -> Real
-    {
-        Real x = pos.x, y = pos.y, z = pos.z;
-        Real sum = 0.0;
-        for (auto [wx, wy, wz] : harmonics)
-        {
-            sum += scale * std::cos(wx * M_PI * x / Lx) * std::cos(wy * M_PI * y / Ly) *
-                   std::cos(wz * M_PI * z / Lz);
-        }
-        return sum;
-    };
-
-    FunType forcing_harm = [&](const numPDE::Node<Real>& pos) -> Real
-    {
-        Real x = pos.x, y = pos.y, z = pos.z;
-        Real sum = 0.0;
-        for (auto [wx, wy, wz] : harmonics)
-        {
-            Real u = scale * std::cos(wx * M_PI * x / Lx) * std::cos(wy * M_PI * y / Ly) *
-                     std::cos(wz * M_PI * z / Lz);
-
-            double coeff = -M_PI * M_PI *
-                           ((wx * wx) / (Lx * Lx) + (wy * wy) / (Ly * Ly) + (wz * wz) / (Lz * Lz));
-            sum += coeff * u;
-        }
-        return sum;
-    };
-
-    auto u_ex = exact_sol_harm; //
-    auto forc = forcing_harm;   //
-    std::fill(scal_bc.g_s.begin(), scal_bc.g_s.end(), exact_sol_harm);
-    std::fill(scal_bc.BC_s.begin(), scal_bc.BC_s.end(), numPDE::DirHomo);
-    scal_bc.f    = forc;
-    scal_bc.u_ex = u_ex;
 
     csts.h  = L / (N - 1);
     csts.Re = 1;
     csts.dt = csts.h * csts.h * 0.001;
 
-    // numPDE::PressureSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> fft(p_dec, scal_bc,
-    // csts);
-
-    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> mg(p_dec, scal_bc,
-                                                                                 csts);
-
-    auto U = numPDE::make_vector_field<Real, 3>(p_dec.dimsWithGhosts());
-    auto P = numPDE::make_scalar_field<Real, 3>(p_dec.dimsWithGhosts());
-
-    enum class fill_meth
+    /*
+    FunType p_ex = [&csts](const numPDE::Node<Real>& pos) -> Real
     {
-        random,
-        sincos,
-        dumb
+        const auto& x = pos.x;
+        const auto& y = pos.y;
+        const auto& z = pos.z;
+        using std::cos, std::sin;
+        return sin(x) * sin(y) * sin(z);
     };
-    fill_meth fill = fill_meth::sincos;
-
-    if (fill == fill_meth::random) fill_random(U);
-
-    if (fill == fill_meth::dumb) fill_irrot_field(U);
-
     auto v_u_ex = [&csts](const numPDE::Node<Real>& pos, const size_t& l)
     {
         const auto& x = pos.x;
         const auto& y = pos.y;
         const auto& z = pos.z;
         using std::cos, std::sin;
-        if (l == 0) return cos(x + csts.h * 0.5) * sin(y) * cos(z);
-        if (l == 1) return cos(y + csts.h * 0.5) * sin(x) * cos(z);
-        if (l == 2) return 2 * sin(y) * sin(x) * sin(z + csts.h * 0.5);
+        if (l == 0) return cos(x + csts.h * 0.5) * sin(y) * sin(z);
+        if (l == 1) return cos(y + csts.h * 0.5) * sin(x) * sin(z);
+        if (l == 2) return cos(z + csts.h * 0.5) * sin(x) * sin(y);
     };
-    if (fill == fill_meth::sincos)
+
+    std::fill(scal_bc.BC_s.begin(), scal_bc.BC_s.end(), numPDE::DirHomo);
+    */
+    FunType p_ex = [&csts](const numPDE::Node<Real>& pos) -> Real
     {
-        for (auto [k, j, i] : U.all_elems())
-        {
-            auto               xsrt = p_dec.xStartWGhosts();
-            numPDE::Node<Real> pos{.x = csts.h * (i + xsrt[0]),
-                                   .y = csts.h * (j + xsrt[1]),
-                                   .z = csts.h * (k + xsrt[2])};
+        const auto& x = pos.x;
+        const auto& y = pos.y;
+        const auto& z = pos.z;
+        using std::cos, std::sin;
+        return cos(x) * cos(y) * cos(z);
+    };
+    auto v_u_ex = [&csts](const numPDE::Node<Real>& pos, const size_t& l)
+    {
+        const auto& x = pos.x;
+        const auto& y = pos.y;
+        const auto& z = pos.z;
+        using std::cos, std::sin;
+        if (l == 0) return -sin(x + csts.h * 0.5) * cos(y) * cos(z);
+        if (l == 1) return -sin(y + csts.h * 0.5) * cos(x) * cos(z);
+        if (l == 2) return -sin(z + csts.h * 0.5) * cos(x) * cos(y);
+    };
 
-            for (int l{}; l < 3; ++l)
-            {
-                U.at(l, i, j, k) = v_u_ex(pos, l);
-            }
-        }
+    std::fill(scal_bc.BC_s.begin(), scal_bc.BC_s.end(), numPDE::NeuHomo);
 
-        auto ris = check_divergence(U, csts.h);
-        if (!p_dec.rank()) std::cout << "\nL2 err : " << ris.L2 << " Linf : " << ris.Linf;
-        U = pseudo_ts(U, csts);
-        p_dec.exchange_ghosts(U);
+    FunType f_ex = [&csts, &p_ex](const numPDE::Node<Real>& pos) -> Real
+    { return -3.0 * p_ex(pos); };
+    scal_bc.f    = f_ex;
+    scal_bc.u_ex = p_ex;
+
+#if MG == 1
+    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> solver(dec, scal_bc,
+                                                                                     csts);
+#elif MG == 0
+    numPDE::PressureSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> solver(dec, scal_bc,
+                                                                                 csts);
+#endif
+
+    auto U = numPDE::make_vector_field<Real, 3>(dec.dimsWithGhosts());
+    auto P = numPDE::make_scalar_field<Real, 3>(dec.dimsWithGhosts());
+
+    for (auto [k, j, i] : U.all_elems())
+    {
+        auto               xsrt = dec.xStartWGhosts();
+        numPDE::Node<Real> pos{
+            .x = csts.h * (i + xsrt[0]), .y = csts.h * (j + xsrt[1]), .z = csts.h * (k + xsrt[2])};
+
+        U.at(0, i, j, k) = v_u_ex(pos, 0);
+        U.at(1, i, j, k) = v_u_ex(pos, 1);
+        U.at(2, i, j, k) = v_u_ex(pos, 2);
     }
 
-    auto pre_pcorr = check_divergence(U, csts.h);
-    if (!p_dec.rank()) std::cout << "\nL2 err : " << pre_pcorr.L2 << " Linf : " << pre_pcorr.Linf;
+    solver.pressure_correct(U, P, 1.0, true);
 
-    mg.pressure_correct(U, P, csts.dt, true);
-    // fft.pressure_correct(U, P, csts.dt, false);
+    numPDE::Error<Real> err{};
+    const auto&         h     = csts.h;
+    const auto&         xstrt = dec.xStartWGhosts();
+    const auto&         is    = xstrt[0];
+    const auto&         js    = xstrt[1];
+    const auto&         ks    = xstrt[2];
 
-    auto after_pcorr = check_divergence(U, csts.h);
-    if (!p_dec.rank())
-        std::cout << "\nL2 err : " << after_pcorr.L2 << " Linf : " << after_pcorr.Linf;
+    numPDE::Node<Real> pos{};
 
-    auto l2   = after_pcorr.L2 / (pre_pcorr.L2);
-    auto linf = after_pcorr.Linf / (pre_pcorr.Linf);
+    for (auto [kp, jp, ip] : P.int_elems())
+    {
+        pos.x              = h * static_cast<Real>(is + ip);
+        pos.y              = h * static_cast<Real>(js + jp);
+        pos.z              = h * static_cast<Real>(ks + kp);
+        const Real abs_err = std::abs(P(ip, jp, kp) - p_ex(pos));
+        err.l_2 += abs_err * abs_err;
+        err.l_inf = std::max(err.l_inf, abs_err);
+    }
 
-    if (!p_dec.rank()) std::cout << "\n(post / pre) L2 : " << l2 << " Linf : " << linf << " ";
+    err.reduce(h * h * h);
+
+    err.print_errs(dec.rank());
+    /*
+     */
+
     return 0;
 }

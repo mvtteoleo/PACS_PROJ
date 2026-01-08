@@ -343,7 +343,7 @@ namespace numPDE
 
         err.reduce(h * h * h);
 
-        err.print_errs(!r_dec.rank());
+        err.print_errs(r_dec.rank());
 
         return err;
     }

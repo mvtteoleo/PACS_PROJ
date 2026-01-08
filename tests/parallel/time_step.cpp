@@ -2,6 +2,7 @@
 #include <functional>
 #include <utility>
 using Real = double;
+#define MG 0
 #include "../../include/navier_stokes.hpp"
 #include <climits>
 #include <cmath>
@@ -11,9 +12,12 @@ using Real = double;
 int main(int argc, char* argv[])
 {
 
-    // MPI AND DOMAIN DECOMPOSITION LOGIC
+// MPI AND DOMAIN DECOMPOSITION LOGIC
+#if MG == 1
+    PETScDecomp<Real> decomposer(argc, argv);
+#elif MG == 0
     NewDecomp<Real> decomposer(argc, argv);
-    // PETScDecomp<Real> decomposer(argc, argv);
+#endif
 
     std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
@@ -65,7 +69,11 @@ int main(int argc, char* argv[])
         return numPDE::MyVec<Real, 3>{fx_c, fy_c, fz_c};
     };
 
+#if MG == 1
+    numPDE::NSSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> ns(decomposer, inputs);
+#elif MG == 0
     numPDE::NSSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> ns(decomposer, inputs);
+#endif
 
     ns.solve();
 
