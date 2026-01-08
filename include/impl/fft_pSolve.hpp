@@ -22,8 +22,8 @@ namespace numPDE
         const auto& nz    = sizes[2];
 
         // Account for the presence of ghost points
-        const bool j_g = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
-        const bool k_g = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
+        const int j_g = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
+        const int k_g = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
 
         auto idx = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
         auto beg = m_P_ghosted.begin();
@@ -41,17 +41,24 @@ namespace numPDE
         // Feed the tensor to the solve method
         this->solve(this->m_P_ghosted, this->m_P_ghosted, verbose);
 
+    /* 
+     *  this->allocate_P();
+     *  std::copy_n(beg, this->mo_P->size(), this->mo_P->ptr_at(0));
+     *
+     *  this->check_sol();
+     */
+   
         // UPDATE V
         const auto slice = nx * ny;
-
-        for (int kp = nz - 1; kp >= 0; --kp)
+   
+        for (int kp = nz - 1; kp > 0; --kp)
         {
             auto src_end_it  = beg + (kp * slice) + slice;
             auto dst_end_ptr = m_P_ghosted.ptr_at(0, j_g, k_g + kp) + slice;
             std::copy_backward(src_end_it - slice, src_end_it, dst_end_ptr);
         }
         this->r_dec.exchange_ghosts(m_P_ghosted);
-
+   
         // I have to do it for the internal points (Excluding the Ghosted!)
         for (const auto k : std::views::iota(size_t{1}, size_t{nz + k_g - 1}))
             for (const auto j : std::views::iota(size_t{1}, size_t{ny + j_g - 1}))
@@ -61,11 +68,12 @@ namespace numPDE
                     const auto dP = grad(m_P_ghosted, i, j, k, h);
                     V(i, j, k)    = V(i, j, k) - dt_step * dP;
                 }
-
+   
         this->r_dec.exchange_ghosts(V);
         // Update P
         P = P + m_P_ghosted;
         this->r_dec.exchange_ghosts(P);
+   
     }
 
     template <typename T>
@@ -81,7 +89,8 @@ namespace numPDE
                "Local z size it too small for the approximation to be consistent");
         assert(g_appr_ord + 1 < ny &&
                "Local y size it too small for the approximation to be consistent");
-        auto idx = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
+        auto idx = [&](auto i, auto j, auto k) -> size_t
+        { return i + nx * (j + ny * k); };
 
         const auto k_full = std::views::iota(size_t{0}, size_t{nz});
         const auto j_full = std::views::iota(size_t{0}, size_t{ny});
@@ -209,6 +218,18 @@ namespace numPDE
                     this->m_P_ghosted[idx(i, 0, k)] = 0.;
         }
         MPI_Barrier(MPI_COMM_WORLD);
+        if (this->m_BC_x == DirHomo)
+        {
+
+            for (auto k : k_full)
+                for (auto j : j_full)
+                {
+
+                    size_t l_start = idx(0, j, k);
+                    this->m_P_ghosted[l_start]          = 0.0;
+                    this->m_P_ghosted[l_start + nx - 1] = 0.0;
+                }
+        }
         return;
     }
 

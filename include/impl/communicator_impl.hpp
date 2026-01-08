@@ -218,9 +218,9 @@ void Communicator<T>::exchange_ghosts(
     numPDE::Tensor<U, RANK, N_DIMS, numPDE::ROW_MAJOR>& P) const noexcept
 {
     MPI_Barrier(MPI_COMM_WORLD);
-    exchange_late_bounds(P);
-    MPI_Barrier(MPI_COMM_WORLD);
     exchange_vert_bounds(P);
+    MPI_Barrier(MPI_COMM_WORLD);
+    exchange_late_bounds(P);
     MPI_Barrier(MPI_COMM_WORLD);
     return;
 }

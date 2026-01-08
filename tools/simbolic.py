@@ -119,7 +119,7 @@ def c(val): return sp.cos(mpi * val)
 u = c(x) * s(y) * c(z) * s(t)
 v = s(x) * c(y) * c(z) * s(t)
 w = 2 * s(x) * s(y) * s(z) * s(t)
-p = c(x) * c(y) * c(z)
+p = s(x) * s(y) * s(z)
 
 # --- 2. Define Derivatives and Navier-Stokes Forces ---
 # Check continuity (optional, good for verification)
@@ -173,7 +173,7 @@ def generate_cpp_function(name, expr, printer):
     
     lines = []
     lines.append("template <typename T>")
-    lines.append(f"auto {name}(const T& x, const T& y, const T& z, const T& t, const T& Re) -> T")
+    lines.append(f"auto {name}(const T& x, const T& y, const T& z, const T& t, const T& Re=1.0) -> T")
     lines.append("{")
     
     # 2. Print optimized temporary variables
@@ -202,6 +202,7 @@ with open("manufactured_sols.hpp", "w") as f:
     f.write('#include "../include/navier_stokes.hpp"\n')
     f.write("#include <numbers>\n")
     f.write("namespace numPDE{\n")
+    f.write("\n /* Re=1.0 even thos is not needed for the velocity cause I wanted to keep the least changes possible */ \n")
 
     # Generate functions
     # We loop through the list in the order you want

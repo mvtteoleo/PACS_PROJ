@@ -211,7 +211,7 @@ namespace numPDE
             r_dec.exchange_ghosts(m_V);
             r_dec.exchange_ghosts(m_P);
 
-            pSolve.pressure_correct(m_V, m_P, adt, this->m_verbose);
+            // pSolve.pressure_correct(m_V, m_P, adt, this->m_verbose);
             r_dec.exchange_ghosts(m_P);
             r_dec.exchange_ghosts(m_V);
             this->apply_bc(stepper.get_t());
@@ -237,7 +237,7 @@ namespace numPDE
             r_dec.exchange_ghosts(m_V);
             r_dec.exchange_ghosts(m_P);
 
-            pSolve.pressure_correct(m_V, m_P, c * dt, this->m_verbose);
+            // pSolve.pressure_correct(m_V, m_P, c * dt, this->m_verbose);
             this->apply_bc(stepper.get_t());
 
             r_dec.exchange_ghosts(m_V);

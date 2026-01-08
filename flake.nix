@@ -54,6 +54,11 @@
             pkgs.heaptrack
             pkgs.gdb
 
+            # Visualization helper for python
+            pkgs.xvfb-run    # Required for headless rendering
+            pkgs.libglvnd    # OpenGL libraries
+            pkgs.xorg.libX11 # X11 libraries
+
             # Python Environment
             pyEnv
           ];

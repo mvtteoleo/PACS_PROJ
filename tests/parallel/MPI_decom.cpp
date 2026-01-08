@@ -2,7 +2,7 @@
 #include <optional>
 #include <ranges>
 #include <type_traits>
-#define TEST 1
+#define TEST 2
 #include "../../include/MY_LIB.hpp"
 #include <algorithm>
 #include <array>
@@ -91,20 +91,22 @@ int main(int argc, char* argv[])
     ny = dims[1];
     nz = dims[2];
 
-    for (auto k : std::views::iota(size_t{0}, nz))
-        for (auto j : std::views::iota(size_t{0}, ny))
-            P(0, j, k) = j * 10 + k;
-    P.fill_val(decomp.rank());
-    V.fill_val(decomp.rank());
+    P.fill_val(-1.00);
+    V.fill_val(-1.00);
+
+    for(const auto [k, j, i] : P.int_elems())
+    {
+        P(i, j,k) = decomp.rank();
+        V.at(0, i, j,k) = decomp.rank();
+        V.at(1, i, j,k) = decomp.rank();
+        V.at(2, i, j,k) = decomp.rank();
+    }
 
     // Exchange TOP with rank on TOP
 
     MPI_Datatype mpi_type  = mpi_get_type<Real>();
     MPI_Comm     cart_comm = MPI_COMM_WORLD;
 
-    // Each slice is one z-layer (ny × nx elements)
-    const int slice     = (ny - 2) * nx;
-    const int vec_slice = slice * N_DIMS;
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
     decomp.exchange_ghosts(V);
@@ -114,6 +116,7 @@ int main(int argc, char* argv[])
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 
+    /*
     if (neighbors[neighbour_directions::BOTTOM] != MPI_PROC_NULL)
         for (int j = 0; j < nx; ++j)
             for (int jp = 1; jp < ny - 1; ++jp)
@@ -149,6 +152,7 @@ int main(int argc, char* argv[])
 
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
+    */
 
     //   Print results rank by rank
     for (int r = 0; r < decomp.totRank(); ++r)
