@@ -9,8 +9,10 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <execution>
 #include <numeric>
 #include <ranges>
+#include <tbb/task_arena.h>
 #include <tuple>
 #include <vector>
 
@@ -180,14 +182,28 @@ namespace numPDE
         {
             const auto& h = r_inps.constants.h;
             r_dec.exchange_ghosts(m_V);
-            for (const auto [k, j, i] : m_V.int_elems())
-            {
-                const auto pos = get_pos(i, j, k);
+            auto iters = m_V.int_elems();
+            std::for_each(std::execution::par_unseq, iters.begin(), iters.end(),
+                          [&](const auto idx)
+                          {
+                              const auto [k, j, i] = idx;
+                              const auto pos       = get_pos(i, j, k);
 
-                const auto f_V   = predictor_f(m_V, i, j, k, r_inps.constants);
-                const auto f_ext = r_inps.v_BC.f(pos);
-                Buff(i, j, k)    = f_V + f_ext;
-            }
+                              const auto f_V   = predictor_f(m_V, i, j, k, r_inps.constants);
+                              const auto f_ext = r_inps.v_BC.f(pos);
+                              Buff(i, j, k)    = f_V + f_ext;
+                          });
+            /*
+    #pragma omp parallel for
+                for (const auto [k, j, i] : m_V.int_elems())
+                {
+                    const auto pos = get_pos(i, j, k);
+
+                    const auto f_V   = predictor_f(m_V, i, j, k, r_inps.constants);
+                    const auto f_ext = r_inps.v_BC.f(pos);
+                    Buff(i, j, k)    = f_V + f_ext;
+                }
+            */
             // Exchange sides of the BUFF
             r_dec.exchange_ghosts(Buff);
             return;
@@ -200,6 +216,7 @@ namespace numPDE
 
             r_dec.exchange_ghosts(Buff);
             r_dec.exchange_ghosts(m_V);
+#pragma omp parallel for
             for (const auto [k, j, i] : m_V.int_elems())
             {
                 const auto pos = get_pos(i, j, k);
@@ -225,6 +242,7 @@ namespace numPDE
             r_dec.exchange_ghosts(Buff);
             r_dec.exchange_ghosts(m_V);
 
+#pragma omp parallel for
             for (const auto [k, j, i] : m_V.int_elems())
             {
                 const auto pos   = get_pos(i, j, k);
@@ -257,6 +275,7 @@ namespace numPDE
             if (is_side(SIDES::TOP, r_dec))
             {
                 const auto k = nz - 1;
+#pragma omp parallel for
                 for (const auto j : j_range)
                     for (const auto i : i_range)
                     {
@@ -267,6 +286,7 @@ namespace numPDE
             if (is_side(SIDES::BOTTOM, r_dec))
             {
                 constexpr auto k = 0;
+#pragma omp parallel for
                 for (const auto j : j_range)
                 {
                     for (const auto i : i_range)
@@ -279,6 +299,7 @@ namespace numPDE
             if (is_side(SIDES::EAST, r_dec))
             {
                 constexpr auto j = 0;
+#pragma omp parallel for
                 for (const auto k : k_range)
                 {
                     for (const auto i : i_range)
@@ -291,6 +312,7 @@ namespace numPDE
             if (is_side(SIDES::WEST, r_dec))
             {
                 const auto j = ny - 1;
+#pragma omp parallel for
                 for (const auto k : k_range)
                 {
                     for (const auto i : i_range)
@@ -305,6 +327,7 @@ namespace numPDE
             {
                 const int i_i = 0.0;
                 const int i_e = (nx - 1);
+#pragma omp parallel for
                 for (const auto k : k_range)
                 {
                     for (const auto j : j_range)

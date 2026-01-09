@@ -50,8 +50,8 @@ auto check_divergence(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U, const Re
     return err;
 }
 using Real = double;
-#define MG 0
-#define BCS 1 // o DirHomo 1 NeuHomo
+#define MG 1
+#define BCS 0 // o DirHomo 1 NeuHomo
 int main(int argc, char* argv[])
 {
 
@@ -150,18 +150,17 @@ int main(int argc, char* argv[])
     solver.solve();
     solver.check_sol();
 
-
     solver.pressure_correct(U, P, 1.0, true);
-   
+
     numPDE::Error<Real> err{};
     const auto&         h     = csts.h;
     const auto&         xstrt = dec.xStartWGhosts();
     const auto&         is    = xstrt[0];
     const auto&         js    = xstrt[1];
     const auto&         ks    = xstrt[2];
-   
+
     numPDE::Node<Real> pos{};
-   
+
     for (auto [kp, jp, ip] : P.int_elems())
     {
         pos.x              = h * static_cast<Real>(is + ip);
@@ -172,14 +171,14 @@ int main(int argc, char* argv[])
         err.l_inf     = std::max(err.l_inf, abs_err);
         P(ip, jp, kp) = abs_err;
     }
-   
+
     err.reduce(h * h * h);
-   
+
     err.print_errs(dec.rank());
-   
+
     /*
-  * VTKStructuredWriter<DecompType, numPDE::Tensor<double, 3, 3>> writer(dec);
-  * writer.write(P, "output/paralle_p", h);
+     * VTKStructuredWriter<DecompType, numPDE::Tensor<double, 3, 3>> writer(dec);
+     * writer.write(P, "output/paralle_p", h);
      */
 
     return 0;

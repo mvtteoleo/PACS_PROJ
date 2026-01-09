@@ -1,11 +1,11 @@
 #pragma once
 #include "compiler_directives.hpp"
 #include "expressions.hpp"
-#include <cassert>
-#include <vector>
-#include <span>
 #include <algorithm>
 #include <array> // Added missing header for std::array
+#include <cassert>
+#include <span>
+#include <vector>
 
 namespace numPDE
 {
@@ -14,7 +14,7 @@ namespace numPDE
     {
       public:
         using value_type = T;
-        
+
         // --- 1. RESOLVE AMBIGUITY ---
         // Explicitly use std::vector's implementation for these methods
         using std::vector<T>::operator[];
@@ -23,7 +23,6 @@ namespace numPDE
         using std::vector<T>::end;
         using std::vector<T>::resize; // Needed if accessed via Vector
         using std::vector<T>::vector;
-        
 
         Vector() = default;
 
@@ -86,12 +85,9 @@ namespace numPDE
         using std::array<T, N>::array;
 
         Array() = default;
-        
+
         // Initialize std::array with fill logic if needed, or loop
-        Array(const T v) 
-        { 
-            std::fill(this->begin(), this->end(), v); 
-        }
+        Array(const T v) { std::fill(this->begin(), this->end(), v); }
 
         Array(std::initializer_list<T> l)
         {

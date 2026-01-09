@@ -1,5 +1,7 @@
 #pragma once
 #include "../fast_poisson_solver.hpp"
+#include <algorithm>
+#include <execution>
 
 namespace numPDE
 {
@@ -237,8 +239,8 @@ namespace numPDE
     template <typename T>
     void FastPoissonSolver<T>::solve_spectral()
     {
-        for (const auto ii : std::views::iota(size_t{0}, size_t{eigenvals.size()}))
-            m_data3[ii] *= eigenvals[ii];
+        std::transform(std::execution::par_unseq, m_data3.begin(), m_data3.end(), eigenvals.begin(),
+                       m_data3.begin(), [](T d, T eig) -> T { return d * eig; });
 
         // Set mean mode to 0 if relevant
         if (r_dec.zStart()[0] == 0 && r_dec.zStart()[1] == 0 && r_dec.zStart()[2] == 0)

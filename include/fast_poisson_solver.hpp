@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <memory>
 #include <optional>
+#include <tbb/task_arena.h>
 #include <vector>
 
 namespace numPDE

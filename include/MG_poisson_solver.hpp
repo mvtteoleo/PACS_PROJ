@@ -4,6 +4,7 @@
 #include <petsc.h>
 #include <petscdmda.h>
 #include <petscksp.h>
+#include <tbb/task_arena.h>
 
 namespace numPDE
 {

@@ -16,12 +16,13 @@
 #include <ranges>
 #include <span>
 #include <stdexcept>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
-
-namespace numPDE{
+namespace numPDE
+{
     enum TypeIndex
     {
         // HPC-like  indexing like T(i, j, k) => datas[ i + y*Nx + k*Nx*Ny ]

@@ -13,20 +13,25 @@
 #include <utility>
 #include <vector>
 
-namespace numPDE{
-     template <typename T, size_t N = DEF_DIM, bool IsConst = false>
+namespace numPDE
+{
+    template <typename T, size_t N = DEF_DIM, bool IsConst = false>
     class ElementProxy : public Expr<ElementProxy<T, N, IsConst>>
     {
         using PointerType = std::conditional_t<IsConst, const T*, T*>;
         PointerType base;
         size_t      dim;
 
-    public:
-        template <typename  R>
-            requires requires (R r){ r.begin(); r.size(); }
+      public:
+        template <typename R>
+            requires requires(R r) {
+                r.begin();
+                r.size();
+            }
         ElementProxy(R&& r) : base(std::addressof(r[0])), dim(N)
         {
-        // static_assert(!std::is_rvalue_reference_v<R&&>, "Cannot create ElementProxy from a temporary object!");
+            // static_assert(!std::is_rvalue_reference_v<R&&>, "Cannot create ElementProxy from a
+            // temporary object!");
         }
 
         ElementProxy(PointerType ptr, size_t size) : base(ptr), dim(size)
@@ -90,6 +95,4 @@ namespace numPDE{
         operator std::span<const T>() const { return {base, dim}; }
     };
 
-
-};
-
+}; // namespace numPDE

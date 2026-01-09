@@ -12,7 +12,7 @@
 namespace numPDE
 {
     // ---------- ET core ----------
-     template <typename E>
+    template <typename E>
     struct Expr
     {
         auto        operator[](std::size_t i) const { return static_cast<const E&>(*this)[i]; }
@@ -20,7 +20,7 @@ namespace numPDE
     };
 
     // ---------- Tensor–Tensor node ----------
-     template <typename L, typename R, typename Op>
+    template <typename L, typename R, typename Op>
     struct BinExpr : Expr<BinExpr<L, R, Op>>
     {
         const L& l;
@@ -31,7 +31,7 @@ namespace numPDE
     };
 
     // ---------- Tensor–Scalar & Scalar–Tensor nodes ----------
-     template <typename LHS, typename S, typename Op>
+    template <typename LHS, typename S, typename Op>
     struct RhsScalarExpr : Expr<RhsScalarExpr<LHS, S, Op>>
     {
         const LHS& lhs;
@@ -41,7 +41,7 @@ namespace numPDE
         std::size_t size() const { return lhs.size(); }
     };
 
-     template <typename S, typename RHS, typename Op>
+    template <typename S, typename RHS, typename Op>
     struct LhsScalarExpr : Expr<LhsScalarExpr<S, RHS, Op>>
     {
         S          scal;
@@ -52,7 +52,7 @@ namespace numPDE
     };
 
     // ---------- Ops ----------
-     struct Add
+    struct Add
     {
         template <typename T, typename U>
         static auto apply(T a, U b)
@@ -60,7 +60,7 @@ namespace numPDE
             return a + b;
         }
     };
-     struct Sub
+    struct Sub
     {
         template <typename T, typename U>
         static auto apply(T a, U b)
@@ -68,7 +68,7 @@ namespace numPDE
             return a - b;
         }
     };
-     struct Mul
+    struct Mul
     {
         template <typename T, typename U>
         static auto apply(T a, U b)
@@ -76,7 +76,7 @@ namespace numPDE
             return a * b;
         }
     };
-     struct Div
+    struct Div
     {
         template <typename T, typename U>
         static auto apply(T a, U b)
@@ -86,39 +86,39 @@ namespace numPDE
     };
 
     // ---------- Tensor–Tensor operators ----------
-     template <typename L, typename R>
+    template <typename L, typename R>
     auto operator+(const Expr<L>& l, const Expr<R>& r)
     {
         return BinExpr<L, R, Add>(static_cast<const L&>(l), static_cast<const R&>(r));
     }
 
-     template <typename L, typename R>
+    template <typename L, typename R>
     auto operator-(const Expr<L>& l, const Expr<R>& r)
     {
         return BinExpr<L, R, Sub>(static_cast<const L&>(l), static_cast<const R&>(r));
     }
 
-     template <typename L, typename R>
+    template <typename L, typename R>
     auto operator*(const Expr<L>& l, const Expr<R>& r)
     {
         return BinExpr<L, R, Mul>(static_cast<const L&>(l), static_cast<const R&>(r));
     }
 
-     template <typename L, typename R>
+    template <typename L, typename R>
     auto operator/(const Expr<L>& l, const Expr<R>& r)
     {
         return BinExpr<L, R, Div>(static_cast<const L&>(l), static_cast<const R&>(r));
     }
 
     // ---------- Tensor–Scalar (scalar on the **right**) ----------
-     template <typename Tens, typename S>
+    template <typename Tens, typename S>
         requires std::is_floating_point_v<S>
     auto operator*(const Expr<Tens>& tens, S scal)
     {
         return RhsScalarExpr<Tens, S, Mul>(static_cast<const Tens&>(tens), scal);
     }
 
-     template <typename Tens, typename S>
+    template <typename Tens, typename S>
         requires std::is_floating_point_v<S>
     auto operator/(const Expr<Tens>& tens, S scal)
     {
@@ -126,7 +126,7 @@ namespace numPDE
     }
 
     // ---------- Scalar–Tensor (scalar on the **left**) ----------
-     template <typename S, typename Tens>
+    template <typename S, typename Tens>
         requires std::is_floating_point_v<S>
     auto operator*(S scal, const Expr<Tens>& tens)
     {

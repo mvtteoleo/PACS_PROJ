@@ -1,5 +1,6 @@
 #pragma once
 #include <cstddef>
+#include <tbb/task_arena.h> // Includes TBB directly
 #include <type_traits>
 
 #ifndef DIMS

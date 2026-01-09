@@ -36,8 +36,6 @@
             pkgs.gnumake
             pkgs.gcc
             pkgs.clang-tools
-            # NOTE: You have two MPI implementations. You typically only need one.
-            # Choose either mpich or openmpi depending on your project's needs.
                          #pkgs.mpich
              pkgs.openmpi
          # pkgs.opensycl
@@ -49,6 +47,7 @@
             pkgs.petsc
             pkgs.boost
             pkgs.gnuplot
+            pkgs.tbb
 
             # Debugging
             pkgs.heaptrack
@@ -56,6 +55,9 @@
 
             # Python Environment
             pyEnv
+
+            # Essentials
+            pkgs.neovim
           ];
 
           # This hook now runs correctly inside the shell definition.
