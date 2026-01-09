@@ -23,6 +23,11 @@ namespace numPDE
     template <SolvePolicy solveP, DecomposeConc Decomp>
     struct PressureSolver;
 
+    enum class MOVE_TYPE
+    {
+        ToStaggered,
+        ToNonStaggered
+    };
     // Template specialization for the Fast Poisson solver
     template <typename U>
     struct PressureSolver<SolvePolicy::Fourier, NewDecomp<U>> : FastPoissonSolver<U>
@@ -43,6 +48,9 @@ namespace numPDE
 
       private:
         void compute_div_on_sides();
+
+        template <MOVE_TYPE dir>
+        void reorder_data();
         // numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR> m_P;
         numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR> m_P_ghosted;
     };

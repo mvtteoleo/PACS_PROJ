@@ -1,5 +1,5 @@
-#include "../../include/pvts_writer.hpp"
 #include "../../include/pressure_solver.hpp"
+#include "../../include/pvts_writer.hpp"
 
 #include <random>
 #include <vector>
@@ -50,8 +50,8 @@ auto check_divergence(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U, const Re
     return err;
 }
 using Real = double;
-#define MG 1
-#define BCS 0 // o DirHomo 1 NeuHomo
+#define MG 0
+#define BCS 1 // o DirHomo 1 NeuHomo
 int main(int argc, char* argv[])
 {
 
@@ -75,7 +75,7 @@ int main(int argc, char* argv[])
     csts.Re = 1;
     csts.dt = csts.h * csts.h * 0.001;
 
-    #if BCS == 0
+#if BCS == 0
     FunType p_ex = [&csts](const numPDE::Node<Real>& pos) -> Real
     {
         const auto& x = pos.x;
@@ -96,8 +96,8 @@ int main(int argc, char* argv[])
     };
 
     std::fill(scal_bc.BC_s.begin(), scal_bc.BC_s.end(), numPDE::DirHomo);
-    
-     #elif BCS == 1
+
+#elif BCS == 1
     FunType p_ex = [&csts](const numPDE::Node<Real>& pos) -> Real
     {
         const auto& x = pos.x;
@@ -118,7 +118,7 @@ int main(int argc, char* argv[])
     };
 
     std::fill(scal_bc.BC_s.begin(), scal_bc.BC_s.end(), numPDE::NeuHomo);
-    #endif
+#endif
 
     FunType f_ex = [&csts, &p_ex](const numPDE::Node<Real>& pos) -> Real
     { return -3.0 * p_ex(pos); };
@@ -165,7 +165,7 @@ int main(int argc, char* argv[])
         pos.z              = h * static_cast<Real>(ks + kp);
         const Real abs_err = std::abs(P(ip, jp, kp) - p_ex(pos));
         err.l_2 += abs_err * abs_err;
-        err.l_inf = std::max(err.l_inf, abs_err);
+        err.l_inf     = std::max(err.l_inf, abs_err);
         P(ip, jp, kp) = abs_err;
     }
 

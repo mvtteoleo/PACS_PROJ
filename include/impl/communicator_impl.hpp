@@ -73,26 +73,26 @@ void Communicator<T>::exchange_late_bounds(
     MPI_Datatype mpi_type = mpi_get_type<U>();
 
     // Each slice is one z-layer (ny × nx elements)
-    const int      slice = (nz - 2) * nx * n_scal;
+    const int      el_per_row = nx * n_scal;
+    const auto     k_range    = std::views::iota(size_t{0}, nz);
+    const int      slice      = nz * el_per_row;
     std::vector<U> ghost_left(slice, 0.), int_left(slice, 0.);
     std::vector<U> ghost_righ(slice, 0.), int_righ(slice, 0.);
 
     // Extract the internal left elements
-    if (this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
-        for (int k = 1; k < nz - 1; ++k)
+    if (const int j = ny - 2; this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
+        for (const auto k : k_range)
         {
-            const int j = ny - 2;
-            std::copy_n(P.ptr_at(n_scal * nx * (k * ny + j)), nx * n_scal,
-                        &int_left[(k - 1) * nx * n_scal]);
+
+            std::copy_n(P.ptr_at(el_per_row * (j + k * ny)), el_per_row, &int_left[k * el_per_row]);
         }
 
     // Extract the internal right elements
-    if (this->neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
-        for (int k = 1; k < nz - 1; ++k)
+    if (constexpr int j = 1; this->neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
+        for (const auto k : k_range)
         {
-            constexpr int j = 1;
-            std::copy_n(P.ptr_at(n_scal * nx * (k * ny + j)), nx * n_scal,
-                        &int_righ[(k - 1) * nx * n_scal]);
+            std::copy_n(P.ptr_at(el_per_row * (j + k * ny)), nx * n_scal,
+                        &int_righ[k * el_per_row]);
         }
 
     MPI_Barrier(MPI_COMM_WORLD);
@@ -116,21 +116,21 @@ void Communicator<T>::exchange_late_bounds(
     MPI_Barrier(MPI_COMM_WORLD);
 
     // Copy the received elements (ghost_left into the left part of the right process)
-    if (this->neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
-        for (int k = 1; k < nz - 1; ++k)
+    if (constexpr int j = 0; this->neighbors[neighbour_directions::RIGHT] != MPI_PROC_NULL)
+        for (const auto k : k_range)
         {
-            constexpr int j = 0;
-            std::copy_n(&ghost_left[(k - 1) * nx * n_scal], nx * n_scal,
+
+            std::copy_n(&ghost_left[k * el_per_row], nx * n_scal,
                         P.ptr_at(n_scal * nx * (k * ny + j)));
         }
 
     // Copy the received elements (ghost_righ into the right part of the left process)
-    if (this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
-        for (int k = 1; k < nz - 1; ++k)
+    if (const int j = ny - 1; this->neighbors[neighbour_directions::LEFT] != MPI_PROC_NULL)
+        for (const auto k : k_range)
         {
-            const int j = ny - 1;
-            std::copy_n(&ghost_righ[(k - 1) * nx * n_scal], nx * n_scal,
-                        P.ptr_at(n_scal * nx * (k * ny + j)));
+
+            std::copy_n(&ghost_righ[k * el_per_row], nx * n_scal,
+                        P.ptr_at(el_per_row * (k * ny + j)));
         }
     return;
 }

@@ -94,12 +94,12 @@ int main(int argc, char* argv[])
     P.fill_val(-1.00);
     V.fill_val(-1.00);
 
-    for(const auto [k, j, i] : P.int_elems())
+    for (const auto [k, j, i] : P.int_elems())
     {
-        P(i, j,k) = decomp.rank();
-        V.at(0, i, j,k) = decomp.rank();
-        V.at(1, i, j,k) = decomp.rank();
-        V.at(2, i, j,k) = decomp.rank();
+        P(i, j, k)       = decomp.rank();
+        V.at(0, i, j, k) = decomp.rank();
+        V.at(1, i, j, k) = decomp.rank();
+        V.at(2, i, j, k) = decomp.rank();
     }
 
     // Exchange TOP with rank on TOP

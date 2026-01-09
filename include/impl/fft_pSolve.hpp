@@ -26,39 +26,32 @@ namespace numPDE
         const int k_g = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
 
         auto idx = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
-        auto beg = m_P_ghosted.begin();
         // SANITIZE WORK-ZONE
-        std::fill(beg, beg + (nx * ny * nz), 0.);
+        this->m_P_ghosted.fill_val(T{});
 
+        // Fill the tensor as ghosted
         for (auto [k, j, i] : V.int_elems())
         {
-            const size_t l       = idx(i, j - j_g, k - k_g);
-            this->m_P_ghosted[l] = div(V, i, j, k, h) / dt_step;
+            this->m_P_ghosted(i, j, k) = div(V, i, j, k, h) / dt_step;
         }
-
+        // Update the neighbours
+        this->r_dec.exchange_ghosts(m_P_ghosted);
         this->compute_div_on_sides();
+
+        this->reorder_data<MOVE_TYPE::ToNonStaggered>();
 
         // Feed the tensor to the solve method
         this->solve(this->m_P_ghosted, this->m_P_ghosted, verbose);
 
-    /* 
-     *  this->allocate_P();
-     *  std::copy_n(beg, this->mo_P->size(), this->mo_P->ptr_at(0));
-     *
-     *  this->check_sol();
-     */
-   
-        // UPDATE V
-        const auto slice = nx * ny;
-   
-        for (int kp = nz - 1; kp > 0; --kp)
-        {
-            auto src_end_it  = beg + (kp * slice) + slice;
-            auto dst_end_ptr = m_P_ghosted.ptr_at(0, j_g, k_g + kp) + slice;
-            std::copy_backward(src_end_it - slice, src_end_it, dst_end_ptr);
-        }
-        this->r_dec.exchange_ghosts(m_P_ghosted);
-   
+#if 0   
+            this->allocate_P();
+            std::copy_n(m_P_ghosted.begin(), this->mo_P->size(), this->mo_P->ptr_at(0));
+           
+            this->check_sol();
+#endif
+
+        this->reorder_data<MOVE_TYPE::ToStaggered>();
+
         // I have to do it for the internal points (Excluding the Ghosted!)
         for (const auto k : std::views::iota(size_t{1}, size_t{nz + k_g - 1}))
             for (const auto j : std::views::iota(size_t{1}, size_t{ny + j_g - 1}))
@@ -68,18 +61,17 @@ namespace numPDE
                     const auto dP = grad(m_P_ghosted, i, j, k, h);
                     V(i, j, k)    = V(i, j, k) - dt_step * dP;
                 }
-   
+
         this->r_dec.exchange_ghosts(V);
         // Update P
         P = P + m_P_ghosted;
         this->r_dec.exchange_ghosts(P);
-   
     }
 
     template <typename T>
     void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::compute_div_on_sides()
     {
-        const auto& sizes = this->r_dec.xSize();
+        const auto& sizes = this->m_P_ghosted.get_sizes();
         const auto& nx    = sizes[0];
         const auto& ny    = sizes[1];
         const auto& nz    = sizes[2];
@@ -89,8 +81,6 @@ namespace numPDE
                "Local z size it too small for the approximation to be consistent");
         assert(g_appr_ord + 1 < ny &&
                "Local y size it too small for the approximation to be consistent");
-        auto idx = [&](auto i, auto j, auto k) -> size_t
-        { return i + nx * (j + ny * k); };
 
         const auto k_full = std::views::iota(size_t{0}, size_t{nz});
         const auto j_full = std::views::iota(size_t{0}, size_t{ny});
@@ -105,12 +95,11 @@ namespace numPDE
             for (auto j : j_internal)
                 for (auto i : i_internal)
                 {
-                    const auto l   = idx(i, j, 0);
-                    T          val = 0.;
+                    T val = 0.;
                     for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
-                        val += coefs.v[el] * this->m_P_ghosted[idx(i, j, el + 1)];
+                        val += coefs.v[el] * this->m_P_ghosted(i, j, el + 1);
 
-                    this->m_P_ghosted[l] = val;
+                    this->m_P_ghosted(i, j, 0) = val;
                 }
         }
 
@@ -121,12 +110,11 @@ namespace numPDE
             for (auto j : j_internal)
                 for (auto i : i_internal)
                 {
-                    const auto l   = idx(i, j, k_max);
-                    T          val = 0.;
+                    T val = 0.;
                     for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
-                        val += coefs.v[el] * this->m_P_ghosted[idx(i, j, k_max - 1 - el)];
+                        val += coefs.v[el] * this->m_P_ghosted(i, j, k_max - 1 - el);
 
-                    this->m_P_ghosted[l] = val;
+                    this->m_P_ghosted(i, j, k_max) = val;
                 }
         }
 
@@ -138,11 +126,10 @@ namespace numPDE
             for (auto k : k_full)
                 for (auto i : i_internal)
                 {
-                    const auto l   = idx(i, j_max, k);
-                    T          val = 0.;
+                    T val = 0.;
                     for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
-                        val += coefs.v[el] * this->m_P_ghosted[idx(i, j_max - 1 - el, k)];
-                    this->m_P_ghosted[l] = val;
+                        val += coefs.v[el] * this->m_P_ghosted(i, j_max - 1 - el, k);
+                    this->m_P_ghosted(i, j_max, k) = val;
                 }
         }
 
@@ -153,11 +140,10 @@ namespace numPDE
             for (auto k : k_full)
                 for (auto i : i_internal)
                 {
-                    const auto l   = idx(i, 0, k);
-                    T          val = 0.;
+                    T val = 0.;
                     for (const auto el : std::views::iota(size_t{0}, g_appr_ord))
-                        val += coefs.v[el] * this->m_P_ghosted[idx(i, el + 1, k)];
-                    this->m_P_ghosted[l] = val;
+                        val += coefs.v[el] * this->m_P_ghosted(i, el + 1, k);
+                    this->m_P_ghosted(i, 0, k) = val;
                 }
         }
 
@@ -169,7 +155,7 @@ namespace numPDE
                 for (auto j : j_full)
                 {
 
-                    size_t l_start = idx(0, j, k);
+                    size_t l_start = m_P_ghosted.get_linear_index(0, j, k);
 
                     T val_s = 0.;
                     T val_e = 0.;
@@ -188,7 +174,7 @@ namespace numPDE
         {
             for (auto j : j_full)
                 for (auto i : i_full)
-                    this->m_P_ghosted[idx(i, j, 0)] = 0.;
+                    this->m_P_ghosted(i, j, 0) = 0.;
         }
         MPI_Barrier(MPI_COMM_WORLD);
 
@@ -197,7 +183,7 @@ namespace numPDE
             size_t k_max = nz - 1;
             for (auto j : j_full)
                 for (auto i : i_full)
-                    this->m_P_ghosted[idx(i, j, k_max)] = 0.;
+                    this->m_P_ghosted(i, j, k_max) = 0.;
         }
 
         MPI_Barrier(MPI_COMM_WORLD);
@@ -206,7 +192,7 @@ namespace numPDE
             size_t j_max = ny - 1;
             for (auto k : k_full)
                 for (auto i : i_full)
-                    this->m_P_ghosted[idx(i, j_max, k)] = 0.;
+                    this->m_P_ghosted(i, j_max, k) = 0.;
         }
 
         MPI_Barrier(MPI_COMM_WORLD);
@@ -215,7 +201,7 @@ namespace numPDE
         {
             for (auto k : k_full)
                 for (auto i : i_full)
-                    this->m_P_ghosted[idx(i, 0, k)] = 0.;
+                    this->m_P_ghosted(i, 0, k) = 0.;
         }
         MPI_Barrier(MPI_COMM_WORLD);
         if (this->m_BC_x == DirHomo)
@@ -225,12 +211,56 @@ namespace numPDE
                 for (auto j : j_full)
                 {
 
-                    size_t l_start = idx(0, j, k);
+                    size_t l_start                      = m_P_ghosted.get_linear_index(0, j, k);
                     this->m_P_ghosted[l_start]          = 0.0;
                     this->m_P_ghosted[l_start + nx - 1] = 0.0;
                 }
         }
+
+        // Update the sides
+        this->r_dec.exchange_ghosts(m_P_ghosted);
+
         return;
+    }
+    template <typename T>
+    template <MOVE_TYPE type>
+    void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::reorder_data()
+    {
+        // Move the data to treat the ghosted tensor as a non ghosted one
+        const auto& xSize = this->r_dec.xSize();
+        const auto& nx    = xSize[0];
+        const auto& ny    = xSize[1];
+        const auto& nz    = xSize[2];
+        // Account for the presence of ghost points
+        const int j_g = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
+        const int k_g = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
+
+        const auto slice = nx * ny;
+
+        if constexpr (MOVE_TYPE::ToNonStaggered == type)
+        {
+            for (const auto k : std::views::iota(size_t{0}, size_t{nz}))
+            {
+                const size_t l = slice * k;
+                std::copy_n(m_P_ghosted.ptr_at(0, 0 + j_g, k + k_g), slice, m_P_ghosted.ptr_at(l));
+            }
+
+            return;
+        }
+        if constexpr (MOVE_TYPE::ToStaggered == type)
+        {
+
+            for (int kp = nz - 1; kp >= 0; --kp)
+            {
+                auto src_end_it  = m_P_ghosted.begin() + (kp * slice) + slice;
+                auto dst_end_ptr = m_P_ghosted.ptr_at(0, j_g, k_g + kp) + slice;
+                std::copy_backward(src_end_it - slice, src_end_it, dst_end_ptr);
+            }
+            // this->compute_div_on_sides();
+            this->r_dec.exchange_ghosts(m_P_ghosted);
+
+            return;
+        }
     }
 
     template <typename T>
