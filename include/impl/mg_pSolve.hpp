@@ -64,6 +64,8 @@ namespace numPDE
 
         this->extrapolate_div_on_side();
 
+        this->r_dec.exchange_ghosts(m_P_loc);
+
         for (const auto [k, j, i] : V.int_elems())
         {
             const auto dP    = grad(m_P_loc, i, j, k, h);
