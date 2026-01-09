@@ -1,6 +1,6 @@
 #pragma once
 #include "decompose.hpp"
-#include "tensorExpressionTemplates.hpp"
+#include "tensors.hpp"
 #include "third_party/MPI_types.hpp"
 #include <algorithm>
 #include <array>
@@ -66,9 +66,9 @@ namespace numPDE
         T t;
     };
 
-    // Using MyVec to leverage the Nice ET that took 1 month to do
+    // Using Array to leverage the Nice ET that took 1 month to do
     template <typename T = double>
-    struct VelocityBC : generic_BC<numPDE::MyVec<T>, numPDE::Node<T>>
+    struct VelocityBC : generic_BC<numPDE::Array<T>, numPDE::Node<T>>
     {
     };
 

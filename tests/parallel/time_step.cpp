@@ -41,7 +41,7 @@ int main(int argc, char* argv[])
     inputs.constants.dt    = dt / scale;
     inputs.constants.T_max = Tmax;
 
-    inputs.v_BC.u_ex = [&](const numPDE::Node<Real>& p) -> numPDE::MyVec<Real, 3>
+    inputs.v_BC.u_ex = [&](const numPDE::Node<Real>& p) -> numPDE::Array<Real, 3>
     {
         const auto& t   = p.t;
         const auto& Re  = inputs.constants.Re;
@@ -53,7 +53,7 @@ int main(int argc, char* argv[])
         const auto u_y = numPDE::uy(p.x, y_s, p.z, p.t);
         const auto u_z = numPDE::uz(p.x, p.y, z_s, p.t);
 
-        return numPDE::MyVec{u_x, u_y, u_z};
+        return numPDE::Array{u_x, u_y, u_z};
     };
     inputs.v_BC.f = [&](const numPDE::Node<Real>& p)
     {
@@ -66,7 +66,7 @@ int main(int argc, char* argv[])
         const auto fx_c = numPDE::fx(x_s, p.y, p.z, p.t, Re);
         const auto fy_c = numPDE::fy(p.x, y_s, p.z, p.t, Re);
         const auto fz_c = numPDE::fz(p.x, p.y, z_s, p.t, Re);
-        return numPDE::MyVec<Real, 3>{fx_c, fy_c, fz_c};
+        return numPDE::Array<Real, 3>{fx_c, fy_c, fz_c};
     };
 
 #if MG == 1

@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
 
     /*
      */
-    numPDE::MyVec<Real>        test({1, 1, 1});
+    numPDE::Array<Real>        test({1, 1, 1});
     numPDE::Tensor<Real, 3, 3> S;
     numPDE::Tensor<Real, 4, 3> V(
         [&]
@@ -67,16 +67,16 @@ int main(int argc, char* argv[])
     auto span = V(0, 0, 0);
     test      = span;
     /*
-    numPDE::MyVec<Real> test({1, 1, 1});
+    numPDE::Array<Real> test({1, 1, 1});
     auto span_clean = static_cast<std::span<const Real>>(span);
     std::copy_n(span_clean.begin(), N_dim, test.begin());
     */
     for (size_t i = 0; i < test.size(); ++i)
         std::cout << test[i] << " ";
 
-    numPDE::MyVec<Real> myVec({1, 2, 3});
-    numPDE::MyVec<Real> myVec_2({1, 2, 3});
-    numPDE::MyVec<Real> ris_2, ris;
+    numPDE::Array<Real> myVec({1, 2, 3});
+    numPDE::Array<Real> myVec_2({1, 2, 3});
+    numPDE::Array<Real> ris_2, ris;
     ris = myVec + myVec_2;
 
     std::cout << "Test my vec" << std::endl;

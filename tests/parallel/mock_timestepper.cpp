@@ -14,7 +14,7 @@
 
 #include "../../include/time_stepper.hpp"
 
-using MockTensor = numPDE::MyVec<double, 1>;
+using MockTensor = numPDE::Array<double, 1>;
 
 auto fun  = [](double y, double t) { return -1 * y * y + std::sin(t) * std::sin(t) + std::cos(t); };
 auto u_ex = [](double t) { return std::sin(t); };

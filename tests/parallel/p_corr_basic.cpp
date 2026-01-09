@@ -147,18 +147,22 @@ int main(int argc, char* argv[])
         U.at(2, i, j, k) = v_u_ex(pos, 2);
     }
 
-    solver.pressure_correct(U, P, 1.0, true);
+    solver.solve();
+    solver.check_sol();
 
+
+    solver.pressure_correct(U, P, 1.0, true);
+   
     numPDE::Error<Real> err{};
     const auto&         h     = csts.h;
     const auto&         xstrt = dec.xStartWGhosts();
     const auto&         is    = xstrt[0];
     const auto&         js    = xstrt[1];
     const auto&         ks    = xstrt[2];
-
+   
     numPDE::Node<Real> pos{};
-
-    for (auto [kp, jp, ip] : P.all_elems())
+   
+    for (auto [kp, jp, ip] : P.int_elems())
     {
         pos.x              = h * static_cast<Real>(is + ip);
         pos.y              = h * static_cast<Real>(js + jp);
@@ -168,14 +172,15 @@ int main(int argc, char* argv[])
         err.l_inf     = std::max(err.l_inf, abs_err);
         P(ip, jp, kp) = abs_err;
     }
-
+   
     err.reduce(h * h * h);
-
+   
     err.print_errs(dec.rank());
+   
     /*
+  * VTKStructuredWriter<DecompType, numPDE::Tensor<double, 3, 3>> writer(dec);
+  * writer.write(P, "output/paralle_p", h);
      */
-    VTKStructuredWriter<DecompType, numPDE::Tensor<double, 3, 3>> writer(dec);
-    writer.write(P, "output/paralle_p", h);
 
     return 0;
 }

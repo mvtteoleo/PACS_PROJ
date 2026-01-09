@@ -3,7 +3,6 @@
 #include "pde_helper.hpp"
 #include "poisson_solver.hpp"
 #include "staggered_operators.hpp"
-#include "tensorExpressionTemplates.hpp"
 #include "tensors.hpp"
 #include "third_party/MPI_types.hpp"
 #include "time_stepper.hpp"
@@ -145,7 +144,7 @@ namespace numPDE
             T                   max_err = 0.0;
             T                   L2err   = 0.0;
             const auto&         h       = r_inps.constants.h;
-            numPDE::MyVec<T, 3> loc_err;
+            numPDE::Array<T, 3> loc_err;
             numPDE::Error<T>    err{};
             for (auto [kp, jp, ip] : m_V.int_elems())
             {

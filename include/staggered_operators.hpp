@@ -23,7 +23,7 @@ namespace numPDE
     };
 
     template <typename T>
-    inline numPDE::MyVec<T> grad(const ScalF<T>& p, const size_t& i, const size_t& j,
+    inline numPDE::Array<T> grad(const ScalF<T>& p, const size_t& i, const size_t& j,
                                  const size_t& k, const T& h)
     {
         T dp_dx = (p(i + 1, j, k) - p(i, j, k)) / h;
@@ -33,14 +33,14 @@ namespace numPDE
     };
 
     template <typename T>
-    inline numPDE::MyVec<T, 3> predictor_f(const VecF<T>& h_U, const size_t& i, const size_t& j,
+    inline numPDE::Array<T, 3> predictor_f(const VecF<T>& h_U, const size_t& i, const size_t& j,
                                            const size_t& k, const Constants<T>& r_cstns)
     {
         const auto&         h           = r_cstns.h;
         const auto&         Re          = r_cstns.Re;
         const auto          one_over_2h = 1 / (h * 2);
         const auto          inv_4Re_h_2 = 1.0 / (4 * h * h * Re);
-        numPDE::MyVec<T, 3> U, ris;
+        numPDE::Array<T, 3> U, ris;
 
         auto C   = h_U(i, j, k);     // center
         auto E   = h_U(i + 1, j, k); // east

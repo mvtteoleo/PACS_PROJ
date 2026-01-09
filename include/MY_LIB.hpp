@@ -3,7 +3,6 @@
 #include "mesh.hpp"
 #include "navier_stokes.hpp"
 #include "overloads.hpp"
-#include "tensorExpressionTemplates.hpp"
 #include "tensors.hpp"
 #include "time_stepper.hpp"
 #include "timer.hpp"

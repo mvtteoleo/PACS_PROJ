@@ -212,9 +212,9 @@ int main(int argc, char** argv)
 
         for (auto [wx, wy, wz] : harmonics)
         {
-            sum += scale * std::sin(wx * std::numbers::pi * x / Lx) *
-                   std::sin(wy * std::numbers::pi * y / Ly) *
-                   std::sin(wz * std::numbers::pi * z / Lz);
+            sum += scale * std::cos(wx * std::numbers::pi * x / Lx) *
+                   std::cos(wy * std::numbers::pi * y / Ly) *
+                   std::cos(wz * std::numbers::pi * z / Lz);
         }
         return sum;
     };
@@ -227,9 +227,9 @@ int main(int argc, char** argv)
 
         for (const auto& [wx, wy, wz] : harmonics)
         {
-            Real u = scale * std::sin(wx * std::numbers::pi * x / Lx) *
-                     std::sin(wy * std::numbers::pi * y / Ly) *
-                     std::sin(wz * std::numbers::pi * z / Lz);
+            Real u = scale * std::cos(wx * std::numbers::pi * x / Lx) *
+                     std::cos(wy * std::numbers::pi * y / Ly) *
+                     std::cos(wz * std::numbers::pi * z / Lz);
 
             // Laplacian coefficient for cos(wx*pi x/Lx) etc:
             Real coeff = -(std::numbers::pi * std::numbers::pi) *
@@ -251,7 +251,7 @@ int main(int argc, char** argv)
 
     auto& g_ = u_ex; //[](numPDE::Node<Real> const& pos) -> Real { return 0.1; };
     std::fill(Bcs.g_s.begin(), Bcs.g_s.end(), g_);
-    std::fill(Bcs.BC_s.begin(), Bcs.BC_s.end(), numPDE::DirHomo);
+    std::fill(Bcs.BC_s.begin(), Bcs.BC_s.end(), numPDE::NeuHomo);
     Bcs.f    = forc;
     Bcs.u_ex = u_ex;
 
