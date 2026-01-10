@@ -1,6 +1,5 @@
-#include "../header/customvec.hpp"
-#include "../header/tensors.hpp"
-
+#include "../../include/MY_LIB.hpp"
+#include "../../include/tensors.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <iostream>
@@ -43,13 +42,10 @@ int main(int argc, char* argv[])
     D = (B + C * A - B) + B / 3.0 + 1.0 * B + C * 2.0;
     E.assign_internal(B + C * A - B + B / 3.0 + 1.0 * B + C * 2.0);
     // F.assign_internal(laplacian(D));
-    std::cout << D.raw_datas() << std::endl;
 
     D = E;
 
     // Check a sample
-    std::cout << D.raw_datas() << std::endl;
-    std::cout << E.raw_datas() << std::endl;
 
 #elif TEST == 1
 

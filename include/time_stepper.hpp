@@ -11,22 +11,14 @@ namespace numPDE
         typename S::type_solve; // Check internal alias exists
 
         // Check if get_x returns the correct type
-        {
-            solver.get_x()
-        } -> std::same_as<typename S::type_solve>;
+        { solver.get_x() } -> std::same_as<typename S::type_solve>;
 
-        {
-            solver.pseudoTS(U, U, dt, dt)
-        } -> std::same_as<void>;
-        {
-            solver.pseudoTS(U, dt, dt)
-        } -> std::same_as<void>;
+        { solver.pseudoTS(U, U, dt, dt) } -> std::same_as<void>;
+        { solver.pseudoTS(U, dt, dt) } -> std::same_as<void>;
 
         // Check force computation (needed for the buffer trick)
         // Returns f(u)
-        {
-            solver.compute_buff_init(U)
-        } -> std::same_as<void>;
+        { solver.compute_buff_init(U) } -> std::same_as<void>;
     };
     template <typename Solve_type>
     class RKStepper

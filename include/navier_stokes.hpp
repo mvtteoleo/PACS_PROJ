@@ -1,4 +1,5 @@
 #pragma once
+#include "datastructs/tensors_impl.hpp"
 #include "decompose.hpp"
 #include "pde_helper.hpp"
 #include "poisson_solver.hpp"
@@ -159,9 +160,8 @@ namespace numPDE
                 loc_err = m_V(ip, jp, kp) - r_inps.v_BC.u_ex(pos);
 
                 const auto max_loc = std::transform_reduce(
-                    loc_err.begin(), loc_err.end(), 0.0,
-                    [](double a, double b) { return std::max(a, b); },
-                    [](T x) { return std::abs(x); });
+                    loc_err.begin(), loc_err.end(), 0.0, [](double a, double b)
+                    { return std::max(a, b); }, [](T x) { return std::abs(x); });
 
                 // Here I compute |F|^2
                 err.l_2 += std::transform_reduce(loc_err.begin(), loc_err.end(), 0.0, std::plus{},
@@ -182,28 +182,14 @@ namespace numPDE
         {
             const auto& h = r_inps.constants.h;
             r_dec.exchange_ghosts(m_V);
-            auto iters = m_V.int_elems();
-            std::for_each(std::execution::par_unseq, iters.begin(), iters.end(),
-                          [&](const auto idx)
-                          {
-                              const auto [k, j, i] = idx;
-                              const auto pos       = get_pos(i, j, k);
-
-                              const auto f_V   = predictor_f(m_V, i, j, k, r_inps.constants);
-                              const auto f_ext = r_inps.v_BC.f(pos);
-                              Buff(i, j, k)    = f_V + f_ext;
-                          });
-            /*
-    #pragma omp parallel for
-                for (const auto [k, j, i] : m_V.int_elems())
-                {
-                    const auto pos = get_pos(i, j, k);
-
-                    const auto f_V   = predictor_f(m_V, i, j, k, r_inps.constants);
-                    const auto f_ext = r_inps.v_BC.f(pos);
-                    Buff(i, j, k)    = f_V + f_ext;
-                }
-            */
+            auto instruction = [&](auto i, auto j, auto k)
+            {
+                const auto pos   = get_pos(i, j, k);
+                const auto f_V   = predictor_f(m_V, i, j, k, r_inps.constants);
+                const auto f_ext = r_inps.v_BC.f(pos);
+                Buff(i, j, k)    = f_V + f_ext;
+            };
+            trd_par::parallel_for_int_elems(m_P.get_sizes(), instruction);
             // Exchange sides of the BUFF
             r_dec.exchange_ghosts(Buff);
             return;
@@ -216,13 +202,15 @@ namespace numPDE
 
             r_dec.exchange_ghosts(Buff);
             r_dec.exchange_ghosts(m_V);
-#pragma omp parallel for
-            for (const auto [k, j, i] : m_V.int_elems())
+
+            auto instruction = [&](auto i, auto j, auto k)
             {
                 const auto pos = get_pos(i, j, k);
                 m_V(i, j, k)   = m_V(i, j, k) +
                                adt * (Buff(i, j, k) + r_inps.v_BC.f(pos) - grad(m_P, i, j, k, h));
-            }
+            };
+
+            trd_par::parallel_for_int_elems(m_P.get_sizes(), instruction);
 
             r_dec.exchange_ghosts(m_V);
             r_dec.exchange_ghosts(m_P);
@@ -242,14 +230,15 @@ namespace numPDE
             r_dec.exchange_ghosts(Buff);
             r_dec.exchange_ghosts(m_V);
 
-#pragma omp parallel for
-            for (const auto [k, j, i] : m_V.int_elems())
+            auto instruction = [&](auto i, auto j, auto k)
             {
                 const auto pos   = get_pos(i, j, k);
                 const auto f_V   = predictor_f(Un, i, j, k, r_inps.constants);
                 const auto f_ext = r_inps.v_BC.f(pos);
                 m_V(i, j, k) = Buff(i, j, k) + dt * (a * (f_V + f_ext) - c * grad(m_P, i, j, k, h));
-            }
+            };
+
+            trd_par::parallel_for_int_elems(m_P.get_sizes(), instruction);
 
             r_dec.exchange_ghosts(m_V);
             r_dec.exchange_ghosts(m_P);

@@ -1,5 +1,4 @@
-#include "../header/customvec.hpp"
-#include "../header/tensors.hpp"
+#include "../../include/tensors.hpp"
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>

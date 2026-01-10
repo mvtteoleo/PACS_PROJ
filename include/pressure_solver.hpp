@@ -35,7 +35,7 @@ namespace numPDE
         using T = typename NewDecomp<U>::value_type;
 
         PressureSolver(NewDecomp<U>& decomp, ScalarBC<U>& Bcs, Constants<U>& constants)
-            : FastPoissonSolver<U>(decomp, Bcs, constants), m_P_ghosted(decomp.dimsWithGhosts()){};
+            : FastPoissonSolver<U>(decomp, Bcs, constants), m_P_ghosted(decomp.dimsWithGhosts()) {};
 
         /*
          * Implements the pressure correction step.

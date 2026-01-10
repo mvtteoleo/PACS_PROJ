@@ -149,7 +149,7 @@ int main(int argc, char* argv[])
 }
 
 #elif TEST == 2
-#include "../../header/MY_LIB.hpp"
+#include "../../include/MY_LIB.hpp"
 #include <fstream>
 #include <vector>
 
@@ -194,7 +194,7 @@ int main(int argc, char* argv[])
     {
         std::vector<float> d = x;
         std::transform(x.begin(), x.end(), circ.circ_cent.begin(), d.begin(), std::minus<>{});
-        float dist_sq   = norm(d);
+        float dist_sq   = d.size();
         float radius_sq = circ.radius;
         return static_cast<float>(dist_sq >= radius_sq);
     };

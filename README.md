@@ -31,12 +31,16 @@ Some more notes:
 
 
 
-ERRORS TABLE
+# To produce the container
 
+1. Build the binaries
+nix build .#container
 
-| BC     | Serial | Parallel |
-| ------------- | -------------- | -------------- |
-| NeuHomo | OK   |  NO |
-| DirHomo | OK   | OK    |
+1. Unzip the Nix output into a clean tar file
+gunzip -c result > image.tar
 
+1. Build the Apptainer image from the uncompressed tar
+apptainer build pacs-env.sif docker-archive://image.tar
 
+1. Clean up the temporary tar
+rm image.tar

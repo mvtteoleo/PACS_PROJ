@@ -11,7 +11,7 @@
 #include <numbers>
 #include <vector>
 
-#include "../../header/MY_LIB.hpp"
+#include "../../include/MY_LIB.hpp"
 
 int main(int argc, char* argv[])
 {
