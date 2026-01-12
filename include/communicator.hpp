@@ -15,6 +15,9 @@
 #include <type_traits>
 #include <vector>
 
+/*
+ * @brief : Class that handles MPI communications, initialization and global dimensions.
+ */
 template <typename T = double>
 class Communicator
 {
@@ -32,6 +35,9 @@ class Communicator
 
   public:
     using value_type = T;
+    /*
+     * @brief : Constructor that basically just calls MPI_Init() if it wasn't already called.
+     */
     Communicator(int argc, char** argv);
 
     ~Communicator();
@@ -42,15 +48,22 @@ class Communicator
     const auto& get_cart_comm() const noexcept { return cart_comm; };
 
     /*
-     * returns [pz, py] Due to Decomp compatibility
+     * @brief : returns [pz, py] Due to Decomp compatibility
      */
     auto get_process_grid() const noexcept { return dims; }
 
     const auto& get_global_sizes() const noexcept { return glob_sizes; }
     auto        get_global_sizes() { return glob_sizes; }
 
+    /*
+     * @brief: Helper function to release MPI ownership if ever needed (ie if MPI was already called
+     * and avoid double MPI_Finalize()
+     */
     void release_mpi_ownership() noexcept { m_owns_mpi_lifecycle = false; }
 
+    /*
+     * @brief : Load global domain sizes.
+     */
     template <typename Ts>
         requires std::is_integral_v<Ts>
     void load_glob_sizes(Ts nx, Ts ny, Ts nz)
@@ -60,6 +73,9 @@ class Communicator
         this->glob_sizes[2] = static_cast<int>(nz);
     }
 
+    /*
+     * @brief : Function that exchanges the ghosts nodes of the tensor fed into it.
+     */
     template <typename U, size_t RANK, size_t N_DIMS>
     void exchange_ghosts(numPDE::Tensor<U, RANK, N_DIMS, numPDE::ROW_MAJOR>& P) const noexcept;
 

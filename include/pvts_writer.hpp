@@ -131,8 +131,8 @@ struct VTKStructuredWriter
             << "\n";
 
         // WholeExtent
-        ofs << "  <PStructuredGrid WholeExtent=\"" << 0 << " " << NxGlob - 1 << " " << 0 << " "
-            << NyGlob - 1 << " " << 0 << " " << NzGlob - 1 << "\"\n";
+        ofs << "  <PStructuredGrid WholeExtent=\"" << 0 << " " << h*static_cast<double>(NxGlob - 1) << " " << 0 << " "
+            << h*static_cast<double>(NyGlob - 1) << " " << 0 << " " << h*static_cast<double>(NzGlob - 1) << "\"\n";
 
         ofs << "                   GhostLevel=\"1\">\n";
 

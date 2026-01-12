@@ -25,20 +25,19 @@ namespace numPDE
         const int j_g = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
         const int k_g = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
 
-        auto idx = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
         // SANITIZE WORK-ZONE
         this->m_P_ghosted.fill_val(T{});
 
         // Fill the tensor as ghosted
-        for (auto [k, j, i] : V.int_elems())
-        {
-            this->m_P_ghosted(i, j, k) = div(V, i, j, k, h) / dt_step;
-        }
+        // for (auto [k, j, i] : V.int_elems())
+
+        auto compute_div_int = [&](const auto i, const auto j, const auto k)
+        { this->m_P_ghosted(i, j, k) = div(V, i, j, k, h) / dt_step; };
+        trd_par::parallel_for_int_elems(m_P_ghosted.get_sizes(), compute_div_int);
         // Update the neighbours
-        this->r_dec.exchange_ghosts(m_P_ghosted);
         this->compute_div_on_sides();
 
-        this->reorder_data<MOVE_TYPE::ToNonStaggered>();
+        this->reorder_data<MOVE_TYPE::ToNonGhosted>();
 
         // Feed the tensor to the solve method
         this->solve(this->m_P_ghosted, this->m_P_ghosted, verbose);
@@ -50,27 +49,29 @@ namespace numPDE
             this->check_sol();
 #endif
 
-        this->reorder_data<MOVE_TYPE::ToStaggered>();
+        this->reorder_data<MOVE_TYPE::ToGhosted>();
+
+        // TODO here there is a problem when I parallelize
 
         // I have to do it for the internal points (Excluding the Ghosted!)
-        for (const auto k : std::views::iota(size_t{1}, size_t{nz + k_g - 1}))
-            for (const auto j : std::views::iota(size_t{1}, size_t{ny + j_g - 1}))
-                // The last one misses the +i point
-                for (const auto i : std::views::iota(size_t{1}, size_t{nx - 1}))
+        for (const auto k : std::views::iota(size_t{1}, static_cast<size_t>( nz + k_g - 1 )))
+            for (const auto j : std::views::iota(size_t{1}, static_cast<size_t>( ny + j_g - 1 )))
+                for (const auto i : std::views::iota(size_t{1}, static_cast<size_t>( nx - 1 )))
                 {
                     const auto dP = grad(m_P_ghosted, i, j, k, h);
                     V(i, j, k)    = V(i, j, k) - dt_step * dP;
                 }
 
+        this->r_dec.exchange_ghosts(m_P_ghosted);
         this->r_dec.exchange_ghosts(V);
         // Update P
         P = P + m_P_ghosted;
-        this->r_dec.exchange_ghosts(P);
     }
 
     template <typename T>
     void PressureSolver<SolvePolicy::Fourier, NewDecomp<T>>::compute_div_on_sides()
     {
+        this->r_dec.exchange_ghosts(m_P_ghosted);
         const auto& sizes = this->m_P_ghosted.get_sizes();
         const auto& nx    = sizes[0];
         const auto& ny    = sizes[1];
@@ -82,12 +83,12 @@ namespace numPDE
         assert(g_appr_ord + 1 < ny &&
                "Local y size it too small for the approximation to be consistent");
 
-        const auto k_full = std::views::iota(size_t{0}, size_t{nz});
-        const auto j_full = std::views::iota(size_t{0}, size_t{ny});
-        const auto i_full = std::views::iota(size_t{0}, size_t{nx});
+        const auto k_full = std::views::iota(size_t{0}, static_cast<size_t>(nz));
+        const auto j_full = std::views::iota(size_t{0}, static_cast<size_t>(ny));
+        const auto i_full = std::views::iota(size_t{0}, static_cast<size_t>(nx));
 
-        const auto i_internal = std::views::iota(size_t{1}, size_t{nx - 1});
-        const auto j_internal = std::views::iota(size_t{1}, size_t{ny - 1});
+        const auto i_internal = std::views::iota(size_t{1}, static_cast<size_t>(nx - 1));
+        const auto j_internal = std::views::iota(size_t{1}, static_cast<size_t>(ny - 1));
 
         MPI_Barrier(MPI_COMM_WORLD);
         if (this->m_BC_z == NeuHomo and is_side(SIDES::BOTTOM, this->r_dec))
@@ -237,9 +238,9 @@ namespace numPDE
 
         const auto slice = nx * ny;
 
-        if constexpr (MOVE_TYPE::ToNonStaggered == type)
+        if constexpr (MOVE_TYPE::ToNonGhosted == type)
         {
-            for (const auto k : std::views::iota(size_t{0}, size_t{nz}))
+            for (const auto k : std::views::iota(size_t{0}, static_cast<size_t>(nz)))
             {
                 const size_t l = slice * k;
                 std::copy_n(m_P_ghosted.ptr_at(0, 0 + j_g, k + k_g), slice, m_P_ghosted.ptr_at(l));
@@ -247,7 +248,7 @@ namespace numPDE
 
             return;
         }
-        if constexpr (MOVE_TYPE::ToStaggered == type)
+        if constexpr (MOVE_TYPE::ToGhosted == type)
         {
 
             for (int kp = nz - 1; kp >= 0; --kp)
@@ -276,9 +277,11 @@ namespace numPDE
         const auto& ny    = sizes[1];
         const auto& nz    = sizes[2];
 
-        const auto k_range = std::views::iota(size_t{!k_g}, size_t{sizes[2]});
-        const auto j_range = std::views::iota(size_t{!j_g}, size_t{sizes[1]});
-        const auto i_range = std::views::iota(size_t{1}, size_t{sizes[0]});
+        const auto k_range =
+            std::views::iota(static_cast<size_t>(!k_g), static_cast<size_t>(sizes[2]));
+        const auto j_range =
+            std::views::iota(static_cast<size_t>(!j_g), static_cast<size_t>(sizes[1]));
+        const auto i_range = std::views::iota(size_t{1}, static_cast<size_t>(sizes[0]));
 
         auto idx  = [&](auto i, auto j, auto k) { return i + nx * (j + ny * k); };
         auto strt = this->r_dec.xStartWGhosts();

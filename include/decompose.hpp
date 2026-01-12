@@ -21,6 +21,9 @@ enum neighbour_directions
 
 #include "petsc_decomp.hpp"
 
+/*
+ * @brief : Debug function to make MPI debugging a bit less messy given gdb gives out.
+ */
 template <DecomposeConc T>
 void print_vals(T& decomp)
 {

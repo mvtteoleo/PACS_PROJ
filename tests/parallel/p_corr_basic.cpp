@@ -50,7 +50,7 @@ auto check_divergence(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U, const Re
     return err;
 }
 using Real = double;
-#define MG 1
+#define MG 0
 #define BCS 0 // o DirHomo 1 NeuHomo
 int main(int argc, char* argv[])
 {
@@ -59,16 +59,14 @@ int main(int argc, char* argv[])
     if (N < 2) N = 5;
 #if MG == 1
     using DecompType = PETScDecomp<Real>;
-    PETScDecomp<Real> dec(argc, argv, N, N, N);
 #elif MG == 0
     using DecompType = NewDecomp<>;
-    NewDecomp<Real> dec(argc, argv, N, N, N);
 #endif
+    DecompType dec(argc, argv, N, N, N);
     numPDE::Constants<Real> csts;
     numPDE::ScalarBC<Real>  scal_bc;
 
     Real       L  = M_PI;
-    const auto Lx = L, Ly = L, Lz = L;
     using FunType = numPDE::PressureBC<>::Function;
 
     csts.h  = L / (N - 1);
@@ -90,9 +88,11 @@ int main(int argc, char* argv[])
         const auto& y = pos.y;
         const auto& z = pos.z;
         using std::cos, std::sin;
-        if (l == 0) return cos(x + csts.h * 0.5) * sin(y) * sin(z);
-        if (l == 1) return cos(y + csts.h * 0.5) * sin(x) * sin(z);
-        if (l == 2) return cos(z + csts.h * 0.5) * sin(x) * sin(y);
+        Real ris {};
+        if (l == 0) ris = cos(x + csts.h * 0.5) * sin(y) * sin(z);
+        if (l == 1) ris = cos(y + csts.h * 0.5) * sin(x) * sin(z);
+        if (l == 2) ris = cos(z + csts.h * 0.5) * sin(x) * sin(y);
+        return ris;
     };
 
     std::fill(scal_bc.BC_s.begin(), scal_bc.BC_s.end(), numPDE::DirHomo);
@@ -106,22 +106,23 @@ int main(int argc, char* argv[])
         using std::cos, std::sin;
         return cos(x) * cos(y) * cos(z);
     };
-    auto v_u_ex = [&csts](const numPDE::Node<Real>& pos, const size_t& l)
+    auto v_u_ex = [&csts](const numPDE::Node<Real>& pos, const size_t& l) -> Real
     {
         const auto& x = pos.x;
         const auto& y = pos.y;
         const auto& z = pos.z;
         using std::cos, std::sin;
-        if (l == 0) return -sin(x + csts.h * 0.5) * cos(y) * cos(z);
-        if (l == 1) return -sin(y + csts.h * 0.5) * cos(x) * cos(z);
-        if (l == 2) return -sin(z + csts.h * 0.5) * cos(x) * cos(y);
+        Real ris {};
+        if (l == 0) ris =  -sin(x + csts.h * 0.5) * cos(y) * cos(z);
+        if (l == 1) ris =  -sin(y + csts.h * 0.5) * cos(x) * cos(z);
+        if (l == 2) ris =  -sin(z + csts.h * 0.5) * cos(x) * cos(y);
+        return ris;
     };
 
     std::fill(scal_bc.BC_s.begin(), scal_bc.BC_s.end(), numPDE::NeuHomo);
 #endif
 
-    FunType f_ex = [&csts, &p_ex](const numPDE::Node<Real>& pos) -> Real
-    { return -3.0 * p_ex(pos); };
+    FunType f_ex = [&p_ex](const numPDE::Node<Real>& pos) -> Real { return -3.0 * p_ex(pos); };
     scal_bc.f    = f_ex;
     scal_bc.u_ex = p_ex;
 
@@ -139,8 +140,8 @@ int main(int argc, char* argv[])
     for (auto [k, j, i] : U.all_elems())
     {
         auto               xsrt = dec.xStartWGhosts();
-        numPDE::Node<Real> pos{
-            .x = csts.h * (i + xsrt[0]), .y = csts.h * (j + xsrt[1]), .z = csts.h * (k + xsrt[2])};
+        numPDE::Node<Real> pos{ .x = csts.h * (i + xsrt[0]), .y = csts.h * (j +
+            xsrt[1]), .z = csts.h * (k + xsrt[2]), .t=0.};
 
         U.at(0, i, j, k) = v_u_ex(pos, 0);
         U.at(1, i, j, k) = v_u_ex(pos, 1);
@@ -154,18 +155,19 @@ int main(int argc, char* argv[])
 
     numPDE::Error<Real> err{};
     const auto&         h     = csts.h;
-    const auto&         xstrt = dec.xStartWGhosts();
+    const auto          xstrt = dec.xStartWGhosts();
     const auto&         is    = xstrt[0];
     const auto&         js    = xstrt[1];
     const auto&         ks    = xstrt[2];
 
     numPDE::Node<Real> pos{};
 
-    for (auto [kp, jp, ip] : P.int_elems())
+    for (auto [kp, jp, ip] : P.all_elems())
     {
         pos.x              = h * static_cast<Real>(is + ip);
         pos.y              = h * static_cast<Real>(js + jp);
         pos.z              = h * static_cast<Real>(ks + kp);
+        pos.t  = 0.;
         const Real abs_err = std::abs(P(ip, jp, kp) - p_ex(pos));
         err.l_2 += abs_err * abs_err;
         err.l_inf     = std::max(err.l_inf, abs_err);

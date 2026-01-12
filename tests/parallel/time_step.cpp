@@ -43,8 +43,6 @@ int main(int argc, char* argv[])
 
     inputs.v_BC.u_ex = [&](const numPDE::Node<Real>& p) -> numPDE::Array<Real, 3>
     {
-        const auto& t   = p.t;
-        const auto& Re  = inputs.constants.Re;
         const auto  x_s = p.x + 0.5 * inputs.constants.h;
         const auto  y_s = p.y + 0.5 * inputs.constants.h;
         const auto  z_s = p.z + 0.5 * inputs.constants.h;
@@ -57,7 +55,6 @@ int main(int argc, char* argv[])
     };
     inputs.v_BC.f = [&](const numPDE::Node<Real>& p)
     {
-        const auto& t   = p.t;
         const auto& Re  = inputs.constants.Re;
         const auto  x_s = p.x + 0.5 * inputs.constants.h;
         const auto  y_s = p.y + 0.5 * inputs.constants.h;

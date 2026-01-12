@@ -7,8 +7,12 @@
 #include <memory>
 #include <span>
 
+/*
+ * @brief : Wrapper for the C2Decomp class to avoid calling new and delete,
+ * buut most importantly to encapsulate logic across and allow flexibility.
+ */
 template <typename T = double>
-class NewDecomp : public Communicator<T>
+struct NewDecomp : public Communicator<T>
 {
   private:
     std::unique_ptr<C2Decomp> c2d;
@@ -20,19 +24,13 @@ class NewDecomp : public Communicator<T>
 
     NewDecomp(int argc, char** argv);
 
-    // Singleton enforcement
-    NewDecomp(const NewDecomp&)            = default;
-    NewDecomp& operator=(const NewDecomp&) = default;
-    NewDecomp(NewDecomp&&)                 = default;
-    NewDecomp& operator=(NewDecomp&&)      = default;
-
     ~NewDecomp();
 
     template <typename Ts>
         requires std::is_integral_v<Ts>
     void initialize_decomp(Ts nx, Ts ny, Ts nz);
 
-    // Accessors for 2Decomp structures
+    // Accessor for 2Decomp structures
     auto xStart() const noexcept { return std::span<const int>(&c2d->xStart[0], 3); }
     auto yStart() const noexcept { return std::span<const int>(&c2d->yStart[0], 3); }
     auto zStart() const noexcept { return std::span<const int>(&c2d->zStart[0], 3); }

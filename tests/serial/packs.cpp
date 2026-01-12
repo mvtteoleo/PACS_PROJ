@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <iostream>
+#include <print>
 #include <vector>
 
 int main(int argc, char* argv[])
@@ -99,7 +100,7 @@ int main(int argc, char* argv[])
     }
     c.print_time(Nx_dyn * Ny_dyn * Nz_dyn * N_TESTS);
 
-    std::cout << "\t lamda_for() loop \n";
+    std::println("\t lamda_for() loop \n");
 
     // Access time using all_elements
     c.reset();
@@ -111,4 +112,6 @@ int main(int argc, char* argv[])
     c.print_time(Nx_dyn * Ny_dyn * Nz_dyn * N_TESTS);
 
     std::cout << "\t trd_par::for() loop \n";
+
+    c.reset();
 }

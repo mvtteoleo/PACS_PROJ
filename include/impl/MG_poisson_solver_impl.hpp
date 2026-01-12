@@ -20,7 +20,7 @@ namespace numPDE
     template <DecomposeConc Decomp>
     MultiGridPoissonSolver<Decomp>::~MultiGridPoissonSolver()
     {
-        KSPDestroy(&ksp);
+        KSPDestroy(&this->ksp);
         VecDestroy(&x_h);
         VecDestroy(&b);
         MatDestroy(&A);
@@ -83,20 +83,10 @@ namespace numPDE
 
         MPI_Barrier(MPI_COMM_WORLD);
 
-        // print_vals<Decomp>(r_dec);
-
-        if constexpr (std::is_same_v<Decomp, PETScDecomp<>>)
-        {
-            ierr = DMDACreate3d(r_dec.get_cart_comm(), DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED,
-                                DM_BOUNDARY_GHOSTED, DMDA_STENCIL_BOX, NxLoc, NyLoc, NzLoc, 1, py,
-                                pz, 1, 2, lx.data(), ly.data(), lz.data(), &this->da);
-        }
-        if constexpr (std::is_same_v<Decomp, NewDecomp<>>)
-        {
-            ierr = DMDACreate3d(r_dec.get_cart_comm(), DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED,
-                                DM_BOUNDARY_GHOSTED, DMDA_STENCIL_BOX, NxLoc, NzLoc, NyLoc, 1, py,
-                                pz, 1, 2, lx.data(), ly.data(), lz.data(), &this->da);
-        }
+        ierr = DMDACreate3d(r_dec.get_cart_comm(), DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED,
+                            DM_BOUNDARY_GHOSTED, DMDA_STENCIL_BOX, NxLoc, NyLoc, NzLoc, 1, py, pz,
+                            1, 2, lx.data(), ly.data(), lz.data(), &this->da);
+    CHKERRQ(ierr);
         DMSetUp(this->da);
         MPI_Barrier(MPI_COMM_WORLD);
         PetscInt xs, ys, zs, xm, ym, zm;
@@ -120,14 +110,9 @@ namespace numPDE
             assert(bottom == neigs[neighbour_directions::BOTTOM]);
             assert(left == neigs[neighbour_directions::LEFT]);
             assert(right == neigs[neighbour_directions::RIGHT]);
-            ;
+
             MPI_Barrier(MPI_COMM_WORLD);
             MPI_Barrier(MPI_COMM_WORLD);
-            /*
-                if (r_dec.rank() == r)
-                    printf("Rank : %d | X ( %d, %d, %d)  | T %d , B %d, R %d, L %d |\n", r, xs, ys,
-               zs, top, bottom, right, left);
-                 */
         }
     }
 
@@ -143,17 +128,17 @@ namespace numPDE
 
         apply_bc_to_A();
 
-        KSPCreate(PETSC_COMM_WORLD, &ksp);
-        KSPSetOperators(ksp, A, A);
-        KSPGetPC(ksp, &pc);
-        if (this->MG_solver)
+        KSPCreate(PETSC_COMM_WORLD, &this->ksp);
+        KSPSetOperators(this->ksp, A, A);
+        KSPGetPC(this->ksp, &this->pc);
+        if (this->mg_solver)
         {
-            PCSetType(pc, PCMG);
-            KSPSetType(ksp, KSPGMRES);
+            PCSetType(this->pc, PCMG);
+            KSPSetType(this->ksp, KSPGMRES);
         }
-        KSPSetTolerances(ksp, 1e-10, 1e-10, PETSC_DEFAULT, 1e3);
-        KSPSetFromOptions(ksp);
-        KSPSetUp(ksp);
+        KSPSetTolerances(this->ksp, this->reltol, this->abstol, this->diverg_tol, this->maxits);
+        KSPSetFromOptions(this->ksp);
+        KSPSetUp(this->ksp);
     }
 
     template <DecomposeConc Decomp>
@@ -181,7 +166,7 @@ namespace numPDE
             update_bc_on_b();
         }
 
-        KSPSolve(ksp, b, x_h);
+        KSPSolve(this->ksp, b, x_h);
     }
 
     template <DecomposeConc Decomp>
@@ -389,7 +374,8 @@ namespace numPDE
                     {
                         const numPDE::Node<T> pos{.x = (i + info.offset[0]) * r_const.h,
                                                   .y = (j + info.offset[1]) * r_const.h,
-                                                  .z = (k + info.offset[2]) * r_const.h};
+                                                  .z = (k + info.offset[2]) * r_const.h,
+                                                   .t = 0};
                         bAsTens[k][j][i] += scale * static_cast<PetscScalar>(info.fun(pos));
                     }
             DMDAVecRestoreArray(this->da, this->b, &bAsTens);
@@ -413,7 +399,7 @@ namespace numPDE
             for (PetscInt j = ys; j < ys + ym; ++j)
                 for (PetscInt i = xs; i < xs + xm; ++i)
                 {
-                    numPDE::Node<T> pos{.x = h * (i + 1), .y = h * (j + 1), .z = h * (k + 1)};
+                    numPDE::Node<T> pos{.x = h * (i + 1), .y = h * (j + 1), .z = h * (k + 1), .t = 0.};
                     const auto      exact = static_cast<PetscScalar>(r_BCs.u_ex(pos));
                     const auto      num   = x_hTens[k][j][i];
                     const auto      err   = std::abs(exact - num);
@@ -457,7 +443,7 @@ namespace numPDE
     }
     template <DecomposeConc Decomp>
     template <TypeIndex TYPE>
-    auto
+    void
     MultiGridPoissonSolver<Decomp>::write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t)
     {
         PetscScalar*** bAsTens;

@@ -2,7 +2,7 @@
   description = "Pacs environment with Apptainer support";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -13,28 +13,31 @@
 
         # Python Environment
         pyEnv = pkgs.python311.withPackages (ps: with ps; [
-          pandas sympy pyvista matplotlib numpy vtk black
+                    pandas
+                    sympy
+                    pyvista
+                    matplotlib
+                    numpy
+                    vtk
+                    black
         ]);
 
         # Shared Dependencies
         myDevTools = [
           pkgs.git
           pkgs.gnumake
-          pkgs.gcc
+          pkgs.gcc15
           pkgs.clang-tools
           pkgs.bashInteractive
           pkgs.coreutils
           
-          # NEW: Explicitly add 'which' so you can debug
-          pkgs.which 
 
           # HPC Libraries
-          # NEW: We include BOTH the runtime and the dev output (compilers)
           pkgs.openmpi
-          pkgs.openmpi.dev # <--- CRITICAL: Contains mpic++
+          pkgs.openmpi.dev 
 
           pkgs.fftw
-          pkgs.fftw.dev    # Good practice to include headers explicitly if split
+          pkgs.fftw.dev
           
           pkgs.eigen
           pkgs.petsc

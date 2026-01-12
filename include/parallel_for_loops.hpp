@@ -31,10 +31,9 @@ namespace trd_par
     template <size_t n_layers, typename Lambda>
     void parallel_for_int_n_elems(const std::array<size_t, 3>& dims, Lambda&& lambda)
     {
-        const auto& [nx, ny, nz] = dims;
-        // std::cout << "Nz : " << nz <<  "Ny : " << ny <<  "Nx : " << nx << "\n";
-        constexpr int gr_size = 1; // Let him work on one plane for thread
-                                   // We use blocked_range2d to split Z and Y only.
+        const auto& [nx, ny, nz]               = dims;
+        [[maybe_unused]] constexpr int gr_size = 1; // Let him work on one plane for thread
+
         // dim 1 (rows) = Z
         // dim 2 (cols) = Y
         tbb::parallel_for(

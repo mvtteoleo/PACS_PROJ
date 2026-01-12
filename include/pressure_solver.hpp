@@ -25,8 +25,8 @@ namespace numPDE
 
     enum class MOVE_TYPE
     {
-        ToStaggered,
-        ToNonStaggered
+        ToGhosted,
+        ToNonGhosted
     };
     // Template specialization for the Fast Poisson solver
     template <typename U>
@@ -63,15 +63,9 @@ namespace numPDE
 
         PressureSolver(Decomp& decomp, ScalarBC<T>& Bcs, Constants<T>& constants)
             : MultiGridPoissonSolver<Decomp>(decomp, Bcs, constants),
-              m_P_loc(decomp.dimsWithGhosts())
-        {
+              m_P_loc(decomp.dimsWithGhosts()) {
 
-            PetscScalar reltol{1e-8};
-            PetscScalar abstol{1e-9};
-            auto        maxits{5e2};
-            this->MG_solver = true;
-            KSPSetTolerances(this->ksp, reltol, abstol, PETSC_DEFAULT, maxits);
-        };
+              };
 
         void pressure_correct(Tensor<T, 4, 3, TypeIndex::ROW_MAJOR>& V,
                               Tensor<T, 3, 3, TypeIndex::ROW_MAJOR>& P, const T dt_step,

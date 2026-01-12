@@ -38,7 +38,7 @@ namespace numPDE
     };
 
     template <typename OT, typename IT>
-    constexpr auto f_0 = [](IT const& pos) { return OT{}; };
+    constexpr auto f_0 = [](IT const&) { return OT{}; };
 
     template <typename OT, typename IT>
     struct generic_BC

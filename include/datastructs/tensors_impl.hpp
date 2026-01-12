@@ -1,7 +1,7 @@
 #pragma once
+#include "../compiler_directives.hpp"
 #include "../mesh.hpp"
 #include "../parallel_for_loops.hpp"
-#include "compiler_directives.hpp"
 #include "expressions.hpp"
 #include "proxy_elems.hpp"
 #include <algorithm>

@@ -30,7 +30,7 @@ struct MockSolver
     double                        lambda = -1.0; // Decay equation: y' = -y
     numPDE::RKStepper<MockTensor> stepper;
 
-    MockSolver(double y0, double dt_in) : dt(dt_in), stepper(m_V) { m_V[0] = 0; }
+    MockSolver(double y0, double dt_in) : dt(dt_in), stepper(m_V) { m_V[0] = y0; }
 
     // Satisfy SolverConc
     MockTensor get_x() const { return m_V; }

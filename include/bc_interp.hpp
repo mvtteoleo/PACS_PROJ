@@ -16,8 +16,7 @@ namespace numPDE
     constexpr size_t g_appr_ord = 3;
 
     /*
-     * Coefficents to feed to PETSc for the Neumann BC case
-     * For the Dirichlet just impose the value...
+     *  @ brief: Coefficents to feed to PETSc for the Neumann BC case
      */
     template <size_t appr_ord = g_appr_ord, typename T>
     consteval auto get_appr_coeffs_neu()

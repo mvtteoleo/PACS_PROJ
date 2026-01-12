@@ -5,13 +5,26 @@
 // converts a variable name to a string
 #define OUT_NAME(var) #var
 
-// Print vectors pyhton-like
+#include <ranges>
+
+/*
+ * Concept to check the "iterability" of n element.
+ */
 template <typename T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T> vec)
+concept ElementIterable = requires(std::ranges::range_value_t<T> x) {
+    x.begin();
+    x.end();
+};
+
+/*
+ * @brief : Allow to print ranges on a more reasonable manner.
+ */
+template <ElementIterable Range>
+std::ostream& operator<<(std::ostream& os, const Range&& vec)
 {
-    std::cout << OUT_NAME(vec) << " : [ ";
-    for (T i : vec)
+    std::cout << OUT_NAME(vec) << " : ( ";
+    for (const auto& i : vec)
         std::cout << i << std::endl;
-    std::cout << "] " << std::endl;
+    std::cout << ") " << std::endl;
     return os;
 }

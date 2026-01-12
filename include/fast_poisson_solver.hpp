@@ -13,6 +13,11 @@
 
 namespace numPDE
 {
+
+    /*
+     * @brief : Parallel Fast Poisson solver class, leverages ffts, needs NewDecomp object to handle
+     * data transposition.
+     */
     template <typename T = double>
     class FastPoissonSolver
     {
@@ -22,25 +27,38 @@ namespace numPDE
         FastPoissonSolver(NewDecomp<T>& decomp, ScalarBC<T>& Bcs, Constants<T>& constants);
         ~FastPoissonSolver();
 
-        // Solves internally and populates P
+        /*
+         *@brief: Solves internally and populates P with the given function from ScalarBC.
+         */
         auto solve(bool verbose = false);
 
-        // Solves providing explicit tensors (main pipeline)
+        /*
+         * @brief: Solves providing explicit tensor. (Is safe to use same tensor for input and
+         * output).
+         *
+         * @input: input Tensor (const), and output tensor where the solution will be written.
+         * verbose = true to print data about time measurements.
+         */
         void solve(const numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& in,
                    numPDE::Tensor<T, 3, 3, numPDE::ROW_MAJOR>& out, bool verbose = false);
 
-        // Not needed always as the solver accepts external Tensors, std::optional was the most
-        // sensed thing to IMO
+        /*
+         * @brief: Checks the solution and return a simple struvvt with already reduced over ranks
+         * L2 and Linf errors.
+         */
+        Error<T> check_sol();
+
+      protected:
+        /*
+         * Not needed always as the solver accepts external Tensors, std::optional was the most
+         * sensed thing to IMO
+         */
         auto allocate_P()
         {
 
             if (!this->mo_P.has_value())
                 this->mo_P.emplace(numPDE::make_scalar_field<T, 3>(this->r_dec.xSize()));
         };
-
-        Error<T> check_sol();
-
-      protected:
         // --- Initialization Helpers ---
         void validate_bcs();
         void allocate_buffers();
@@ -62,20 +80,22 @@ namespace numPDE
         // (ie for NS problem)
         void precompute_eigenvals();
 
-        NewDecomp<T>&                             r_dec;
-        ScalarBC<T>&                              r_BCs;
-        Constants<T>&                             r_const;
-        std::vector<T>                            m_data2, m_data3, eigenvals;
+        /*
+         * Order imposed this way to minimize padding.
+         */
+        std::vector<T> m_data2, m_data3, eigenvals;
+        int            Lx, Ly, Lz;
+
         std::optional<Tensor<T, 3, 3, ROW_MAJOR>> mo_P;
-
-        int Lx, Ly, Lz;
-        BC  m_BC_x, m_BC_y, m_BC_z;
-
         // FFTW Resources
-        T*        xbuf  = nullptr;
-        fftw_plan fft_x = nullptr, ifft_x = nullptr;
-        fftw_plan fft_y = nullptr, ifft_y = nullptr;
-        fftw_plan fft_z = nullptr, ifft_z = nullptr;
+        T*            xbuf  = nullptr;
+        fftw_plan     fft_x = nullptr, ifft_x = nullptr;
+        fftw_plan     fft_y = nullptr, ifft_y = nullptr;
+        fftw_plan     fft_z = nullptr, ifft_z = nullptr;
+        NewDecomp<T>& r_dec;
+        ScalarBC<T>&  r_BCs;
+        Constants<T>& r_const;
+        BC            m_BC_x, m_BC_y, m_BC_z;
     };
 } // namespace numPDE
 

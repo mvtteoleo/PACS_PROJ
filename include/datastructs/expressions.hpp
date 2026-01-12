@@ -1,5 +1,5 @@
 #pragma once
-#include "compiler_directives.hpp"
+#include "../compiler_directives.hpp"
 #include <algorithm>
 #include <array>
 #include <cassert>
