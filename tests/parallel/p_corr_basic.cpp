@@ -50,7 +50,7 @@ auto check_divergence(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U, const Re
     return err;
 }
 using Real = double;
-#define MG 0
+#define MG 1
 #define BCS 0 // o DirHomo 1 NeuHomo
 int main(int argc, char* argv[])
 {
