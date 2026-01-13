@@ -89,6 +89,17 @@ namespace numPDE
         T T_max{1};
     };
 
+    /*
+     * @ brief: Helper function to avoid the verbose std::views sintax.
+     *
+     * @ input: std::integer start, number of elements
+     * @ return: std::views::iota(s, s+m)
+     */
+    auto range_st_cs(auto s, auto m) noexcept
+    {
+        return std::views::iota(static_cast<size_t>(s), static_cast<size_t>(s + m));
+    }
+
     template <typename T>
     struct Error
     {

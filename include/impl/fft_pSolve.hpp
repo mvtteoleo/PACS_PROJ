@@ -28,12 +28,11 @@ namespace numPDE
         // SANITIZE WORK-ZONE
         this->m_P_ghosted.fill_val(T{});
 
-        // Fill the tensor as ghosted
-        // for (auto [k, j, i] : V.int_elems())
-
         auto compute_div_int = [&](const auto i, const auto j, const auto k)
         { this->m_P_ghosted(i, j, k) = div(V, i, j, k, h) / dt_step; };
+
         trd_par::parallel_for_int_elems(m_P_ghosted.get_sizes(), compute_div_int);
+
         // Update the neighbours
         this->compute_div_on_sides();
 
@@ -42,6 +41,7 @@ namespace numPDE
         // Feed the tensor to the solve method
         this->solve(this->m_P_ghosted, this->m_P_ghosted, verbose);
 
+// Debug if to check the pressure solver
 #if 0   
             this->allocate_P();
             std::copy_n(m_P_ghosted.begin(), this->mo_P->size(), this->mo_P->ptr_at(0));
@@ -54,18 +54,25 @@ namespace numPDE
         // TODO here there is a problem when I parallelize
 
         // I have to do it for the internal points (Excluding the Ghosted!)
-        for (const auto k : std::views::iota(size_t{1}, static_cast<size_t>( nz + k_g - 1 )))
-            for (const auto j : std::views::iota(size_t{1}, static_cast<size_t>( ny + j_g - 1 )))
-                for (const auto i : std::views::iota(size_t{1}, static_cast<size_t>( nx - 1 )))
-                {
-                    const auto dP = grad(m_P_ghosted, i, j, k, h);
-                    V(i, j, k)    = V(i, j, k) - dt_step * dP;
-                }
+    /*
+       for (const auto k : std::views::iota(size_t{1}, static_cast<size_t>( nz + k_g - 1 )))
+           for (const auto j : std::views::iota(size_t{1}, static_cast<size_t>( ny + j_g - 1 )))
+               for (const auto i : std::views::iota(size_t{1}, static_cast<size_t>( nx - 1 )))
+    */
+
+        this->r_dec.exchange_ghosts(m_P_ghosted);
+        this->r_dec.exchange_ghosts(V);
+        for(auto [k, j, i] : V.int_elems())
+        {
+            const auto dP = grad(m_P_ghosted, i, j, k, h);
+            V(i, j, k)    = V(i, j, k) - dt_step * dP;
+        }
 
         this->r_dec.exchange_ghosts(m_P_ghosted);
         this->r_dec.exchange_ghosts(V);
         // Update P
         P = P + m_P_ghosted;
+        this->r_dec.exchange_ghosts(P);
     }
 
     template <typename T>

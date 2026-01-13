@@ -15,44 +15,11 @@ namespace numPDE
      */
     struct KSP_parameters
     {
-      protected:
         PetscScalar reltol{1e-8};
         PetscScalar abstol{1e-9};
-        PetscScalar diverg_tol{PETSC_DEFAULT};
+        PetscScalar diverg_tol{1e+2};
         PetscInt    maxits{500};
         bool        mg_solver{true};
-
-        PC  pc  = nullptr;
-        KSP ksp = nullptr;
-
-      public:
-        void set_pc(PCType pc_set = PCMG) { PCSetType(pc, pc_set); }
-
-        void set_ksp(KSPType ksp_set = KSPGMRES) { KSPSetType(ksp, ksp_set); }
-
-        void set_rel_tol(std::floating_point auto in = 1e-8)
-        {
-            reltol = static_cast<PetscScalar>(in);
-        }
-
-        void set_abs_tol(std::floating_point auto in = 1e-9)
-        {
-            abstol = static_cast<PetscScalar>(in);
-        }
-
-        void set_diverg_tol(std::floating_point auto in = PETSC_DEFAULT)
-        {
-            diverg_tol = static_cast<PetscScalar>(in);
-        }
-
-        template <typename T>
-            requires std::integral<T>
-        void set_max_its(T in = 500)
-        {
-            maxits = static_cast<PetscInt>(in);
-        }
-
-        void set_use_mg_solver(bool in = true) { mg_solver = in; }
     };
     /*
      * The solver works for equation in the shape of : Lap(u) = f.
@@ -68,14 +35,21 @@ namespace numPDE
      * KSP_parameters struct.
      */
     template <DecomposeConc Decomp>
-    class MultiGridPoissonSolver : KSP_parameters
+    struct MultiGridPoissonSolver : public KSP_parameters 
     {
       public:
         using T          = Decomp::value_type;
         using value_type = T;
 
-        MultiGridPoissonSolver(Decomp& decomp, numPDE::ScalarBC<T>& Bcs,
-                               numPDE::Constants<T>& constants);
+    MultiGridPoissonSolver( Decomp& decomp, numPDE::ScalarBC<typename Decomp::value_type>& Bcs,
+        numPDE::Constants<typename Decomp::value_type>& constants)
+        : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
+    {
+        this->build_local_dm();
+
+        this->build_linear_system();
+    }
+
 
         // Rule of 5 defaults
         MultiGridPoissonSolver(MultiGridPoissonSolver&&)                 = default;
@@ -113,6 +87,19 @@ namespace numPDE
         template <TypeIndex TYPE>
         void write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t);
 
+
+        void set_rel_tol(std::floating_point auto in = 1e-8) { reltol = static_cast<PetscScalar>(in); }
+        void set_abs_tol(std::floating_point auto in = 1e-9) { abstol = static_cast<PetscScalar>(in); }
+        void set_diverg_tol(std::floating_point auto in) { diverg_tol = static_cast<PetscScalar>(in); }
+
+        template <typename T>
+            requires std::integral<T>
+        void set_max_its(T in = 500)
+        {
+            maxits = static_cast<PetscInt>(in);
+        }
+
+        void set_use_mg_solver(bool in = true) { mg_solver = in; }
         // --- Setup & Internal ---
       protected:
         auto build_local_dm();
@@ -135,23 +122,12 @@ namespace numPDE
         Mat           A;
         Vec           x_h, b;
         DM            da;
+        PC  pc  = nullptr;
+        KSP ksp = nullptr;
         Decomp&       r_dec;
         ScalarBC<T>&  r_BCs;
         Constants<T>& r_const;
-
-      public:
     };
-
-    /*
-     * @ brief: Helper function to avoid the verbose std::views sintax.
-     *
-     * @ input: std::integer start, number of elements
-     * @ return: std::views::iota(s, s+m)
-     */
-    auto _range(PetscInt s, PetscInt m) noexcept
-    {
-        return std::views::iota(static_cast<size_t>(s), static_cast<size_t>(s + m));
-    }
 
     /*
      * @brief : simple struct to handle the domain BC to limit code repetition.
@@ -166,9 +142,9 @@ namespace numPDE
         PetscInt           xs, ys, zs;
         PetscInt           xm, ym, zm;
 
-        auto k_range() const noexcept { return _range(this->zs, this->zm); }
-        auto j_range() const noexcept { return _range(this->ys, this->ym); }
-        auto i_range() const noexcept { return _range(this->xs, this->xm); }
+        auto k_range() const noexcept { return range_st_cs(this->zs, this->zm); }
+        auto j_range() const noexcept { return range_st_cs(this->ys, this->ym); }
+        auto i_range() const noexcept { return range_st_cs(this->xs, this->xm); }
     };
 } // namespace numPDE
 

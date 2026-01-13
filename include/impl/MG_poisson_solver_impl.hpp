@@ -7,17 +7,6 @@
 namespace numPDE
 {
     template <DecomposeConc Decomp>
-    MultiGridPoissonSolver<Decomp>::MultiGridPoissonSolver(
-        Decomp& decomp, numPDE::ScalarBC<typename Decomp::value_type>& Bcs,
-        numPDE::Constants<typename Decomp::value_type>& constants)
-        : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
-    {
-        this->build_local_dm();
-
-        this->build_linear_system();
-    }
-
-    template <DecomposeConc Decomp>
     MultiGridPoissonSolver<Decomp>::~MultiGridPoissonSolver()
     {
         KSPDestroy(&this->ksp);

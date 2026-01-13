@@ -3,17 +3,6 @@
 #include "../navier_stokes.hpp"
 namespace numPDE
 {
-
-    // -------------------------------------------------------------------------
-    // Constructor
-    // -------------------------------------------------------------------------
-    template <SolvePolicy solveP, DecomposeConc Decomp>
-    NSSolver<solveP, Decomp>::NSSolver(Decomp& dec, NS_input<T>& inp)
-        : m_V(numPDE::make_vector_field<T, 3>(dec.dimsWithGhosts())), m_P(dec.dimsWithGhosts()),
-          stepper(m_V), pSolve(dec, inp.p_BC, inp.constants), r_inps(inp), r_dec(dec)
-    {
-    }
-
     // -------------------------------------------------------------------------
     // Simple Getters
     // -------------------------------------------------------------------------
