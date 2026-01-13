@@ -72,10 +72,11 @@ namespace numPDE
 
         MPI_Barrier(MPI_COMM_WORLD);
 
+        PetscInt dof{1};
+        PetscInt stencil_width{2};
         ierr = DMDACreate3d(r_dec.get_cart_comm(), DM_BOUNDARY_NONE, DM_BOUNDARY_GHOSTED,
                             DM_BOUNDARY_GHOSTED, DMDA_STENCIL_BOX, NxLoc, NyLoc, NzLoc, 1, py, pz,
-                            1, 2, lx.data(), ly.data(), lz.data(), &this->da);
-    CHKERRQ(ierr);
+                            dof, stencil_width, lx.data(), ly.data(), lz.data(), &this->da);
         DMSetUp(this->da);
         MPI_Barrier(MPI_COMM_WORLD);
         PetscInt xs, ys, zs, xm, ym, zm;
