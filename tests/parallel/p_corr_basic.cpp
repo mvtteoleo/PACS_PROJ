@@ -1,54 +1,12 @@
+/*
+ * Test built to check that given a velocity field u the solver correctly
+ * solves lap(P) = div(u) with 2 type of BCs
+ */
 #include "../../include/pressure_solver.hpp"
 #include "../../include/pvts_writer.hpp"
 
 #include <random>
 #include <vector>
-
-template <typename Real>
-void fill_random(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U)
-{
-    std::random_device rd;
-    std::mt19937       gen(rd());
-
-    std::uniform_real_distribution<Real> dist(-1e-6, 1e-6);
-
-    for (auto [k, j, i] : U.int_elems())
-    {
-        U.at(0, i, j, k) = 1.0 + dist(gen);
-        U.at(1, i, j, k) = 0.0 + dist(gen);
-        U.at(2, i, j, k) = 0.0 + dist(gen);
-    }
-}
-
-template <typename Real>
-auto check_divergence(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U, const Real h)
-{
-
-    struct Err
-    {
-        Real L2;
-        Real Linf;
-    };
-    Err err{.L2{}, .Linf{}};
-
-    auto [l, nx, ny, nz] = U.get_sizes();
-
-    for (size_t k{2}; k < nz - 2; ++k)
-        for (size_t j{2}; j < ny - 2; ++j)
-            for (size_t i{2}; i < nz - 2; ++i)
-            {
-                const Real div = std::abs(numPDE::div(U, i, j, k, h));
-                err.L2 += div * div;
-                if (div > err.Linf) err.Linf = div;
-            }
-
-    MPI_Allreduce(&err.L2, &err.L2, 1, mpi_get_type<Real>(), MPI_SUM, MPI_COMM_WORLD);
-    MPI_Allreduce(&err.Linf, &err.Linf, 1, mpi_get_type<Real>(), MPI_MAX, MPI_COMM_WORLD);
-
-    err.L2 = std::sqrt(h * h * h * err.L2);
-
-    return err;
-}
 using Real = double;
 #define MG 1
 #define BCS 0 // o DirHomo 1 NeuHomo
@@ -60,13 +18,13 @@ int main(int argc, char* argv[])
 #if MG == 1
     using DecompType = PETScDecomp<Real>;
 #elif MG == 0
-    using DecompType = NewDecomp<>;
+    using DecompType = NewDecomp<Real>;
 #endif
-    DecompType dec(argc, argv, N, N, N);
+    DecompType              dec(argc, argv, N, N, N);
     numPDE::Constants<Real> csts;
     numPDE::ScalarBC<Real>  scal_bc;
 
-    Real       L  = M_PI;
+    Real L        = M_PI;
     using FunType = numPDE::PressureBC<>::Function;
 
     csts.h  = L / (N - 1);
@@ -88,7 +46,7 @@ int main(int argc, char* argv[])
         const auto& y = pos.y;
         const auto& z = pos.z;
         using std::cos, std::sin;
-        Real ris {};
+        Real ris{};
         if (l == 0) ris = cos(x + csts.h * 0.5) * sin(y) * sin(z);
         if (l == 1) ris = cos(y + csts.h * 0.5) * sin(x) * sin(z);
         if (l == 2) ris = cos(z + csts.h * 0.5) * sin(x) * sin(y);
@@ -112,10 +70,10 @@ int main(int argc, char* argv[])
         const auto& y = pos.y;
         const auto& z = pos.z;
         using std::cos, std::sin;
-        Real ris {};
-        if (l == 0) ris =  -sin(x + csts.h * 0.5) * cos(y) * cos(z);
-        if (l == 1) ris =  -sin(y + csts.h * 0.5) * cos(x) * cos(z);
-        if (l == 2) ris =  -sin(z + csts.h * 0.5) * cos(x) * cos(y);
+        Real ris{};
+        if (l == 0) ris = -sin(x + csts.h * 0.5) * cos(y) * cos(z);
+        if (l == 1) ris = -sin(y + csts.h * 0.5) * cos(x) * cos(z);
+        if (l == 2) ris = -sin(z + csts.h * 0.5) * cos(x) * cos(y);
         return ris;
     };
 
@@ -127,11 +85,9 @@ int main(int argc, char* argv[])
     scal_bc.u_ex = p_ex;
 
 #if MG == 1
-    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> solver(dec, scal_bc,
-                                                                                     csts);
+    numPDE::PressureSolver<numPDE::SolvePolicy::MultiGrid, DecompType> solver(dec, scal_bc, csts);
 #elif MG == 0
-    numPDE::PressureSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> solver(dec, scal_bc,
-                                                                                 csts);
+    numPDE::PressureSolver<numPDE::SolvePolicy::Fourier, DecompType> solver(dec, scal_bc, csts);
 #endif
 
     auto U = numPDE::make_vector_field<Real, 3>(dec.dimsWithGhosts());
@@ -140,8 +96,10 @@ int main(int argc, char* argv[])
     for (auto [k, j, i] : U.all_elems())
     {
         auto               xsrt = dec.xStartWGhosts();
-        numPDE::Node<Real> pos{ .x = csts.h * (i + xsrt[0]), .y = csts.h * (j +
-            xsrt[1]), .z = csts.h * (k + xsrt[2]), .t=0.};
+        numPDE::Node<Real> pos{.x = csts.h * (i + xsrt[0]),
+                               .y = csts.h * (j + xsrt[1]),
+                               .z = csts.h * (k + xsrt[2]),
+                               .t = 0.};
 
         U.at(0, i, j, k) = v_u_ex(pos, 0);
         U.at(1, i, j, k) = v_u_ex(pos, 1);
@@ -167,7 +125,7 @@ int main(int argc, char* argv[])
         pos.x              = h * static_cast<Real>(is + ip);
         pos.y              = h * static_cast<Real>(js + jp);
         pos.z              = h * static_cast<Real>(ks + kp);
-        pos.t  = 0.;
+        pos.t              = 0.;
         const Real abs_err = std::abs(P(ip, jp, kp) - p_ex(pos));
         err.l_2 += abs_err * abs_err;
         err.l_inf     = std::max(err.l_inf, abs_err);

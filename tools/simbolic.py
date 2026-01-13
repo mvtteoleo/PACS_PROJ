@@ -91,8 +91,6 @@ print("C++ style code")
 # a -ppend
 # w-rite
 # x-create ... If does not exists gets created
-with open(destination, "a") as f:
-  f.write("namespace numPDE {\n")
 
 print(sp.cxxcode(fx, standard='C++17'))
 print(sp.cxxcode(fy, standard='C++17'))

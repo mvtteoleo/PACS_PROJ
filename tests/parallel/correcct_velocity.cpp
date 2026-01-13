@@ -1,0 +1,118 @@
+
+/*
+ * Test built to check that given a velocity field u the solver correctly
+ * solves lap(P) = div(u) with 2 type of BCs
+ */
+#include "../../include/pressure_solver.hpp"
+#include "../../include/pvts_writer.hpp"
+
+#include <random>
+#include <vector>
+template <typename Real>
+void fill_irrot_field(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U,
+                      const std::array<int, 3> pos_0, Real h)
+{
+    std::random_device rd;
+    std::mt19937       gen(rd());
+
+    std::uniform_real_distribution<Real> dist(-1e-5, 1e-5);
+    [[maybe_unused]] bool                scale_param = 1;
+
+    for (auto [k, j, i] : U.all_elems())
+    {
+        Real x = static_cast<Real>(pos_0[0] + i) * h;
+        Real y = static_cast<Real>(pos_0[1] + j) * h;
+        Real z = static_cast<Real>(pos_0[2] + k) * h;
+        using std::sin, std::cos;
+        U.at(0, i, j, k) = sin(x + 0.5 * h) * cos(y) * cos(z) + scale_param * dist(gen);
+        U.at(1, i, j, k) = cos(x) * sin(y + 0.5 * h) * cos(z) + scale_param * dist(gen);
+        U.at(2, i, j, k) = -2.0 * cos(x) * cos(y) * sin(z + 0.5 * h) + scale_param * dist(gen);
+    }
+}
+
+template <typename Real>
+void fill_random(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U)
+{
+    std::random_device rd;
+    std::mt19937       gen(rd());
+
+    std::uniform_real_distribution<Real> dist(-1e-6, 1e-6);
+    [[maybe_unused]] Real                scale_param = 0.0;
+
+    for (auto [k, j, i] : U.int_elems())
+    {
+        U.at(0, i, j, k) = 0.0 + scale_param * dist(gen);
+        U.at(1, i, j, k) = 0.0 + scale_param * dist(gen);
+        U.at(2, i, j, k) = 0.0 + scale_param * dist(gen);
+    }
+}
+
+template <typename Real>
+auto check_divergence(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U, const Real h)
+{
+
+    numPDE::Error<Real> err{};
+    for (const auto [k, j, i] : U.int_elems())
+    {
+        const Real div = std::abs(numPDE::div(U, i, j, k, h));
+        err.l_2 += div * div;
+        if (div > err.l_inf) err.l_inf = div;
+    }
+
+    err.reduce(h * h * h);
+
+    return err;
+}
+using Real = double;
+#define MG 1
+#define BCS 1 // o DirHomo 1 NeuHomo
+int main(int argc, char* argv[])
+{
+
+    std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
+    if (N < 2) N = 5;
+#if MG == 1
+    using DecompType                 = PETScDecomp<Real>;
+    constexpr numPDE::SolvePolicy SP = numPDE::SolvePolicy::MultiGrid;
+#elif MG == 0
+    using DecompType                 = NewDecomp<Real>;
+    constexpr numPDE::SolvePolicy SP = numPDE::SolvePolicy::Fourier;
+#endif
+    DecompType              dec(argc, argv, N, N, N);
+    numPDE::Constants<Real> csts;
+    numPDE::ScalarBC<Real>  scal_bc;
+
+    Real L        = M_PI;
+    using FunType = numPDE::PressureBC<>::Function;
+
+    csts.h  = L / (N - 1);
+    csts.Re = 1;
+    csts.dt = csts.h * csts.h * 0.001;
+
+    std::fill(scal_bc.BC_s.begin(), scal_bc.BC_s.end(), numPDE::NeuHomo);
+
+    numPDE::PressureSolver<SP, DecompType> solver(dec, scal_bc, csts);
+
+    auto U = numPDE::make_vector_field<Real, 3>(dec.dimsWithGhosts());
+    auto P = numPDE::make_scalar_field<Real, 3>(dec.dimsWithGhosts());
+
+    // fill_random(U);
+
+    auto pos_0 = dec.xStartWGhosts();
+    fill_irrot_field(U, pos_0, csts.h);
+
+    auto err = check_divergence(U, csts.h);
+    err.print_errs(dec.rank());
+
+    solver.pressure_correct(U, P, 1.0);
+
+    err = check_divergence(U, csts.h);
+    err.print_errs(dec.rank());
+
+    /*
+     * VTKStructuredWriter<DecompType, numPDE::Tensor<double, 3, 3>> writer(dec);
+     * writer.write(P, "output/paralle_p", h);
+     */
+
+    return 0;
+}

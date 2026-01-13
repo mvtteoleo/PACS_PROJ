@@ -1,8 +1,9 @@
 // The only supperted type as of now due to 2Decomp's limitations
 #include <functional>
+#include <print>
 #include <utility>
 using Real = double;
-#define MG 1
+#define MG 2
 #include "../../include/navier_stokes.hpp"
 #include <climits>
 #include <cmath>
@@ -13,12 +14,17 @@ int main(int argc, char* argv[])
 {
 
 // MPI AND DOMAIN DECOMPOSITION LOGIC
-#if MG == 1
-    PETScDecomp<Real> decomposer(argc, argv);
-#elif MG == 0
-    NewDecomp<Real> decomposer(argc, argv);
+#if MG == 0
+    using DecompType                 = NewDecomp<Real>;
+    constexpr numPDE::SolvePolicy SP = numPDE::SolvePolicy::Fourier;
+#elif MG == 1
+    using DecompType                 = PETScDecomp<Real>;
+    constexpr numPDE::SolvePolicy SP = numPDE::SolvePolicy::MultiGrid;
+#elif MG == 2
+    using DecompType                 = PETScDecomp<Real>;
+    constexpr numPDE::SolvePolicy SP = numPDE::SolvePolicy::None;
 #endif
-
+    DecompType  decomposer(argc, argv);
     std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
     if (N < 2) N = 5;
     // TIME AND PROBLEM RELATED CONSTANTS
@@ -43,9 +49,9 @@ int main(int argc, char* argv[])
 
     inputs.v_BC.u_ex = [&](const numPDE::Node<Real>& p) -> numPDE::Array<Real, 3>
     {
-        const auto  x_s = p.x + 0.5 * inputs.constants.h;
-        const auto  y_s = p.y + 0.5 * inputs.constants.h;
-        const auto  z_s = p.z + 0.5 * inputs.constants.h;
+        const auto x_s = p.x + 0.5 * inputs.constants.h;
+        const auto y_s = p.y + 0.5 * inputs.constants.h;
+        const auto z_s = p.z + 0.5 * inputs.constants.h;
 
         const auto u_x = numPDE::ux(x_s, p.y, p.z, p.t);
         const auto u_y = numPDE::uy(p.x, y_s, p.z, p.t);
@@ -66,13 +72,12 @@ int main(int argc, char* argv[])
         return numPDE::Array<Real, 3>{fx_c, fy_c, fz_c};
     };
 
-#if MG == 1
-    numPDE::NSSolver<numPDE::SolvePolicy::MultiGrid, PETScDecomp<Real>> ns(decomposer, inputs);
-#elif MG == 0
-    numPDE::NSSolver<numPDE::SolvePolicy::Fourier, NewDecomp<Real>> ns(decomposer, inputs);
-#endif
+    numPDE::NSSolver<SP, DecompType> ns(decomposer, inputs);
 
     ns.solve();
+
+    Real trtr = 1.0 / 0.0;
+    std::println("1/nan = {}; nan : {}", 1.0 / trtr, trtr);
 
     return 0;
 };
