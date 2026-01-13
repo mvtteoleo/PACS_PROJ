@@ -9,6 +9,7 @@ namespace numPDE
 
     enum class SolvePolicy
     {
+        None,
         Fourier,
         MultiGrid
     };
@@ -23,12 +24,30 @@ namespace numPDE
     template <SolvePolicy solveP, DecomposeConc Decomp>
     struct PressureSolver;
 
+    // Specialization in order to avoid having to comment and uncomment to
+    // test just the NS solver alone.
+    template <DecomposeConc Decomp>
+    struct PressureSolver<SolvePolicy::None, Decomp>
+    {
+        using U = Decomp::value_type;
+
+        PressureSolver([[maybe_unused]] Decomp& decomp, [[maybe_unused]] ScalarBC<U>& Bcs,
+                       [[maybe_unused]] Constants<U>& constants) {};
+
+        void pressure_correct(Tensor<U, 4, 3, TypeIndex::ROW_MAJOR>&,
+                              Tensor<U, 3, 3, TypeIndex::ROW_MAJOR>&, const U, bool)
+        {
+            return;
+        };
+        void test_p_corr(bool) { return; };
+    };
+
+    // Template specialization for the Fast Poisson solver
     enum class MOVE_TYPE
     {
         ToGhosted,
         ToNonGhosted
     };
-    // Template specialization for the Fast Poisson solver
     template <typename U>
     struct PressureSolver<SolvePolicy::Fourier, NewDecomp<U>> : FastPoissonSolver<U>
     {
@@ -63,13 +82,11 @@ namespace numPDE
 
         PressureSolver(Decomp& decomp, ScalarBC<T>& Bcs, Constants<T>& constants)
             : MultiGridPoissonSolver<Decomp>(decomp, Bcs, constants),
-              m_P_loc(decomp.dimsWithGhosts()) {
-
-              };
+              m_P_loc(decomp.dimsWithGhosts()) {};
 
         void pressure_correct(Tensor<T, 4, 3, TypeIndex::ROW_MAJOR>& V,
                               Tensor<T, 3, 3, TypeIndex::ROW_MAJOR>& P, const T dt_step,
-                              bool verbose = false);
+                              [[maybe_unused]] bool verbose = false);
 
       protected:
         numPDE::Tensor<T, 3, 3, TypeIndex::ROW_MAJOR> m_P_loc;

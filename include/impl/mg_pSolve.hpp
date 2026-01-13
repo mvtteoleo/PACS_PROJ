@@ -11,7 +11,7 @@ namespace numPDE
     void PressureSolver<SolvePolicy::MultiGrid, Decomp>::pressure_correct(
         Tensor<typename Decomp::value_type, 4, 3, TypeIndex::ROW_MAJOR>& V,
         Tensor<typename Decomp::value_type, 3, 3, TypeIndex::ROW_MAJOR>& P,
-        const typename Decomp::value_type dt_step, bool verbose)
+        const typename Decomp::value_type dt_step, [[maybe_unused]] bool verbose)
     {
         // WRITE DIV ON B
         PetscScalar*** bAsTens;
@@ -77,6 +77,7 @@ namespace numPDE
         this->r_dec.exchange_ghosts(V);
 
         P = P + m_P_loc;
+        this->r_dec.exchange_ghosts(P);
     }
 
     template <DecomposeConc Decomp>
@@ -85,9 +86,9 @@ namespace numPDE
         constexpr auto cfs = get_appr_coeffs_neu<g_appr_ord, typename Decomp::value_type>();
 
         const auto [nx, ny, nz] = m_P_loc.get_sizes();
-        const auto i_range      = std::views::iota(size_t{1}, size_t{nx - 1});
-        const auto j_range      = std::views::iota(size_t{1}, size_t{ny - 1});
-        const auto k_range      = std::views::iota(size_t{1}, size_t{nz - 1});
+        const auto i_range      = std::views::iota(size_t{1}, static_cast<size_t>(nx - 1));
+        const auto j_range      = std::views::iota(size_t{1}, static_cast<size_t>(ny - 1));
+        const auto k_range      = std::views::iota(size_t{1}, static_cast<size_t>(nz - 1));
 
         if (is_side(SIDES::TOP, this->r_dec))
         {
@@ -95,7 +96,7 @@ namespace numPDE
                 for (const auto i : i_range)
                 {
                     m_P_loc(i, j, nz - 1) = 0.;
-                    for (auto el = 0; el < g_appr_ord; ++el)
+                    for (size_t el = 0; el < g_appr_ord; ++el)
                         m_P_loc(i, j, nz - 1) += cfs.v[el] * m_P_loc(i, j, nz - 2 - el);
                 }
         }
@@ -106,7 +107,7 @@ namespace numPDE
                 for (const auto i : i_range)
                 {
                     m_P_loc(i, j, 0) = 0.;
-                    for (auto el = 0; el < g_appr_ord; ++el)
+                    for (size_t el = 0; el < g_appr_ord; ++el)
                         m_P_loc(i, j, 0) += cfs.v[el] * m_P_loc(i, j, el + 1);
                 }
         }
@@ -117,7 +118,7 @@ namespace numPDE
                 for (const auto i : i_range)
                 {
                     m_P_loc(i, j, k) = 0.;
-                    for (auto el = 0; el < g_appr_ord; ++el)
+                    for (size_t el = 0; el < g_appr_ord; ++el)
                         m_P_loc(i, j, k) += cfs.v[el] * m_P_loc(i, j + el + 1, k);
                 }
         }
@@ -129,7 +130,7 @@ namespace numPDE
                 for (const auto i : i_range)
                 {
                     m_P_loc(i, j, k) = 0.;
-                    for (auto el = 0; el < g_appr_ord; ++el)
+                    for (size_t el = 0; el < g_appr_ord; ++el)
                         m_P_loc(i, j, k) += cfs.v[el] * m_P_loc(i, j - el - 1, k);
                 }
         }
@@ -141,7 +142,7 @@ namespace numPDE
                 for (const auto j : j_range)
                 {
                     m_P_loc(i, j, k) = 0.;
-                    for (auto el = 0; el < g_appr_ord; ++el)
+                    for (size_t el = 0; el < g_appr_ord; ++el)
                         m_P_loc(i, j, k) += cfs.v[el] * m_P_loc(i + el + 1, j, k);
                 }
         }
@@ -153,7 +154,7 @@ namespace numPDE
                 for (const auto j : j_range)
                 {
                     m_P_loc(i, j, k) = 0.;
-                    for (auto el = 0; el < g_appr_ord; ++el)
+                    for (size_t el = 0; el < g_appr_ord; ++el)
                         m_P_loc(i, j, k) += cfs.v[el] * m_P_loc(i - el - 1, j, k);
                 }
         }

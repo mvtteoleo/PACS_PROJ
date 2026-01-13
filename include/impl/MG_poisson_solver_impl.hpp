@@ -18,7 +18,7 @@ namespace numPDE
     template <DecomposeConc Decomp>
     auto MultiGridPoissonSolver<Decomp>::build_local_dm()
     {
-        PetscErrorCode ierr;
+        [[maybe_unused]] PetscErrorCode ierr;
         auto [pz, py]            = r_dec.get_process_grid();
         const auto& [nx, ny, nz] = r_dec.get_global_sizes();
 
@@ -365,7 +365,7 @@ namespace numPDE
                         const numPDE::Node<T> pos{.x = (i + info.offset[0]) * r_const.h,
                                                   .y = (j + info.offset[1]) * r_const.h,
                                                   .z = (k + info.offset[2]) * r_const.h,
-                                                   .t = 0};
+                                                  .t = 0};
                         bAsTens[k][j][i] += scale * static_cast<PetscScalar>(info.fun(pos));
                     }
             DMDAVecRestoreArray(this->da, this->b, &bAsTens);
@@ -389,11 +389,12 @@ namespace numPDE
             for (PetscInt j = ys; j < ys + ym; ++j)
                 for (PetscInt i = xs; i < xs + xm; ++i)
                 {
-                    numPDE::Node<T> pos{.x = h * (i + 1), .y = h * (j + 1), .z = h * (k + 1), .t = 0.};
-                    const auto      exact = static_cast<PetscScalar>(r_BCs.u_ex(pos));
-                    const auto      num   = x_hTens[k][j][i];
-                    const auto      err   = std::abs(exact - num);
-                    x_hTens[k][j][i]      = err;
+                    numPDE::Node<T> pos{
+                        .x = h * (i + 1), .y = h * (j + 1), .z = h * (k + 1), .t = 0.};
+                    const auto exact = static_cast<PetscScalar>(r_BCs.u_ex(pos));
+                    const auto num   = x_hTens[k][j][i];
+                    const auto err   = std::abs(exact - num);
+                    x_hTens[k][j][i] = err;
                 }
         DMDAVecRestoreArray(this->da, check, &x_hTens);
         VecAssemblyBegin(check);

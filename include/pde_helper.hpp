@@ -113,11 +113,12 @@ namespace numPDE
          */
         void reduce(T dmu = 1.0)
         {
-            double glob_max = 0.0;
-            double glob_L2  = 0.0;
+            T glob_max = 0.0;
+            T glob_L2  = 0.0;
 
-            MPI_Reduce(&this->l_2, &glob_L2, 1, mpi_get_type<T>(), MPI_SUM, 0, MPI_COMM_WORLD);
-            MPI_Reduce(&this->l_inf, &glob_max, 1, mpi_get_type<T>(), MPI_MAX, 0, MPI_COMM_WORLD);
+            MPI_Allreduce(&this->l_2, &glob_L2, 1, mpi_get_type<T>(), MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(&this->l_inf, &glob_max, 1, mpi_get_type<T>(), MPI_MAX, MPI_COMM_WORLD);
+
             this->l_2   = std::sqrt(glob_L2 * dmu);
             this->l_inf = glob_max;
         };

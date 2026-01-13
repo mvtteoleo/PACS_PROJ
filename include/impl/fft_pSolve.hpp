@@ -15,16 +15,7 @@ namespace numPDE
         Tensor<T, 4, 3, TypeIndex::ROW_MAJOR>& V, Tensor<T, 3, 3, TypeIndex::ROW_MAJOR>& P,
         const T dt_step, bool verbose)
     {
-        const auto  h     = this->r_const.h;
-        const auto& sizes = this->r_dec.xSize();
-        const auto& nx    = sizes[0];
-        const auto& ny    = sizes[1];
-        const auto& nz    = sizes[2];
-
-        // Account for the presence of ghost points
-        const int j_g = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
-        const int k_g = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
-
+        const auto h = this->r_const.h;
         // SANITIZE WORK-ZONE
         this->m_P_ghosted.fill_val(T{});
 
@@ -54,15 +45,24 @@ namespace numPDE
         // TODO here there is a problem when I parallelize
 
         // I have to do it for the internal points (Excluding the Ghosted!)
-    /*
-       for (const auto k : std::views::iota(size_t{1}, static_cast<size_t>( nz + k_g - 1 )))
-           for (const auto j : std::views::iota(size_t{1}, static_cast<size_t>( ny + j_g - 1 )))
-               for (const auto i : std::views::iota(size_t{1}, static_cast<size_t>( nx - 1 )))
-    */
+        /*
+        const auto& sizes = this->r_dec.xSize();
+        const auto& nx    = sizes[0];
+        const auto& ny    = sizes[1];
+        const auto& nz    = sizes[2];
+
+        // Account for the presence of ghost points
+        const int j_g = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
+        const int k_g = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
+
+           for (const auto k : std::views::iota(size_t{1}, static_cast<size_t>( nz + k_g - 1 )))
+               for (const auto j : std::views::iota(size_t{1}, static_cast<size_t>( ny + j_g - 1 )))
+                   for (const auto i : std::views::iota(size_t{1}, static_cast<size_t>( nx - 1 )))
+        */
 
         this->r_dec.exchange_ghosts(m_P_ghosted);
         this->r_dec.exchange_ghosts(V);
-        for(auto [k, j, i] : V.int_elems())
+        for (auto [k, j, i] : V.int_elems())
         {
             const auto dP = grad(m_P_ghosted, i, j, k, h);
             V(i, j, k)    = V(i, j, k) - dt_step * dP;

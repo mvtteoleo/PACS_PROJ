@@ -119,7 +119,7 @@ namespace numPDE
     template <SolvePolicy solveP, DecomposeConc Decomp>
     Error<typename Decomp::value_type> NSSolver<solveP, Decomp>::compute_err(const T time)
     {
-        const auto&         h       = r_inps.constants.h;
+        const auto&         h = r_inps.constants.h;
         numPDE::Array<T, 3> loc_err;
         numPDE::Error<T>    err{};
 
@@ -300,7 +300,7 @@ namespace numPDE
             }
         }
 
-        // Handle corners / edges 
+        // Handle corners / edges
         {
             const int i_i = 0;
             const int i_e = (nx - 1);

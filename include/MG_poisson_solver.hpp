@@ -35,21 +35,20 @@ namespace numPDE
      * KSP_parameters struct.
      */
     template <DecomposeConc Decomp>
-    struct MultiGridPoissonSolver : public KSP_parameters 
+    struct MultiGridPoissonSolver : public KSP_parameters
     {
       public:
         using T          = Decomp::value_type;
         using value_type = T;
 
-    MultiGridPoissonSolver( Decomp& decomp, numPDE::ScalarBC<typename Decomp::value_type>& Bcs,
-        numPDE::Constants<typename Decomp::value_type>& constants)
-        : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
-    {
-        this->build_local_dm();
+        MultiGridPoissonSolver(Decomp& decomp, numPDE::ScalarBC<typename Decomp::value_type>& Bcs,
+                               numPDE::Constants<typename Decomp::value_type>& constants)
+            : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
+        {
+            this->build_local_dm();
 
-        this->build_linear_system();
-    }
-
+            this->build_linear_system();
+        }
 
         // Rule of 5 defaults
         MultiGridPoissonSolver(MultiGridPoissonSolver&&)                 = default;
@@ -87,10 +86,18 @@ namespace numPDE
         template <TypeIndex TYPE>
         void write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t);
 
-
-        void set_rel_tol(std::floating_point auto in = 1e-8) { reltol = static_cast<PetscScalar>(in); }
-        void set_abs_tol(std::floating_point auto in = 1e-9) { abstol = static_cast<PetscScalar>(in); }
-        void set_diverg_tol(std::floating_point auto in) { diverg_tol = static_cast<PetscScalar>(in); }
+        void set_rel_tol(std::floating_point auto in = 1e-8)
+        {
+            reltol = static_cast<PetscScalar>(in);
+        }
+        void set_abs_tol(std::floating_point auto in = 1e-9)
+        {
+            abstol = static_cast<PetscScalar>(in);
+        }
+        void set_diverg_tol(std::floating_point auto in)
+        {
+            diverg_tol = static_cast<PetscScalar>(in);
+        }
 
         template <typename T>
             requires std::integral<T>
@@ -122,8 +129,8 @@ namespace numPDE
         Mat           A;
         Vec           x_h, b;
         DM            da;
-        PC  pc  = nullptr;
-        KSP ksp = nullptr;
+        PC            pc  = nullptr;
+        KSP           ksp = nullptr;
         Decomp&       r_dec;
         ScalarBC<T>&  r_BCs;
         Constants<T>& r_const;
