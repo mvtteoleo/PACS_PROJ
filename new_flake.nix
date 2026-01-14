@@ -2,14 +2,14 @@
   description = "Pacs environment with GCC 15";
 
   inputs = {
-    # CRITICAL: GCC 15 is too new for 24.05. You MUST use unstable.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs }:
+  outputs = { self, nixpkgs, flake-utils }:
+flake-utils.lib.eachDefaultSystem (system:
     let
-      system = "x86_64-linux";
-      pkgs = import nixpkgs { inherit system; };
+                pkgs = nixpkgs.legacyPackages.${system};
 
       # 1. Define GCC 15 Environment
       gcc15Env = pkgs.gcc15Stdenv;
@@ -62,7 +62,7 @@
     in 
         {
         # 1. Local Shell
-        devShells.${system}.default = (pkgs.mkShell.override { stdenv = gcc15Env; }) {
+        devShells.default = (pkgs.mkShell.override { stdenv = gcc15Env; }) {
           buildInputs = myDevTools;
           shellHook = ''
             export EIGEN_INCLUDE_DIR="${pkgs.eigen}/include/eigen3"
@@ -105,6 +105,7 @@
             Cmd = [ "/bin/bash" ];
           };
         };
-      };
+      }
+        );
 }
 

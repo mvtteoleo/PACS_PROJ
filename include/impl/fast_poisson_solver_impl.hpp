@@ -234,6 +234,11 @@ namespace numPDE
                     const T   denom = eig_x(iglob) + eig_y(jglob) + eig_z(kglob);
                     eigenvals[ii]   = 1.0 / denom;
                 }
+        // Set mean mode to 0
+        if (r_dec.zStart()[0] == 0 && r_dec.zStart()[1] == 0 && r_dec.zStart()[2] == 0)
+        {
+            eigenvals[0] = T{};
+        }
     }
 
     template <typename T>
@@ -241,10 +246,6 @@ namespace numPDE
     {
         std::transform(std::execution::par_unseq, m_data3.begin(), m_data3.end(), eigenvals.begin(),
                        m_data3.begin(), [](T d, T eig) -> T { return d * eig; });
-
-        // Set mean mode to 0 if relevant
-        if (r_dec.zStart()[0] == 0 && r_dec.zStart()[1] == 0 && r_dec.zStart()[2] == 0)
-            m_data3[0] = 0.0;
     }
 
     template <typename T>

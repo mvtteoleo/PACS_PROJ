@@ -15,12 +15,130 @@ namespace numPDE
      */
     struct KSP_parameters
     {
-        PetscScalar reltol{1e-8};
-        PetscScalar abstol{1e-9};
-        PetscScalar diverg_tol{1e+2};
-        PetscInt    maxits{500};
+        PetscScalar reltol{1e-10};
+        PetscScalar abstol{1e-10};
+        PetscScalar diverg_tol{1e+3};
+        PetscInt    maxits{1000};
+        PCType      pc_type{PCMG};
+        KSPType     ksp_type{KSPGMRES};
         bool        mg_solver{true};
+
+        void set_pc_type(PCType new_pc = PCMG) { this->pc_type = new_pc; }
+        void set_ksp_type(KSPType new_ksp = KSPGMRES) { this->ksp_type = new_ksp; }
+
+        void set_rel_tol(std::floating_point auto in = 1e-10)
+        {
+            reltol = static_cast<PetscScalar>(in);
+        }
+        void set_abs_tol(std::floating_point auto in = 1e-10)
+        {
+            abstol = static_cast<PetscScalar>(in);
+        }
+        void set_diverg_tol(std::floating_point auto in)
+        {
+            diverg_tol = static_cast<PetscScalar>(in);
+        }
+
+        template <typename T>
+            requires std::integral<T>
+        void set_max_its(T in = 1000)
+        {
+            maxits = static_cast<PetscInt>(in);
+        }
+
+        void set_use_mg_solver(bool in = true) { mg_solver = in; }
     };
+
+    struct MG_settings
+    {
+        /* * @brief Depth of the Multigrid hierarchy.
+         * CRITICAL: To use Geometric Multigrid (DMDA), the fine grid size N
+         * must be compatible with coarsening by 2 'mg_levels' times.
+         * Ideally, the global grid size should be N = C * 2^(L-1) + 1.
+         */
+        int mg_levels = 4;
+
+        /* * @brief Number of smoothing iterations applied at each level.
+         * This applies to both pre-smoothing (downward pass) and post-smoothing (upward pass).
+         * Typical values: 1-2 for Chebyshev, 2-4 for SOR.
+         */
+        int smoothing_iters = 2;
+
+        /* * @brief The algorithm used to compose the multigrid levels.
+         * Options:
+         * - PC_MG_MULTIPLICATIVE: (Default) Standard V-cycle/W-cycle. The finest grid
+         * residual is restricted, solved, and corrected sequentially. Best solver.
+         * - PC_MG_ADDITIVE: Computes corrections on all levels simultaneously and adds them.
+         * Great for parallelism but has a worse convergence rate. Good as a preconditioner for CG.
+         * - PC_MG_FULL: Full Multigrid (F-Cycle). Starts coarse, interpolates to fine, then
+         * V-cycles. Mathematically optimal but computationally expensive.
+         * - PC_MG_KASKADE: One-way cascade (fine -> coarse). Not a solver, useful only for specific
+         * initialization.
+         */
+        PCMGType pc_mg_type = PC_MG_FULL;
+
+        /* * @brief Recursion pattern for the Multiplicative MG.
+         * Options:
+         * - PC_MG_CYCLE_V: Standard V-cycle. Goes down to coarse and back up once.
+         * Cheapest per iteration. Sufficient for well-behaved Poisson problems.
+         * - PC_MG_CYCLE_W: W-cycle. Visits coarse grids twice per step.
+         * More expensive per iteration but handles "stiff" problems or bad aspect ratios better.
+         */
+        PCMGCycleType cycle_type = PC_MG_CYCLE_V;
+
+        // --- Smoother Settings (Levels 1 to Fine) ---
+
+        /* * @brief Solver for the smoothing step (Relaxation).
+         * - KSPCHEBYSHEV: Polynomial smoother. Fully vectorizable and parallel (no global
+         * reductions). Preferred for HPC. Requires a simple PC (like Jacobi) to estimate
+         * eigenvalues.
+         * - KSPRICHARDSON: Standard stationary iteration. Typically used with SOR/Gauss-Seidel.
+         * Better smoothing per step but harder to parallelize (sequential data dependency).
+         */
+        KSPType smoother_type = KSPCHEBYSHEV;
+
+        /* * @brief Preconditioner for the smoother.
+         * - PCJACOBI: Diagonal scaling. Perfect companion for Chebyshev.
+         * - PCSOR: Successive Over-Relaxation. Good smoother for Richardson, but limits
+         * parallelism.
+         */
+        PCType smoother_precond = PCJACOBI;
+
+        // --- Coarse Grid Solver (Level 0) ---
+
+        /* * @brief Solver for the coarsest grid.
+         * - KSPPREONLY: Apply the preconditioner once (Direct Solve).
+         * Since the coarse grid is small, we usually want an exact solve, not an iterative one.
+         */
+        KSPType coarse_ksp = KSPPREONLY;
+
+        /* * @brief Preconditioner (or direct solver) for the coarsest grid.
+         * - PCREDUNDANT: Gathers the entire coarse matrix to rank 0, solves exactly (LU), and
+         * broadcasts result. Optimal when the coarse grid is small (< 5k DOFs) to avoid
+         * communication latency.
+         * - PCBJACOBI: Block Jacobi (Parallel). Use if the coarse grid is still massive.
+         */
+        PCType coarse_pc = PCREDUNDANT;
+    };
+
+    /*
+     * @brief : simple struct to handle the domain BC to limit code repetition.
+     */
+    struct MGSideInfo
+    {
+        BC bc;
+        using FunType = ScalarBC<>::Function;
+        FunType            fun;
+        std::array<int, 3> offset{{1, 1, 1}};
+        std::array<int, 3> normal{{0, 0, 0}};
+        PetscInt           xs, ys, zs;
+        PetscInt           xm, ym, zm;
+
+        auto k_range() const noexcept { return range_st_cs(this->zs, this->zm); }
+        auto j_range() const noexcept { return range_st_cs(this->ys, this->ym); }
+        auto i_range() const noexcept { return range_st_cs(this->xs, this->xm); }
+    };
+
     /*
      * The solver works for equation in the shape of : Lap(u) = f.
      *
@@ -46,8 +164,8 @@ namespace numPDE
             : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
         {
             this->build_local_dm();
-
             this->build_linear_system();
+            this->setup_MG_options(this->m_mg_settings);
         }
 
         // Rule of 5 defaults
@@ -86,27 +204,11 @@ namespace numPDE
         template <TypeIndex TYPE>
         void write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t);
 
-        void set_rel_tol(std::floating_point auto in = 1e-8)
-        {
-            reltol = static_cast<PetscScalar>(in);
-        }
-        void set_abs_tol(std::floating_point auto in = 1e-9)
-        {
-            abstol = static_cast<PetscScalar>(in);
-        }
-        void set_diverg_tol(std::floating_point auto in)
-        {
-            diverg_tol = static_cast<PetscScalar>(in);
-        }
+        /*
+         * @brief: Sets up the KSP for the  Multigrid Solver
+         */
+        auto setup_MG_options(const MG_settings mg_settings);
 
-        template <typename T>
-            requires std::integral<T>
-        void set_max_its(T in = 500)
-        {
-            maxits = static_cast<PetscInt>(in);
-        }
-
-        void set_use_mg_solver(bool in = true) { mg_solver = in; }
         // --- Setup & Internal ---
       protected:
         auto build_local_dm();
@@ -126,33 +228,21 @@ namespace numPDE
         auto update_bc_b_impl(SIDES const& side);
         auto get_side_infos(const SIDES& side);
 
+      public:
+        MG_settings m_mg_settings;
+
+      protected:
         Mat           A;
         Vec           x_h, b;
         DM            da;
-        PC            pc  = nullptr;
-        KSP           ksp = nullptr;
+        PC            pc        = nullptr;
+        KSP           ksp       = nullptr;
+        MatNullSpace  nullspace = nullptr;
         Decomp&       r_dec;
         ScalarBC<T>&  r_BCs;
         Constants<T>& r_const;
     };
 
-    /*
-     * @brief : simple struct to handle the domain BC to limit code repetition.
-     */
-    struct MGSideInfo
-    {
-        BC bc;
-        using FunType = ScalarBC<>::Function;
-        FunType            fun;
-        std::array<int, 3> offset{{1, 1, 1}};
-        std::array<int, 3> normal{{0, 0, 0}};
-        PetscInt           xs, ys, zs;
-        PetscInt           xm, ym, zm;
-
-        auto k_range() const noexcept { return range_st_cs(this->zs, this->zm); }
-        auto j_range() const noexcept { return range_st_cs(this->ys, this->ym); }
-        auto i_range() const noexcept { return range_st_cs(this->xs, this->xm); }
-    };
 } // namespace numPDE
 
 #include "impl/MG_poisson_solver_impl.hpp"

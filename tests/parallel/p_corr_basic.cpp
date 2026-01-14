@@ -106,8 +106,10 @@ int main(int argc, char* argv[])
         U.at(2, i, j, k) = v_u_ex(pos, 2);
     }
 
+    /*
     solver.solve();
     solver.check_sol();
+    */
 
     solver.pressure_correct(U, P, 1.0, true);
 

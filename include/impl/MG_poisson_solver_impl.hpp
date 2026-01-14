@@ -13,6 +13,7 @@ namespace numPDE
         VecDestroy(&x_h);
         VecDestroy(&b);
         MatDestroy(&A);
+        MatNullSpaceDestroy(&nullspace);
     }
 
     template <DecomposeConc Decomp>
@@ -119,16 +120,71 @@ namespace numPDE
         apply_bc_to_A();
 
         KSPCreate(PETSC_COMM_WORLD, &this->ksp);
+
+        KSPSetDM(this->ksp, this->da);
+        // Needed since I build A and vec by myself
+        KSPSetDMActive(this->ksp, PETSC_FALSE);
+        // Create a constant nullspace (True means "Vectors are constant")
+        MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_TRUE, 0, NULL, &nullspace);
+        // Attach it to the matrix A
+        MatSetNullSpace(this->A, nullspace);
+        // Also attach to the KSP to help the Krylov solver remove the mean
+        MatNullSpaceRemove(nullspace, this->b);
+
         KSPSetOperators(this->ksp, A, A);
+        KSPSetType(this->ksp, this->ksp_type);
         KSPGetPC(this->ksp, &this->pc);
+        PCSetType(this->pc, this->pc_type);
+    }
+
+    template <DecomposeConc Decomp>
+    auto MultiGridPoissonSolver<Decomp>::setup_MG_options(const MG_settings mg_settings)
+    {
+        // Only configure if we are actually using Multigrid
         if (this->mg_solver)
         {
-            PCSetType(this->pc, PCMG);
-            KSPSetType(this->ksp, KSPGMRES);
+            // Pass NULL to let PETSc handle the communicators automatically.
+            PCMGSetLevels(this->pc, mg_settings.mg_levels, NULL);
+
+            PCMGSetType(this->pc, mg_settings.pc_mg_type);
+            PCMGSetCycleType(this->pc, mg_settings.cycle_type);
+            PCMGSetGalerkin(this->pc, PC_MG_GALERKIN_BOTH);
+
+            // 3. Configure Smoothers
+            // Used SetLevels above, so PETSc knows exactly how many there are.
+            for (PetscInt k = 1; k < mg_settings.mg_levels; k++)
+            {
+                KSP smoother;
+                PC  sub_pc;
+
+                // Get the KSP context for this specific level
+                PCMGGetSmoother(this->pc, k, &smoother);
+
+                // Use settings from the struct
+                KSPSetType(smoother, mg_settings.smoother_type);
+                KSPGetPC(smoother, &sub_pc);
+                PCSetType(sub_pc, mg_settings.smoother_precond);
+
+                // Set smoothing iterations
+                KSPSetTolerances(smoother, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT,
+                                 mg_settings.smoothing_iters);
+            }
+
+            // 4. Configure Coarse Solver (Level 0)
+            KSP coarse;
+            PC  coarse_pc;
+            PCMGGetCoarseSolve(this->pc, &coarse);
+
+            KSPSetType(coarse, mg_settings.coarse_ksp);
+            KSPGetPC(coarse, &coarse_pc);
+            PCSetType(coarse_pc, mg_settings.coarse_pc);
         }
+
+        // 5. Finalize Outer Solver Settings
         KSPSetTolerances(this->ksp, this->reltol, this->abstol, this->diverg_tol, this->maxits);
+
+        // 6. Final Override: Allow CLI flags to overwrite your struct
         KSPSetFromOptions(this->ksp);
-        KSPSetUp(this->ksp);
     }
 
     template <DecomposeConc Decomp>
@@ -295,7 +351,7 @@ namespace numPDE
     template <DecomposeConc Decomp>
     auto MultiGridPoissonSolver<Decomp>::apply_BC_A_impl(SIDES const& side)
     {
-        auto info = this->get_side_infos(side);
+        const auto info = this->get_side_infos(side);
 
         if (info.bc == BC::NeuHomo or info.bc == BC::Neumann)
         {
