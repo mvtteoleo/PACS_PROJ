@@ -33,7 +33,7 @@ int main(int argc, char** argv)
     NewDecomp<> dec(argc, argv, N, N, N);
 
     // Calculate available threads for THIS rank
-    // hardware_concurrency() returns the total logical cores on the node (e.g., 12)
+    // hardware_concurrency() returns the total logical cores on the node 
     unsigned int total_hw_cores = std::thread::hardware_concurrency();
     if (total_hw_cores == 0) total_hw_cores = 1; // Safety fallback
 
@@ -57,28 +57,14 @@ int main(int argc, char** argv)
 
     if (!dec.rank()) std::cout << "Starting TBB native parallel_for...\n";
 
-    const auto& [nx, ny, nz] = t.get_sizes();
-
-    // 2. Define the Kernel
-    auto lambdaaa = [&](const auto k) -> void
-    {
-        for (auto j : std::views::iota(size_t{1}, ny - 1))
-            for (auto i : std::views::iota(size_t{1}, nx - 1))
-            {
-                t(i, j, k) =
-                    static_cast<double>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
-            }
+    // 3. Native TBB Loop 
+    auto test = [&t](auto i, auto j, auto k) -> void { t(i, j, k) =
+	    static_cast<double>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
     };
 
-    // 3. Native TBB Loop (Outer Dimension Only)
-    trd_par::parallel_for(1, nz - 1, lambdaaa);
-
-    auto test = [&t](auto i, auto j, auto k) -> void { t(i, j, k) = k * 10. + j * 3.801 * i - 1.; };
-
-    trd_par::parallel_for_int_elems(t.get_sizes(), test);
+    trd_par::parallel_for_all_elems(t.get_sizes(), test);
 
     // 4. Verification
-    // Assuming 't' exposes begin()/end() iterators over the full data
     std::set<size_t> unique_threads;
 
     // Cast doubles back to size_t to count unique IDs

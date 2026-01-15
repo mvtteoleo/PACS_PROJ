@@ -35,6 +35,7 @@
             # Tools
             pkgs.heaptrack
             pkgs.gdb
+	    pkgs.neovim
           ];
 
           shellHook = ''
@@ -48,8 +49,7 @@
             # Instead, just unset it inside the shell to ensure purity.
             unset LD_LIBRARY_PATH
 
-            echo "✅ Thesis environment activated (GCC 15)"
-            gcc --version
+            echo "✅ Thesis environment activated"
           '';
         };
       }

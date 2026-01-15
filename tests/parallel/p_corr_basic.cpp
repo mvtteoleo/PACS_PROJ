@@ -138,10 +138,10 @@ int main(int argc, char* argv[])
 
     err.print_errs(dec.rank());
 
-    /*
-     * VTKStructuredWriter<DecompType, numPDE::Tensor<double, 3, 3>> writer(dec);
-     * writer.write(P, "output/paralle_p", h);
-     */
+    
+      VTKStructuredWriter<DecompType, numPDE::Tensor<double, 3, 3>> writer(dec);
+      writer.write(P, "output/paralle_p", h);
+     
 
     return 0;
 }
