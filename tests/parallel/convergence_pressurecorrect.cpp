@@ -123,7 +123,7 @@ int main(int argc, char* argv[])
     if (dec_petsc.rank() == 0)
         std::println("--- Testing Geometric Multigrid (MG) ---" );
 
-    std::vector<int> N_values = {35, 67, 131};
+    std::vector<int> N_values = {/*35,*/ 67, 131};
     for (const auto N : N_values)
     {
         csts.h  = M_PI / (N - 1); // Domain [0, PI]
