@@ -2,6 +2,7 @@
 #PBS -q cpu
 #PBS -l walltime=00:10:00
 #PBS -j oe
+#PBS -N u10722968_log
 
 cd $PBS_O_WORKDIR
 cd /work/u10722968/
@@ -10,7 +11,7 @@ cd /work/u10722968/
 source /etc/profile.d/pbs.sh
 
 # Path is relative to current folder  
-# (ie  from /work/u.../PACS_PROJ)
+# (ie  from /work/u10722968/PACS_PROJ)
 EXE="./build/parallel/p_corr_basic"
 
 # Default arguments if none are provided
