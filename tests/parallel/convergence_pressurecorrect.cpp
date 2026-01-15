@@ -80,26 +80,10 @@ void fill_velocity_tensor(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U,
     fill_irrot_field(U, pos_0, h);
 }
 
-// --- 2. Divergence Checker ---
-template <typename Real>
-auto check_divergence(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U, const Real h)
-{
-    numPDE::Error<Real> err{};
-    for (const auto [k, j, i] : U.int_elems())
-    {
-        const Real div = std::abs(numPDE::div(U, i, j, k, h));
-        err.l_2 += div * div;
-        if (div > err.l_inf) err.l_inf = div;
-    }
-    err.reduce(h * h * h);
-    return err;
-}
 // --- 3. Result Storage ---
-struct SolverResult
+struct SolverResult : numPDE::Error<Real>
 {
     double time_sec;
-    double err_l2;
-    double err_inf;
 };
 
 int main(int argc, char* argv[])
@@ -159,8 +143,8 @@ int main(int argc, char* argv[])
 
             // Check Error
             auto err       = check_divergence(U, csts.h);
-            res_mg.err_l2  = err.l_2;
-            res_mg.err_inf = err.l_inf;
+            res_mg.l_2  = err.l_2;
+            res_mg.l_inf = err.l_inf;
         }
 
         // =========================================================
@@ -193,8 +177,8 @@ int main(int argc, char* argv[])
 
             // Check Error
             auto err        = check_divergence(U, csts.h);
-            res_fft.err_l2  = err.l_2;
-            res_fft.err_inf = err.l_inf;
+            res_fft.l_2  = err.l_2;
+            res_fft.l_inf = err.l_inf;
         }
 
         // =========================================================
@@ -211,11 +195,11 @@ int main(int argc, char* argv[])
             std::cout << "-------------------------------------------------" << std::endl;
 
             std::cout << std::left << std::setw(15) << "Multigrid" << std::setw(15)
-                      << res_mg.time_sec << std::setw(15) << res_mg.err_l2 << std::setw(15)
-                      << res_mg.err_inf << std::endl;
+                      << res_mg.time_sec << std::setw(15) << res_mg.l_2 << std::setw(15)
+                      << res_mg.l_inf<< std::endl;
 
             std::cout << std::left << std::setw(15) << "FFT" << std::setw(15) << res_fft.time_sec
-                      << std::setw(15) << res_fft.err_l2 << std::setw(15) << res_fft.err_inf
+                      << std::setw(15) << res_fft.l_2<< std::setw(15) << res_fft.l_inf
                       << std::endl;
             std::cout << "=================================================" << std::endl;
         }

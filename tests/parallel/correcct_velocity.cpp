@@ -66,22 +66,6 @@ void fill_random(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U)
         U.at(2, i, j, k) = 0.0 + scale_param * dist(gen);
     }
 }
-template <typename Real>
-auto check_divergence(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U, const Real h)
-{
-
-    numPDE::Error<Real> err{};
-    for (const auto [k, j, i] : U.int_elems())
-    {
-        const Real div = std::abs(numPDE::div(U, i, j, k, h));
-        err.l_2 += div * div;
-        if (div > err.l_inf) err.l_inf = div;
-    }
-
-    err.reduce(h * h * h);
-
-    return err;
-}
 using Real = double;
 int main(int argc, char* argv[])
 {

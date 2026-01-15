@@ -165,7 +165,6 @@ namespace numPDE
          */
         void apply_bc(T time);
 
-        void compute_divergence();
     };
 
 } // namespace numPDE

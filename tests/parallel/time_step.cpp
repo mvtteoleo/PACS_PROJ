@@ -3,7 +3,7 @@
 #include <print>
 #include <utility>
 using Real = double;
-#define MG 2
+#define MG 0
 #include "../../include/navier_stokes.hpp"
 #include <climits>
 #include <cmath>
@@ -17,12 +17,15 @@ int main(int argc, char* argv[])
 #if MG == 0
     using DecompType                 = NewDecomp<Real>;
     constexpr numPDE::SolvePolicy SP = numPDE::SolvePolicy::Fourier;
+    std::println("Using Fourier Pressure solver");
 #elif MG == 1
     using DecompType                 = PETScDecomp<Real>;
     constexpr numPDE::SolvePolicy SP = numPDE::SolvePolicy::MultiGrid;
+    std::println("Using Multigrid Pressure solver");
 #elif MG == 2
     using DecompType                 = PETScDecomp<Real>;
     constexpr numPDE::SolvePolicy SP = numPDE::SolvePolicy::None;
+    std::println("Using None Pressure solver");
 #endif
     DecompType  decomposer(argc, argv);
     std::size_t N = (argc > 1) ? std::stoul(argv[1]) : 5;
