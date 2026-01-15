@@ -1,30 +1,15 @@
- {
+{
   description = "Pacs environment";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
-    # Helper for making flakes portable across systems (linux, macos, etc.)
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
   outputs = { self, nixpkgs, flake-utils }:
-    # This function applies the configuration to common systems.
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        lib = pkgs.lib;
-
-        # Python environment with specified packages
-        pyEnv = pkgs.python311.withPackages (ps: with ps; [
-          pandas
-          sympy
-          pyvista
-          matplotlib
-          numpy
-          vtk
-          black
-        ]);
-
       in
       {
         devShells.default = pkgs.mkShell {
@@ -32,15 +17,13 @@
             # Version control
             pkgs.git
 
-            # Compilers and build tools
+            # Compilers
             pkgs.gnumake
-            pkgs.gcc
+            pkgs.gcc15
             pkgs.clang-tools
-                         #pkgs.mpich
-             pkgs.openmpi
-         # pkgs.opensycl
+            pkgs.openmpi
 
-            # C++ Libraries
+            # Libraries
             pkgs.ginac
             pkgs.fftw
             pkgs.eigen
@@ -49,35 +32,27 @@
             pkgs.gnuplot
             pkgs.tbb
 
-            # Debugging
+            # Tools
             pkgs.heaptrack
             pkgs.gdb
-
-            # Python Environment
-            pyEnv
-
-            # Essentials
-            pkgs.neovim
           ];
 
-          # This hook now runs correctly inside the shell definition.
           shellHook = ''
-            # Correct paths for libraries
+            # Set up environment variables
             export EIGEN_INCLUDE_DIR="${pkgs.eigen}/include/eigen3"
             export FFTW_INCLUDE_DIR="${pkgs.fftw}/include"
-
-            # PETSc build systems typically use PETSC_DIR and PETSC_ARCH
             export PETSC_DIR="${pkgs.petsc}"
             export PETSC_ARCH=""
 
-            if [ -n "$LD_LIBRARY_PATH" ]; then
-            echo "⚠️  Warning: LD_LIBRARY_PATH is set ($LD_LIBRARY_PATH)"
-            echo "🔒 This shell expects a pure environment."
-            exit 1
-            fi
-            echo "✅ Thesis environment activated"
+            # FIX: Do not exit if LD_LIBRARY_PATH exists.
+            # Instead, just unset it inside the shell to ensure purity.
+            unset LD_LIBRARY_PATH
+
+            echo "✅ Thesis environment activated (GCC 15)"
+            gcc --version
           '';
         };
       }
     );
 }
+
