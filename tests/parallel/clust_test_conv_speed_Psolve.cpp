@@ -71,12 +71,26 @@ struct SolverResult : numPDE::Error<Real>
     double h;
 };
 
+void print_logs(SolverResult ss, numPDE::SolvePolicy solver)
+{
+	if(solver == numPDE::SolvePolicy::MultiGrid)
+		std::print("Multigrid : ");
+
+	if(solver == numPDE::SolvePolicy::Fourier)
+		std::print("Fourier : ");
+
+	if(solver == numPDE::SolvePolicy::None)
+		std::print("Fourier : ");
+
+	std::println("{:.8e}, {:.8e}, {:.8e}, {:.8e}", ss.l_inf, ss.l_2, ss.time_sec, ss.h);
+};
+
 int main(int argc, char* argv[])
 {
 
     std::vector<int> N_values; // = {/*35,*/ 67, 131};
 
-    for(const auto i : numPDE::range_st_cs(8, 4)) { N_values.push_back( std::pow(2, i) + 3); }
+    for(const auto i : numPDE::range_st_cs(3, 4)) { N_values.push_back( std::pow(2, i) + 3); }
 
     
     // Physics Constants
@@ -94,6 +108,18 @@ int main(int argc, char* argv[])
         std::println("--- Testing Geometric Multigrid (MG) && Fast Poisson Solver (FFT) ---");
 
     std::vector<SolverResult> MG_errs, FFT_errs;
+
+
+        if(cout_results and !dec_fft.rank())
+        {
+            std::cout << "\n=================================================" << std::endl;
+            std::cout << " SCALING TEST RESULTS " << std::endl;
+            std::cout << "=================================================" << std::endl;
+		std::println("L_inf, L_2, time, h");
+        }
+
+
+
     for (const auto N : N_values)
     {
         SolverResult res_mg{}, res_fft{};
@@ -172,27 +198,9 @@ int main(int argc, char* argv[])
         // =========================================================
         // SUMMARY REPORT
         // =========================================================
-        if(cout_results and !dec_fft.rank())
-        {
-            std::cout << "\n=================================================" << std::endl;
-            std::cout << " SCALING TEST RESULTS (Grid N=" << N << "^3)" << std::endl;
-            std::cout << "=================================================" << std::endl;
-            std::cout << std::left << std::setw(15) << "Solver" << std::setw(15) << "Time (s)"
-                      << std::setw(15) << "L2 Divergence" << std::setw(15) << "Max Divergence"
-                      << std::endl;
-            std::cout << "-------------------------------------------------" << std::endl;
 
-            std::cout << std::left << std::setw(15) << "Multigrid" << std::setw(15)
-                      << res_mg.time_sec << std::setw(15) << res_mg.l_2 << std::setw(15)
-                      << res_mg.l_inf << std::endl;
-
-            std::cout << std::left << std::setw(15) << "FFT" << std::setw(15) << res_fft.time_sec
-                      << std::setw(15) << res_fft.l_2 << std::setw(15) << res_fft.l_inf
-                      << std::endl;
-            std::cout << "=================================================" << std::endl;
-        }
-
-
+	print_logs(res_mg, numPDE::SolvePolicy::MultiGrid);
+	print_logs(res_fft, numPDE::SolvePolicy::Fourier);
         MG_errs.push_back(res_mg);
         FFT_errs.push_back(res_fft);
     }
