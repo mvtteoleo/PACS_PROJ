@@ -12,6 +12,7 @@
 
 // Use double for precision
 using Real = double;
+bool cout_results = true;
 
 #include <random>
 template <typename Real>
@@ -73,14 +74,17 @@ struct SolverResult : numPDE::Error<Real>
 int main(int argc, char* argv[])
 {
 
-    std::vector<int> N_values = {/*35,*/ 67, 131};
+    std::vector<int> N_values; // = {/*35,*/ 67, 131};
+
+    for(const auto i : numPDE::range_st_cs(8, 4)) { N_values.push_back( std::pow(2, i) + 3); }
+
+    
     // Physics Constants
     numPDE::Constants<Real> csts;
     // Boundary Conditions (Sealed Box)
     numPDE::ScalarBC<Real> scal_bc;
     std::fill(scal_bc.BC_s.begin(), scal_bc.BC_s.end(), numPDE::NeuHomo);
 
-    SolverResult res_mg{}, res_fft{};
     using DecompMG = PETScDecomp<Real>;
     DecompMG dec_petsc(argc, argv);
     using DecompFFT = NewDecomp<Real>;
@@ -89,12 +93,10 @@ int main(int argc, char* argv[])
     if (dec_fft.rank() == 0)
         std::println("--- Testing Geometric Multigrid (MG) && Fast Poisson Solver (FFT) ---");
 
-    /*
-     * TODO Save the values in the struct and then write a CSV with them
-     */
-    std::vector<SolverResult> MG_errs(N_values.size()), fft_errs(N_values.size());
+    std::vector<SolverResult> MG_errs, FFT_errs;
     for (const auto N : N_values)
     {
+        SolverResult res_mg{}, res_fft{};
         csts.h  = M_PI / (N - 1); // Domain [0, PI]
         csts.Re = 1;
         csts.dt = csts.h * csts.h * 0.001;
@@ -119,7 +121,7 @@ int main(int argc, char* argv[])
             auto start = MPI_Wtime();
 
             // Solve
-            solver.pressure_correct(U, P, csts.dt);
+            solver.pressure_correct(U, P, 1.0);
 
             MPI_Barrier(MPI_COMM_WORLD);
             res_mg.time_sec = MPI_Wtime() - start;
@@ -129,6 +131,7 @@ int main(int argc, char* argv[])
             auto err_p   = check_p_ex(P, dec_petsc.xStartWGhosts(), csts.h);
             res_mg.l_inf = err_p.l_inf;
             res_mg.l_2   = err_p.l_2;
+            res_mg.h = csts.h;
         }
 
         // =========================================================
@@ -153,22 +156,23 @@ int main(int argc, char* argv[])
             auto start = MPI_Wtime();
 
             // Solve
-            solver.pressure_correct(U, P, csts.dt);
+            solver.pressure_correct(U, P, 1.0);
 
             MPI_Barrier(MPI_COMM_WORLD);
             res_fft.time_sec = MPI_Wtime() - start;
 
             // Check Error
             // auto err      = check_divergence(U, csts.h);
-            auto err_p    = check_p_ex(P, dec_petsc.xStartWGhosts(), csts.h);
+            auto err_p    = check_p_ex(P, dec_fft.xStartWGhosts(), csts.h);
             res_fft.l_2   = err_p.l_2;
             res_fft.l_inf = err_p.l_inf;
+            res_fft.h = csts.h;
         }
 
         // =========================================================
         // SUMMARY REPORT
         // =========================================================
-        if (!dec_fft.rank())
+        if(cout_results and !dec_fft.rank())
         {
             std::cout << "\n=================================================" << std::endl;
             std::cout << " SCALING TEST RESULTS (Grid N=" << N << "^3)" << std::endl;
@@ -187,6 +191,10 @@ int main(int argc, char* argv[])
                       << std::endl;
             std::cout << "=================================================" << std::endl;
         }
+
+
+        MG_errs.push_back(res_mg);
+        FFT_errs.push_back(res_fft);
     }
     return 0;
 }

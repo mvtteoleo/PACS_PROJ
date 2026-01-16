@@ -1,40 +1,42 @@
 #!/bin/bash
 #PBS -q cpu
-#PBS -l walltime=00:10:00
+#PBS -l walltime=00:20:00
 #PBS -j oe
-#PBS -N u10722968_log
+#PBS -N u10722968_scaling
 
-cd $PBS_O_WORKDIR
+# 1. Define your own log file with the Job ID
+# ${PBS_JOBID%%.*} strips the ".login01" suffix to keep it short
+# LOG_FILE="/work/u10722968/scaling_results.${PBS_JOBID%%.*}.log"
+LOG_FILE="/work/u10722968/scaling_results.log"
+
 cd /work/u10722968/
 
-# Source PBS definitions (as per guide)
+# Source PBS definitions
 source /etc/profile.d/pbs.sh
 
-# Path is relative to current folder  
-# (ie  from /work/u10722968/PACS_PROJ)
-EXE="./build/parallel/p_corr_basic"
+# 2. Point to the correct executable 
+EXE="./PACS_PROJ/build/parallel/clust_test_conv_speed_Psolve"
 
-# Default arguments if none are provided
+NCPUS=10
+
+# Default arguments (e.g., passing nothing if your main loop handles N)
 if [ -z "$PROG_ARGS" ]; then
-    PROG_ARGS=""
+    PROG_ARGS="" 
 fi
 
-echo "========================================"
-echo "Job running on $NCPUS cores"
-echo "Nodes: $(cat $PBS_NODEFILE)"
-echo "Executing: $EXE $PROG_ARGS"
-echo "========================================"
+# Initialize the log file
+echo "========================================" > $LOG_FILE
+echo "Job running on $NCPUS cores" >> $LOG_FILE
+echo "Nodes: $(cat $PBS_NODEFILE)" >> $LOG_FILE
+echo "Executing: $EXE $PROG_ARGS" >> $LOG_FILE
+echo "========================================" >> $LOG_FILE
 
-# Send  the job from the nix-shell 
-# Here the command to start the nix shell from /work/u10722968/
-# It looks for the flake.nix file in PACS_PROJ
-# ./nix-portable nix develop --extra-experimental-features "nix-command flakes" ./PACS_PROJ 
-# A simple  test to check is : /work/u10722968/nix-portable nix develop --extra-experimental-features "nix-command flakes" ./PACS_PROJ --command which gcc
-
-/work/u10722968/nix-portable nix develop --extra-experimental-features "nix-command flakes" ./PACS_PROJ
-     --command mpirun -np $NCPUS \
+# 3. Run with explicit redirection (&>>)
+# Note the '\' at the end of lines to keep the command together
+/work/u10722968/nix-portable nix develop --extra-experimental-features "nix-command flakes" ./PACS_PROJ \
+    --command mpirun -np $NCPUS \
     --hostfile $PBS_NODEFILE \
     --bind-to core \
     --map-by core \
-    $EXE $PROG_ARGS
+    $EXE $PROG_ARGS &>> $LOG_FILE
 
