@@ -17,7 +17,6 @@ source /etc/profile.d/pbs.sh
 # 2. Point to the correct executable 
 EXE="./PACS_PROJ/build/parallel/clust_test_conv_speed_Psolve"
 
-NCPUS=10
 
 # Default arguments (e.g., passing nothing if your main loop handles N)
 if [ -z "$PROG_ARGS" ]; then

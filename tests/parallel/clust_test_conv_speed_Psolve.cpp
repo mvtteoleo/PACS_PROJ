@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
 
     std::vector<int> N_values; // = {/*35,*/ 67, 131};
 
-    for(const auto i : numPDE::range_st_cs(3, 4)) { N_values.push_back( std::pow(2, i) + 3); }
+    for(const auto i : numPDE::range_st_cs(6, 4)) { N_values.push_back( std::pow(2, i) + 3); }
 
     
     // Physics Constants
@@ -199,8 +199,10 @@ int main(int argc, char* argv[])
         // SUMMARY REPORT
         // =========================================================
 
-	print_logs(res_mg, numPDE::SolvePolicy::MultiGrid);
-	print_logs(res_fft, numPDE::SolvePolicy::Fourier);
+        if(cout_results and !dec_fft.rank()) print_logs(res_mg, numPDE::SolvePolicy::MultiGrid);
+
+        if(cout_results and !dec_fft.rank()) print_logs(res_fft, numPDE::SolvePolicy::Fourier);
+
         MG_errs.push_back(res_mg);
         FFT_errs.push_back(res_fft);
     }
