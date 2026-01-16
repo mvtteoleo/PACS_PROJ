@@ -138,7 +138,7 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MultiGridPoissonSolver<Decomp>::setup_MG_options(const MG_settings mg_settings)
+    auto MultiGridPoissonSolver<Decomp>::setup_MG_options(const MG_settings& mg_settings)
     {
         // Only configure if we are actually using Multigrid
         if (this->mg_solver)
@@ -180,11 +180,73 @@ namespace numPDE
             PCSetType(coarse_pc, mg_settings.coarse_pc);
         }
 
-        // 5. Finalize Outer Solver Settings
+        KSPSetTolerances(this->ksp, this->reltol, this->abstol, this->diverg_tol, this->maxits);
+        KSPSetFromOptions(this->ksp);
+    }
+
+    template <DecomposeConc Decomp>
+    void MultiGridPoissonSolver<Decomp>::update_mg_strategy(const MG_settings& new_settings)
+    {
+        // 1. Update the internal storage to keep track of state
+        this->m_mg_settings = new_settings;
+
+        // 2. If the user changed the outer PC type (e.g., to PCMG), apply it.
+        KSPGetPC(this->ksp, &this->pc);
+        PCSetType(this->pc, this->pc_type);
+
+        // 3. Re-run the MG setup logic
+        // This will re-allocate levels if 'mg_levels' changed,
+        // and re-set smoothers/coarse solvers.
+        this->setup_MG_options(this->m_mg_settings);
+
+        // 4. Ensure tolerances are re-applied (setup_MG_options might overwrite them)
+        this->update_tolerances();
+    }
+
+    template <DecomposeConc Decomp>
+    void MultiGridPoissonSolver<Decomp>::update_ksp_strategy(const KSP_parameters& ksp_params)
+    {
+        // 1. Base Class Assignment
+        static_cast<KSP_parameters&>(*this) = ksp_params;
+
+        // 2. Heavy Updates: KSP/PC Types
+        // Changing types in the struct doesn't change them in PETSc automatically.
+        // We must explicitly tell PETSc to reset the solver types.
+        KSPSetType(this->ksp, this->ksp_type);
+
+        // Refresh the PC pointer (KSPSetType might have destroyed the old PC)
+        KSPGetPC(this->ksp, &this->pc);
+        PCSetType(this->pc, this->pc_type);
+
+        // 3. MG Logic Check
+        // If the user enabled/disabled the MG solver flag, we might need to
+        // trigger or disable the MG specific setup.
+        if (this->mg_solver && this->pc_type == PCMG)
+        {
+            // Re-apply MG settings if we are in MG mode
+            this->setup_MG_options(this->m_mg_settings);
+        }
+
+        // 4. Light Updates: Tolerances
+        // Always apply tolerances LAST, because KSPSetType() might reset them to defaults.
+        this->update_tolerances();
+    }
+
+    template <DecomposeConc Decomp>
+    void MultiGridPoissonSolver<Decomp>::update_tolerances()
+    {
+        // 1. Update the Outer KSP (GMRES, etc.)
         KSPSetTolerances(this->ksp, this->reltol, this->abstol, this->diverg_tol, this->maxits);
 
-        // 6. Final Override: Allow CLI flags to overwrite your struct
-        KSPSetFromOptions(this->ksp);
+        // 2. If using MG, we might want to ensure the specific MG type is still correct
+        // (Optional, but safe if you changed ksp_type in parameters)
+        if (this->mg_solver)
+        {
+            KSPSetType(this->ksp, this->ksp_type);
+            // Note: Changing KSPType might reset tolerances in some PETSc versions,
+            // so we set tolerances *after* potentially setting type, or just assume type creates a
+            // clean slate. For pure tolerance updates, KSPSetTolerances is sufficient.
+        }
     }
 
     template <DecomposeConc Decomp>

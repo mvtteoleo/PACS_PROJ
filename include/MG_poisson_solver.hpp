@@ -205,12 +205,27 @@ namespace numPDE
         void write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t);
 
         /*
+         *@brief: Allows to update the MG strategy even after construction in a constistent way.
+         */
+        void update_mg_strategy(const MG_settings& new_settings);
+
+        /*
+         *@brief: Allows to update the KSP strategy even after construction in a constistent way.
+         */
+        void update_ksp_strategy(const KSP_parameters& ksp_params);
+
+        /*
+         *@brief: Needed to be called after modifying the tolerances using the setters methods.
+         */
+        void update_tolerances();
+
+        // --- Setup & Internal ---
+      protected:
+        /*
          * @brief: Sets up the KSP for the  Multigrid Solver
          */
         auto setup_MG_options(const MG_settings mg_settings);
 
-        // --- Setup & Internal ---
-      protected:
         auto build_local_dm();
         auto build_linear_system();
         auto build_rhs();
