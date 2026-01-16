@@ -164,7 +164,6 @@ namespace numPDE
          * * @param time Current simulation time.
          */
         void apply_bc(T time);
-
     };
 
 } // namespace numPDE

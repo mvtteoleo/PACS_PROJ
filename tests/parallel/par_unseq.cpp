@@ -33,7 +33,7 @@ int main(int argc, char** argv)
     NewDecomp<> dec(argc, argv, N, N, N);
 
     // Calculate available threads for THIS rank
-    // hardware_concurrency() returns the total logical cores on the node 
+    // hardware_concurrency() returns the total logical cores on the node
     unsigned int total_hw_cores = std::thread::hardware_concurrency();
     if (total_hw_cores == 0) total_hw_cores = 1; // Safety fallback
 
@@ -57,10 +57,9 @@ int main(int argc, char** argv)
 
     if (!dec.rank()) std::cout << "Starting TBB native parallel_for...\n";
 
-    // 3. Native TBB Loop 
-    auto test = [&t](auto i, auto j, auto k) -> void { t(i, j, k) =
-	    static_cast<double>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
-    };
+    // 3. Native TBB Loop
+    auto test = [&t](auto i, auto j, auto k) -> void
+    { t(i, j, k) = static_cast<double>(std::hash<std::thread::id>{}(std::this_thread::get_id())); };
 
     trd_par::parallel_for_all_elems(t.get_sizes(), test);
 

@@ -7,7 +7,6 @@
 #include "../../include/pressure_solver.hpp"
 #include "../../include/pvts_writer.hpp"
 
-
 #include <random>
 template <typename Real>
 void fill_taylor_green(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U,

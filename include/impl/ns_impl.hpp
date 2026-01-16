@@ -181,10 +181,12 @@ namespace numPDE
         r_dec.exchange_ghosts(m_P);
 
         auto div_pre = check_divergence(m_V, h);
-        if(!r_dec.rank()) std::println("Before step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2, div_pre.l_inf);
-        
-        div_pre.l_2=0.0;
-        div_pre.l_inf=0.0;
+        if (!r_dec.rank())
+            std::println("Before step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
+                         div_pre.l_inf);
+
+        div_pre.l_2   = 0.0;
+        div_pre.l_inf = 0.0;
 
         auto instruction = [&](const auto i, const auto j, const auto k)
         {
@@ -199,10 +201,12 @@ namespace numPDE
         r_dec.exchange_ghosts(m_P);
 
         div_pre = check_divergence(m_V, h);
-        if(!r_dec.rank()) std::println("After predictor step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2, div_pre.l_inf);
+        if (!r_dec.rank())
+            std::println("After predictor step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
+                         div_pre.l_inf);
 
-        div_pre.l_2=0.0;
-        div_pre.l_inf=0.0;
+        div_pre.l_2   = 0.0;
+        div_pre.l_inf = 0.0;
         pSolve.pressure_correct(m_V, m_P, adt, this->m_verbose);
 
         r_dec.exchange_ghosts(m_P);
@@ -214,8 +218,9 @@ namespace numPDE
         r_dec.exchange_ghosts(m_P);
 
         div_pre = check_divergence(m_V, h);
-        if(!r_dec.rank()) std::println("After pressure correction:\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2, div_pre.l_inf);
-
+        if (!r_dec.rank())
+            std::println("After pressure correction:\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
+                         div_pre.l_inf);
     }
 
     template <SolvePolicy solveP, DecomposeConc Decomp>
@@ -229,10 +234,12 @@ namespace numPDE
         r_dec.exchange_ghosts(m_V);
 
         auto div_pre = check_divergence(m_V, h);
-        if(!r_dec.rank()) std::println("Before step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2, div_pre.l_inf);
+        if (!r_dec.rank())
+            std::println("Before step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
+                         div_pre.l_inf);
 
-        div_pre.l_2=0.0;
-        div_pre.l_inf=0.0;
+        div_pre.l_2      = 0.0;
+        div_pre.l_inf    = 0.0;
         auto instruction = [&](const auto i, const auto j, const auto k)
         {
             const auto pos   = get_pos(i, j, k);
@@ -246,10 +253,12 @@ namespace numPDE
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
         div_pre = check_divergence(m_V, h);
-        if(!r_dec.rank()) std::println("After predictor step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2, div_pre.l_inf);
+        if (!r_dec.rank())
+            std::println("After predictor step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
+                         div_pre.l_inf);
 
-        div_pre.l_2=0.0;
-        div_pre.l_inf=0.0;
+        div_pre.l_2   = 0.0;
+        div_pre.l_inf = 0.0;
 
         pSolve.pressure_correct(m_V, m_P, c * dt, this->m_verbose);
 
@@ -262,7 +271,9 @@ namespace numPDE
         r_dec.exchange_ghosts(m_P);
 
         div_pre = check_divergence(m_V, h);
-        if(!r_dec.rank()) std::println("After pressure correction:\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2, div_pre.l_inf);
+        if (!r_dec.rank())
+            std::println("After pressure correction:\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
+                         div_pre.l_inf);
     }
 
     // -------------------------------------------------------------------------
