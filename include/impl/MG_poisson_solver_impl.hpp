@@ -3,9 +3,22 @@
 #include "../MG_poisson_solver.hpp"
 #include "../bc_interp.hpp"
 #include "decompose.hpp"
+#include <string_view>
 #include <type_traits>
 namespace numPDE
 {
+
+    template <DecomposeConc Decomp>
+    MultiGridPoissonSolver<Decomp>::MultiGridPoissonSolver(
+        Decomp& decomp, numPDE::ScalarBC<typename Decomp::value_type>& Bcs,
+        numPDE::Constants<typename Decomp::value_type>& constants)
+        : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
+    {
+        this->build_local_dm();
+        this->build_linear_system();
+        this->setup_MG_options(this->m_mg_settings);
+    }
+
     template <DecomposeConc Decomp>
     MultiGridPoissonSolver<Decomp>::~MultiGridPoissonSolver()
     {
@@ -26,6 +39,7 @@ namespace numPDE
         PetscInt NxLoc{nx - 2};
         PetscInt NyLoc{ny - 2};
         PetscInt NzLoc{nz - 2};
+
 
         std::array<PetscInt, 1> lx{{NxLoc}};
         std::vector<PetscInt>   ly(py);
@@ -124,12 +138,22 @@ namespace numPDE
         KSPSetDM(this->ksp, this->da);
         // Needed since I build A and vec by myself
         KSPSetDMActive(this->ksp, PETSC_FALSE);
-        // Create a constant nullspace (True means "Vectors are constant")
-        MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_TRUE, 0, NULL, &nullspace);
-        // Attach it to the matrix A
-        MatSetNullSpace(this->A, nullspace);
-        // Also attach to the KSP to help the Krylov solver remove the mean
-        MatNullSpaceRemove(nullspace, this->b);
+
+        if (std::all_of(r_BCs.BC_s.begin(), r_BCs.BC_s.end(),
+                        [](const BC bc) { return (bc == BC::Neumann or BC::NeuHomo == bc); }))
+        {
+            // Create a constant nullspace (True means "Vectors are constant")
+            MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_TRUE, 0, NULL, &nullspace);
+            // Attach it to the matrix A
+            MatSetNullSpace(this->A, nullspace);
+            // Also attach to the KSP to help the Krylov solver remove the mean
+            MatNullSpaceRemove(nullspace, this->b);
+        }
+        else
+        {
+            // Explicitly ensure no nullspace is active
+            MatSetNullSpace(this->A, NULL);
+        }
 
         KSPSetOperators(this->ksp, A, A);
         KSPSetType(this->ksp, this->ksp_type);
@@ -138,10 +162,10 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MultiGridPoissonSolver<Decomp>::setup_MG_options(const MG_settings& mg_settings)
+    void MultiGridPoissonSolver<Decomp>::setup_MG_options(const MG_settings& mg_settings)
     {
         // Only configure if we are actually using Multigrid
-        if (this->mg_solver)
+        if (this->mg_solver && std::string_view(this->pc_type) == PCMG)
         {
             // Pass NULL to let PETSc handle the communicators automatically.
             PCMGSetLevels(this->pc, mg_settings.mg_levels, NULL);
@@ -221,10 +245,10 @@ namespace numPDE
         // 3. MG Logic Check
         // If the user enabled/disabled the MG solver flag, we might need to
         // trigger or disable the MG specific setup.
-        if (this->mg_solver && this->pc_type == PCMG)
+        if (this->mg_solver && std::string_view(this->pc_type) == PCMG)
         {
             // Re-apply MG settings if we are in MG mode
-            this->setup_MG_options(this->m_mg_settings);
+            this->update_mg_strategy(this->m_mg_settings);
         }
 
         // 4. Light Updates: Tolerances
@@ -240,7 +264,7 @@ namespace numPDE
 
         // 2. If using MG, we might want to ensure the specific MG type is still correct
         // (Optional, but safe if you changed ksp_type in parameters)
-        if (this->mg_solver)
+        if (this->mg_solver && std::string_view(this->pc_type) == PCMG)
         {
             KSPSetType(this->ksp, this->ksp_type);
             // Note: Changing KSPType might reset tolerances in some PETSc versions,

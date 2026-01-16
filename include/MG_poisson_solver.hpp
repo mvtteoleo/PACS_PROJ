@@ -160,13 +160,7 @@ namespace numPDE
         using value_type = T;
 
         MultiGridPoissonSolver(Decomp& decomp, numPDE::ScalarBC<typename Decomp::value_type>& Bcs,
-                               numPDE::Constants<typename Decomp::value_type>& constants)
-            : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
-        {
-            this->build_local_dm();
-            this->build_linear_system();
-            this->setup_MG_options(this->m_mg_settings);
-        }
+                               numPDE::Constants<typename Decomp::value_type>& constants);
 
         // Rule of 5 defaults
         MultiGridPoissonSolver(MultiGridPoissonSolver&&)                 = default;
@@ -224,7 +218,7 @@ namespace numPDE
         /*
          * @brief: Sets up the KSP for the  Multigrid Solver
          */
-        auto setup_MG_options(const MG_settings mg_settings);
+        void setup_MG_options(const MG_settings& mg_settings);
 
         auto build_local_dm();
         auto build_linear_system();
