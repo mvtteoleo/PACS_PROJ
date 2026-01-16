@@ -9,7 +9,7 @@
 #include <vector>
 using Real = double;
 #define MG 1
-#define BCS 0 // o DirHomo 1 NeuHomo
+#define BCS 1 // o DirHomo 1 NeuHomo
 int main(int argc, char* argv[])
 {
 
