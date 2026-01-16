@@ -82,4 +82,19 @@ namespace numPDE
 
         return ris;
     }
+    template <typename Real>
+    auto check_divergence(const numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U, const Real h)
+    {
+        numPDE::Error<Real> err{};
+        for (const auto [k, j, i] : U.int_elems())
+        {
+            const Real div = std::abs(numPDE::div(U, i, j, k, h));
+            err.l_2 += div * div;
+            if (div > err.l_inf) err.l_inf = div;
+        }
+
+        err.reduce(h * h * h);
+
+        return err;
+    }
 }; // namespace numPDE

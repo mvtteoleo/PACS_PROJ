@@ -3,9 +3,22 @@
 #include "../MG_poisson_solver.hpp"
 #include "../bc_interp.hpp"
 #include "decompose.hpp"
+#include <string_view>
 #include <type_traits>
 namespace numPDE
 {
+
+    template <DecomposeConc Decomp>
+    MultiGridPoissonSolver<Decomp>::MultiGridPoissonSolver(
+        Decomp& decomp, numPDE::ScalarBC<typename Decomp::value_type>& Bcs,
+        numPDE::Constants<typename Decomp::value_type>& constants)
+        : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
+    {
+        this->build_local_dm();
+        this->build_linear_system();
+        this->setup_MG_options(this->m_mg_settings);
+    }
+
     template <DecomposeConc Decomp>
     MultiGridPoissonSolver<Decomp>::~MultiGridPoissonSolver()
     {
@@ -26,6 +39,7 @@ namespace numPDE
         PetscInt NxLoc{nx - 2};
         PetscInt NyLoc{ny - 2};
         PetscInt NzLoc{nz - 2};
+
 
         std::array<PetscInt, 1> lx{{NxLoc}};
         std::vector<PetscInt>   ly(py);
@@ -124,12 +138,22 @@ namespace numPDE
         KSPSetDM(this->ksp, this->da);
         // Needed since I build A and vec by myself
         KSPSetDMActive(this->ksp, PETSC_FALSE);
-        // Create a constant nullspace (True means "Vectors are constant")
-        MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_TRUE, 0, NULL, &nullspace);
-        // Attach it to the matrix A
-        MatSetNullSpace(this->A, nullspace);
-        // Also attach to the KSP to help the Krylov solver remove the mean
-        MatNullSpaceRemove(nullspace, this->b);
+
+        if (std::all_of(r_BCs.BC_s.begin(), r_BCs.BC_s.end(),
+                        [](const BC bc) { return (bc == BC::Neumann or BC::NeuHomo == bc); }))
+        {
+            // Create a constant nullspace (True means "Vectors are constant")
+            MatNullSpaceCreate(PETSC_COMM_WORLD, PETSC_TRUE, 0, NULL, &nullspace);
+            // Attach it to the matrix A
+            MatSetNullSpace(this->A, nullspace);
+            // Also attach to the KSP to help the Krylov solver remove the mean
+            MatNullSpaceRemove(nullspace, this->b);
+        }
+        else
+        {
+            // Explicitly ensure no nullspace is active
+            MatSetNullSpace(this->A, NULL);
+        }
 
         KSPSetOperators(this->ksp, A, A);
         KSPSetType(this->ksp, this->ksp_type);
@@ -138,10 +162,10 @@ namespace numPDE
     }
 
     template <DecomposeConc Decomp>
-    auto MultiGridPoissonSolver<Decomp>::setup_MG_options(const MG_settings mg_settings)
+    void MultiGridPoissonSolver<Decomp>::setup_MG_options(const MG_settings& mg_settings)
     {
         // Only configure if we are actually using Multigrid
-        if (this->mg_solver)
+        if (this->mg_solver && std::string_view(this->pc_type) == PCMG)
         {
             // Pass NULL to let PETSc handle the communicators automatically.
             PCMGSetLevels(this->pc, mg_settings.mg_levels, NULL);
@@ -180,11 +204,73 @@ namespace numPDE
             PCSetType(coarse_pc, mg_settings.coarse_pc);
         }
 
-        // 5. Finalize Outer Solver Settings
+        KSPSetTolerances(this->ksp, this->reltol, this->abstol, this->diverg_tol, this->maxits);
+        KSPSetFromOptions(this->ksp);
+    }
+
+    template <DecomposeConc Decomp>
+    void MultiGridPoissonSolver<Decomp>::update_mg_strategy(const MG_settings& new_settings)
+    {
+        // 1. Update the internal storage to keep track of state
+        this->m_mg_settings = new_settings;
+
+        // 2. If the user changed the outer PC type (e.g., to PCMG), apply it.
+        KSPGetPC(this->ksp, &this->pc);
+        PCSetType(this->pc, this->pc_type);
+
+        // 3. Re-run the MG setup logic
+        // This will re-allocate levels if 'mg_levels' changed,
+        // and re-set smoothers/coarse solvers.
+        this->setup_MG_options(this->m_mg_settings);
+
+        // 4. Ensure tolerances are re-applied (setup_MG_options might overwrite them)
+        this->update_tolerances();
+    }
+
+    template <DecomposeConc Decomp>
+    void MultiGridPoissonSolver<Decomp>::update_ksp_strategy(const KSP_parameters& ksp_params)
+    {
+        // 1. Base Class Assignment
+        static_cast<KSP_parameters&>(*this) = ksp_params;
+
+        // 2. Heavy Updates: KSP/PC Types
+        // Changing types in the struct doesn't change them in PETSc automatically.
+        // We must explicitly tell PETSc to reset the solver types.
+        KSPSetType(this->ksp, this->ksp_type);
+
+        // Refresh the PC pointer (KSPSetType might have destroyed the old PC)
+        KSPGetPC(this->ksp, &this->pc);
+        PCSetType(this->pc, this->pc_type);
+
+        // 3. MG Logic Check
+        // If the user enabled/disabled the MG solver flag, we might need to
+        // trigger or disable the MG specific setup.
+        if (this->mg_solver && std::string_view(this->pc_type) == PCMG)
+        {
+            // Re-apply MG settings if we are in MG mode
+            this->update_mg_strategy(this->m_mg_settings);
+        }
+
+        // 4. Light Updates: Tolerances
+        // Always apply tolerances LAST, because KSPSetType() might reset them to defaults.
+        this->update_tolerances();
+    }
+
+    template <DecomposeConc Decomp>
+    void MultiGridPoissonSolver<Decomp>::update_tolerances()
+    {
+        // 1. Update the Outer KSP (GMRES, etc.)
         KSPSetTolerances(this->ksp, this->reltol, this->abstol, this->diverg_tol, this->maxits);
 
-        // 6. Final Override: Allow CLI flags to overwrite your struct
-        KSPSetFromOptions(this->ksp);
+        // 2. If using MG, we might want to ensure the specific MG type is still correct
+        // (Optional, but safe if you changed ksp_type in parameters)
+        if (this->mg_solver && std::string_view(this->pc_type) == PCMG)
+        {
+            KSPSetType(this->ksp, this->ksp_type);
+            // Note: Changing KSPType might reset tolerances in some PETSc versions,
+            // so we set tolerances *after* potentially setting type, or just assume type creates a
+            // clean slate. For pure tolerance updates, KSPSetTolerances is sufficient.
+        }
     }
 
     template <DecomposeConc Decomp>

@@ -122,7 +122,7 @@ int main(int argc, char* argv[])
 
     numPDE::Node<Real> pos{};
 
-    for (auto [kp, jp, ip] : P.all_elems())
+    for (auto [kp, jp, ip] : P.int_elems())
     {
         pos.x              = h * static_cast<Real>(is + ip);
         pos.y              = h * static_cast<Real>(js + jp);
@@ -138,10 +138,8 @@ int main(int argc, char* argv[])
 
     err.print_errs(dec.rank());
 
-    /*
-     * VTKStructuredWriter<DecompType, numPDE::Tensor<double, 3, 3>> writer(dec);
-     * writer.write(P, "output/paralle_p", h);
-     */
+    VTKStructuredWriter<DecompType, numPDE::Tensor<double, 3, 3>> writer(dec);
+    writer.write(P, "output/paralle_p", h);
 
     return 0;
 }

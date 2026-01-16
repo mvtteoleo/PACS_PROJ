@@ -5,9 +5,9 @@
 #include "../../include/pressure_solver.hpp"
 #include "../../include/pvts_writer.hpp"
 #include <chrono>
-#include <print>
 #include <iomanip>
 #include <iostream>
+#include <print>
 #include <random>
 
 // Use double for precision
@@ -41,7 +41,7 @@ void fill_irrot_field(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U,
     std::mt19937       gen(rd());
 
     std::uniform_real_distribution<Real> dist(-1e-5, 1e-5);
-    bool                                 scale_param = 0;
+    bool                                 scale_param = 1;
 
     for (auto [k, j, i] : U.all_elems())
     {
@@ -62,7 +62,7 @@ void fill_random(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U)
     std::mt19937       gen(rd());
 
     std::uniform_real_distribution<Real> dist(-1e-6, 1e-6);
-    [[maybe_unused]] Real                scale_param = 0.0;
+    [[maybe_unused]] Real                scale_param = 1.0;
 
     for (auto [k, j, i] : U.int_elems())
     {
@@ -73,33 +73,17 @@ void fill_random(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U)
 }
 template <typename Real>
 void fill_velocity_tensor(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U,
-                              const std::array<int, 3> pos_0, Real h)
+                          const std::array<int, 3> pos_0, Real h)
 {
     // fill_random(U);
     // fill_taylor_green(U, pos_0, h);
     fill_irrot_field(U, pos_0, h);
 }
 
-// --- 2. Divergence Checker ---
-template <typename Real>
-auto check_divergence(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U, const Real h)
-{
-    numPDE::Error<Real> err{};
-    for (const auto [k, j, i] : U.int_elems())
-    {
-        const Real div = std::abs(numPDE::div(U, i, j, k, h));
-        err.l_2 += div * div;
-        if (div > err.l_inf) err.l_inf = div;
-    }
-    err.reduce(h * h * h);
-    return err;
-}
 // --- 3. Result Storage ---
-struct SolverResult
+struct SolverResult : numPDE::Error<Real>
 {
     double time_sec;
-    double err_l2;
-    double err_inf;
 };
 
 int main(int argc, char* argv[])
@@ -117,11 +101,9 @@ int main(int argc, char* argv[])
     using DecompFFT = NewDecomp<Real>;
     DecompFFT dec_fft(argc, argv);
 
-    if (dec_fft.rank() == 0)
-        std::println("--- Testing Fast Poisson Solver (FFT) ---" );
+    if (dec_fft.rank() == 0) std::println("--- Testing Fast Poisson Solver (FFT) ---");
 
-    if (dec_petsc.rank() == 0)
-        std::println("--- Testing Geometric Multigrid (MG) ---" );
+    if (dec_petsc.rank() == 0) std::println("--- Testing Geometric Multigrid (MG) ---");
 
     std::vector<int> N_values = {/*35,*/ 67, 131};
     for (const auto N : N_values)
@@ -158,9 +140,9 @@ int main(int argc, char* argv[])
             res_mg.time_sec = MPI_Wtime() - start;
 
             // Check Error
-            auto err       = check_divergence(U, csts.h);
-            res_mg.err_l2  = err.l_2;
-            res_mg.err_inf = err.l_inf;
+            auto err     = check_divergence(U, csts.h);
+            res_mg.l_2   = err.l_2;
+            res_mg.l_inf = err.l_inf;
         }
 
         // =========================================================
@@ -192,9 +174,9 @@ int main(int argc, char* argv[])
             res_fft.time_sec = MPI_Wtime() - start;
 
             // Check Error
-            auto err        = check_divergence(U, csts.h);
-            res_fft.err_l2  = err.l_2;
-            res_fft.err_inf = err.l_inf;
+            auto err      = check_divergence(U, csts.h);
+            res_fft.l_2   = err.l_2;
+            res_fft.l_inf = err.l_inf;
         }
 
         // =========================================================
@@ -211,11 +193,11 @@ int main(int argc, char* argv[])
             std::cout << "-------------------------------------------------" << std::endl;
 
             std::cout << std::left << std::setw(15) << "Multigrid" << std::setw(15)
-                      << res_mg.time_sec << std::setw(15) << res_mg.err_l2 << std::setw(15)
-                      << res_mg.err_inf << std::endl;
+                      << res_mg.time_sec << std::setw(15) << res_mg.l_2 << std::setw(15)
+                      << res_mg.l_inf << std::endl;
 
             std::cout << std::left << std::setw(15) << "FFT" << std::setw(15) << res_fft.time_sec
-                      << std::setw(15) << res_fft.err_l2 << std::setw(15) << res_fft.err_inf
+                      << std::setw(15) << res_fft.l_2 << std::setw(15) << res_fft.l_inf
                       << std::endl;
             std::cout << "=================================================" << std::endl;
         }

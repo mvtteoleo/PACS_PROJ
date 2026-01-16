@@ -1,0 +1,28 @@
+#!/bin/bash
+#PBS -q cpu
+#PBS -l walltime=00:05:00
+#PBS -j oe
+
+cd $PBS_O_WORKDIR
+
+cd /work/u10722968/PACS_PROJ/
+
+echo "=== DIAGNOSTIC START ==="
+echo "Node: $(hostname)"
+echo "Current Dir: $(pwd)"
+
+echo "--- Check 1: Does the binary exist? ---"
+ls -l ./build/parallel/time_step || echo "❌ BINARY NOT FOUND at $(pwd)/build/parallel/time_step"
+
+echo "--- Check 2: Does nix-portable exist? ---"
+ls -l /work/u10722968/nix-portable || echo "❌ NIX-PORTABLE NOT FOUND at /work/u10722968/nix-portable"
+
+echo "--- Check 3: Can we run a simple Nix command? ---"
+/work/u10722968/nix-portable nix --version || echo "❌ NIX EXECUTION FAILED"
+
+echo "--- Check 4: Trying the full command ---"
+# We try to run just 'echo' inside nix to see if the shell works
+/work/u10722968/nix-portable nix develop . --command echo "✅ Nix Shell works" || echo "❌ NIX SHELL FAILED"
+
+echo "=== DIAGNOSTIC END ==="
+

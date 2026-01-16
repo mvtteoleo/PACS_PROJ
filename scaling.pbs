@@ -1,0 +1,40 @@
+#!/bin/bash
+#PBS -q cpu
+#PBS -l walltime=00:10:00
+#PBS -j oe
+#PBS -N u10722968_log
+
+cd $PBS_O_WORKDIR
+cd /work/u10722968/
+
+# Source PBS definitions (as per guide)
+source /etc/profile.d/pbs.sh
+
+# Path is relative to current folder  
+# (ie  from /work/u10722968/PACS_PROJ)
+EXE="./build/parallel/p_corr_basic"
+
+# Default arguments if none are provided
+if [ -z "$PROG_ARGS" ]; then
+    PROG_ARGS=""
+fi
+
+echo "========================================"
+echo "Job running on $NCPUS cores"
+echo "Nodes: $(cat $PBS_NODEFILE)"
+echo "Executing: $EXE $PROG_ARGS"
+echo "========================================"
+
+# Send  the job from the nix-shell 
+# Here the command to start the nix shell from /work/u10722968/
+# It looks for the flake.nix file in PACS_PROJ
+# ./nix-portable nix develop --extra-experimental-features "nix-command flakes" ./PACS_PROJ 
+# A simple  test to check is : /work/u10722968/nix-portable nix develop --extra-experimental-features "nix-command flakes" ./PACS_PROJ --command which gcc
+
+/work/u10722968/nix-portable nix develop --extra-experimental-features "nix-command flakes" ./PACS_PROJ
+     --command mpirun -np $NCPUS \
+    --hostfile $PBS_NODEFILE \
+    --bind-to core \
+    --map-by core \
+    $EXE $PROG_ARGS
+

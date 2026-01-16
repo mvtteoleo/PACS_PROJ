@@ -160,13 +160,7 @@ namespace numPDE
         using value_type = T;
 
         MultiGridPoissonSolver(Decomp& decomp, numPDE::ScalarBC<typename Decomp::value_type>& Bcs,
-                               numPDE::Constants<typename Decomp::value_type>& constants)
-            : r_dec{decomp}, r_BCs{Bcs}, r_const{constants}
-        {
-            this->build_local_dm();
-            this->build_linear_system();
-            this->setup_MG_options(this->m_mg_settings);
-        }
+                               numPDE::Constants<typename Decomp::value_type>& constants);
 
         // Rule of 5 defaults
         MultiGridPoissonSolver(MultiGridPoissonSolver&&)                 = default;
@@ -205,12 +199,27 @@ namespace numPDE
         void write_sol_on_ghosted_tensor(numPDE::Tensor<T, 3, 3, TYPE>& b_t);
 
         /*
-         * @brief: Sets up the KSP for the  Multigrid Solver
+         *@brief: Allows to update the MG strategy even after construction in a constistent way.
          */
-        auto setup_MG_options(const MG_settings mg_settings);
+        void update_mg_strategy(const MG_settings& new_settings);
+
+        /*
+         *@brief: Allows to update the KSP strategy even after construction in a constistent way.
+         */
+        void update_ksp_strategy(const KSP_parameters& ksp_params);
+
+        /*
+         *@brief: Needed to be called after modifying the tolerances using the setters methods.
+         */
+        void update_tolerances();
 
         // --- Setup & Internal ---
       protected:
+        /*
+         * @brief: Sets up the KSP for the  Multigrid Solver
+         */
+        void setup_MG_options(const MG_settings& mg_settings);
+
         auto build_local_dm();
         auto build_linear_system();
         auto build_rhs();
