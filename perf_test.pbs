@@ -4,11 +4,11 @@
 #PBS -l select=6
 #PBD -l mpiprocs=6
 #PBS -j oe
-#PBS -N scalingTest
+#PBS -N perf_res
 
 # 1. Define your own log file with the Job ID
 # ${PBS_JOBID%%.*} strips the ".login01" suffix to keep it short
-LOG_FILE="/work/u10722968/scaling_results.${PBS_JOBID%%.*}.log"
+LOG_FILE="/work/u10722968/perf_rep.${PBS_JOBID%%.*}.log"
 # LOG_FILE="/work/u10722968/scaling_results.log"
 
 cd /work/u10722968/
@@ -34,12 +34,13 @@ echo "========================================" >> $LOG_FILE
 
 # 3. Run with explicit redirection (&>>)
 # Note the '\' at the end of lines to keep the command together
-# perf stat stat -e cycles,instructions \
 /work/u10722968/nix-portable nix develop --extra-experimental-features "nix-command flakes" --impure ./PACS_PROJ \
-    --command \
+    --command bash -c \
+    "perf record -g \
     mpirun -np 6 \
-    --hostfile $PBS_NODEFILE \
+    --hostfile \$PBS_NODEFILE \
     --bind-to core \
     --map-by core \
-    $EXE $PROG_ARGS &>> $LOG_FILE
+    $EXE $PROG_ARGS " &>> $LOG_FILE
+
 
