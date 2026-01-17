@@ -1,13 +1,14 @@
 #!/bin/bash
 #PBS -q cpu
 #PBS -l walltime=00:20:00
+#PBS -l select=6
 #PBS -j oe
-#PBS -N u10722968_scaling
+#PBS -N scalingTest
 
 # 1. Define your own log file with the Job ID
 # ${PBS_JOBID%%.*} strips the ".login01" suffix to keep it short
-# LOG_FILE="/work/u10722968/scaling_results.${PBS_JOBID%%.*}.log"
-LOG_FILE="/work/u10722968/scaling_results.log"
+LOG_FILE="/work/u10722968/scaling_results.${PBS_JOBID%%.*}.log"
+# LOG_FILE="/work/u10722968/scaling_results.log"
 
 cd /work/u10722968/
 
@@ -32,8 +33,10 @@ echo "========================================" >> $LOG_FILE
 
 # 3. Run with explicit redirection (&>>)
 # Note the '\' at the end of lines to keep the command together
-/work/u10722968/nix-portable nix develop --extra-experimental-features "nix-command flakes" ./PACS_PROJ \
-    --command mpirun -np $NCPUS \
+# perf stat stat -e cycles,instructions \
+/work/u10722968/nix-portable nix develop --extra-experimental-features "nix-command flakes" --impure ./PACS_PROJ \
+    --command \
+    mpirun -np $NCPUS \
     --hostfile $PBS_NODEFILE \
     --bind-to core \
     --map-by core \

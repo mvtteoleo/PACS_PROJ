@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
 
     std::vector<int> N_values; // = {/*35,*/ 67, 131};
 
-    for(const auto i : numPDE::range_st_cs(6, 4)) { N_values.push_back( std::pow(2, i) + 3); }
+    for(const auto i : numPDE::range_st_cs(4, 5)) { N_values.push_back( std::pow(2, i) + 3); }
 
     
     // Physics Constants
@@ -206,5 +206,6 @@ int main(int argc, char* argv[])
         MG_errs.push_back(res_mg);
         FFT_errs.push_back(res_fft);
     }
+    std::println("Simulation finished");
     return 0;
 }
