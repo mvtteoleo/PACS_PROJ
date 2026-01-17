@@ -11,7 +11,7 @@
 #include <random>
 
 // Use double for precision
-using Real = double;
+using Real        = double;
 bool cout_results = true;
 
 #include <random>
@@ -73,16 +73,13 @@ struct SolverResult : numPDE::Error<Real>
 
 void print_logs(SolverResult ss, numPDE::SolvePolicy solver)
 {
-	if(solver == numPDE::SolvePolicy::MultiGrid)
-		std::print("Multigrid : ");
+    if (solver == numPDE::SolvePolicy::MultiGrid) std::print("Multigrid : ");
 
-	if(solver == numPDE::SolvePolicy::Fourier)
-		std::print("Fourier : ");
+    if (solver == numPDE::SolvePolicy::Fourier) std::print("Fourier : ");
 
-	if(solver == numPDE::SolvePolicy::None)
-		std::print("Fourier : ");
+    if (solver == numPDE::SolvePolicy::None) std::print("Fourier : ");
 
-	std::println("{:.8e}, {:.8e}, {:.8e}, {:.8e}", ss.l_inf, ss.l_2, ss.time_sec, ss.h);
+    std::println("{:.8e}, {:.8e}, {:.8e}, {:.8e}", ss.l_inf, ss.l_2, ss.time_sec, ss.h);
 };
 
 int main(int argc, char* argv[])
@@ -90,9 +87,11 @@ int main(int argc, char* argv[])
 
     std::vector<int> N_values; // = {/*35,*/ 67, 131};
 
-    for(const auto i : numPDE::range_st_cs(4, 5)) { N_values.push_back( std::pow(2, i) + 3); }
+    for (const auto i : numPDE::range_st_cs(4, 5))
+    {
+        N_values.push_back(std::pow(2, i) + 3);
+    }
 
-    
     // Physics Constants
     numPDE::Constants<Real> csts;
     // Boundary Conditions (Sealed Box)
@@ -109,16 +108,13 @@ int main(int argc, char* argv[])
 
     std::vector<SolverResult> MG_errs, FFT_errs;
 
-
-        if(cout_results and !dec_fft.rank())
-        {
-            std::cout << "\n=================================================" << std::endl;
-            std::cout << " SCALING TEST RESULTS " << std::endl;
-            std::cout << "=================================================" << std::endl;
-		std::println("L_inf, L_2, time, h");
-        }
-
-
+    if (cout_results and !dec_fft.rank())
+    {
+        std::cout << "\n=================================================" << std::endl;
+        std::cout << " SCALING TEST RESULTS " << std::endl;
+        std::cout << "=================================================" << std::endl;
+        std::println("L_inf, L_2, time, h");
+    }
 
     for (const auto N : N_values)
     {
@@ -157,7 +153,7 @@ int main(int argc, char* argv[])
             auto err_p   = check_p_ex(P, dec_petsc.xStartWGhosts(), csts.h);
             res_mg.l_inf = err_p.l_inf;
             res_mg.l_2   = err_p.l_2;
-            res_mg.h = csts.h;
+            res_mg.h     = csts.h;
         }
 
         // =========================================================
@@ -192,16 +188,16 @@ int main(int argc, char* argv[])
             auto err_p    = check_p_ex(P, dec_fft.xStartWGhosts(), csts.h);
             res_fft.l_2   = err_p.l_2;
             res_fft.l_inf = err_p.l_inf;
-            res_fft.h = csts.h;
+            res_fft.h     = csts.h;
         }
 
         // =========================================================
         // SUMMARY REPORT
         // =========================================================
 
-        if(cout_results and !dec_fft.rank()) print_logs(res_mg, numPDE::SolvePolicy::MultiGrid);
+        if (cout_results and !dec_fft.rank()) print_logs(res_mg, numPDE::SolvePolicy::MultiGrid);
 
-        if(cout_results and !dec_fft.rank()) print_logs(res_fft, numPDE::SolvePolicy::Fourier);
+        if (cout_results and !dec_fft.rank()) print_logs(res_fft, numPDE::SolvePolicy::Fourier);
 
         MG_errs.push_back(res_mg);
         FFT_errs.push_back(res_fft);

@@ -163,6 +163,8 @@ namespace numPDE
     template <DecomposeConc Decomp>
     void MultiGridPoissonSolver<Decomp>::setup_MG_options(const MG_settings& mg_settings)
     {
+        check_num_lev_mg();
+
         // Only configure if we are actually using Multigrid
         if (this->mg_solver && std::string_view(this->pc_type) == PCMG)
         {
@@ -172,10 +174,6 @@ namespace numPDE
             PCMGSetType(this->pc, mg_settings.pc_mg_type);
             PCMGSetCycleType(this->pc, mg_settings.cycle_type);
             PCMGSetGalerkin(this->pc, PC_MG_GALERKIN_BOTH);
-
-	    TODO END THIS
-	    if( size_t new_levels = std::log()   mg_settings.mg_levels < new_levels) 
-	    std::println("Set {:} levels for the MG solver", mg_settings.mg_levels);
 
             // 3. Configure Smoothers
             // Used SetLevels above, so PETSc knows exactly how many there are.

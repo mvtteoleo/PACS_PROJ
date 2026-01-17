@@ -1,10 +1,12 @@
 #pragma once
 #include "pde_helper.hpp"
 #include "tensors.hpp"
+#include <cmath>
 #include <concepts>
 #include <petsc.h>
 #include <petscdmda.h>
 #include <petscksp.h>
+#include <print>
 #include <tbb/task_arena.h>
 #include <type_traits>
 
@@ -119,6 +121,8 @@ namespace numPDE
          * - PCBJACOBI: Block Jacobi (Parallel). Use if the coarse grid is still massive.
          */
         PCType coarse_pc = PCREDUNDANT;
+
+        bool enforce_levels = false;
     };
 
     /*
@@ -236,6 +240,29 @@ namespace numPDE
         auto apply_BC_A_impl(SIDES const& side);
         auto update_bc_b_impl(SIDES const& side);
         auto get_side_infos(const SIDES& side);
+
+        void check_num_lev_mg()
+        {
+
+            const auto& [nx, ny, nz] = r_dec.get_global_sizes();
+
+            PetscInt NxLoc{nx - 2};
+            PetscInt NyLoc{ny - 2};
+            PetscInt NzLoc{nz - 2};
+
+            if (m_mg_settings.enforce_levels == false)
+            {
+                auto   n_min = std::min(std::min(NxLoc, NyLoc), NzLoc);
+                size_t opt   = std::floor(std::log2(n_min) - 2);
+#ifdef PEDANTIC
+                std::println(
+                    "Number of levels of the MG solver modified from {:} to {:}. If this is not "
+                    "wanted modify the parameter enforce_levels to true in the mg_settings",
+                    m_mg_settings.mg_levels, opt);
+#endif
+                m_mg_settings.mg_levels = opt;
+            }
+        }
 
       public:
         MG_settings m_mg_settings;
