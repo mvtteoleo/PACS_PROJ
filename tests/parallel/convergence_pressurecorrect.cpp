@@ -41,7 +41,7 @@ void fill_irrot_field(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U,
     std::mt19937       gen(rd());
 
     std::uniform_real_distribution<Real> dist(-1e-5, 1e-5);
-    bool                                 scale_param = 0;
+    int                                 scale_param = 0;
 
     for (auto [k, j, i] : U.all_elems())
     {
