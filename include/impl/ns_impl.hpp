@@ -182,8 +182,6 @@ namespace numPDE
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
 
-
-
         auto instruction = [&](const auto i, const auto j, const auto k)
         {
             const auto pos = get_pos(i, j, k, t_old);
@@ -193,12 +191,14 @@ namespace numPDE
 
         trd_par::parallel_for_int_elems(m_P.get_sizes(), instruction);
 
+        this->apply_bc(stepper.get_t() + adt);
+
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
 
         auto div_pre = check_divergence(m_V, h);
         if (!r_dec.rank())
-            std::println("After predictor step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
+            std::println("{:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t(), div_pre.l_2,
                          div_pre.l_inf);
 
         div_pre.l_2   = 0.0;
@@ -215,7 +215,7 @@ namespace numPDE
 
         div_pre = check_divergence(m_V, h);
         if (!r_dec.rank())
-            std::println("After pressure correction:\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
+            std::println("{:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t() + 0.5 * adt, div_pre.l_2,
                          div_pre.l_inf);
     }
 
@@ -231,6 +231,10 @@ namespace numPDE
         r_dec.exchange_ghosts(Buff);
         r_dec.exchange_ghosts(m_V);
 
+        auto div_pre = check_divergence(m_V, h);
+
+        div_pre.l_2      = 0.0;
+        div_pre.l_inf    = 0.0;
         auto instruction = [&](const auto i, const auto j, const auto k)
         {
             const auto pos   = get_pos(i, j, k, t_old);
@@ -241,11 +245,15 @@ namespace numPDE
 
         trd_par::parallel_for_int_elems(m_P.get_sizes(), instruction);
 
+        this->apply_bc(stepper.get_t() + c * dt);
+
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
-        auto div_pre = check_divergence(m_V, h);
+        auto err = check_curl(m_V, h);
+        err.print_errs(r_dec.rank());
+        div_pre = check_divergence(m_V, h);
         if (!r_dec.rank())
-            std::println("After predictor step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
+            std::println("{:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t(), div_pre.l_2,
                          div_pre.l_inf);
 
         div_pre.l_2   = 0.0;
@@ -263,8 +271,8 @@ namespace numPDE
 
         div_pre = check_divergence(m_V, h);
         if (!r_dec.rank())
-            std::println("After pressure correction:\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
-                         div_pre.l_inf);
+            std::println("{:.9e},  \t {:.9e}, \t {:.9e}", (stepper.get_t() + 0.5 * c * dt),
+                         div_pre.l_2, div_pre.l_inf);
     }
 
     // -------------------------------------------------------------------------

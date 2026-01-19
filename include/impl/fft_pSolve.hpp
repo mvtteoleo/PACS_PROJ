@@ -6,6 +6,7 @@
 #include <cassert>
 #include <cstddef>
 #include <iterator>
+#include <ranges>
 
 namespace numPDE
 {
@@ -18,6 +19,7 @@ namespace numPDE
         const auto h = this->r_const.h;
         // SANITIZE WORK-ZONE
         this->m_P_ghosted.fill_val(T{});
+        this->r_dec.exchange_ghosts(V);
 
         auto compute_div_int = [&](const auto i, const auto j, const auto k)
         { this->m_P_ghosted(i, j, k) = div(V, i, j, k, h) / dt_step; };
@@ -41,38 +43,24 @@ namespace numPDE
 #endif
 
         this->reorder_data<MOVE_TYPE::ToGhosted>();
-
-        // TODO here there is a problem when I parallelize
-
-        // I have to do it for the internal points (Excluding the Ghosted!)
-        /*
-        const auto& sizes = this->r_dec.xSize();
-        const auto& nx    = sizes[0];
-        const auto& ny    = sizes[1];
-        const auto& nz    = sizes[2];
-
-        // Account for the presence of ghost points
-        const int j_g = is_side(SIDES::EAST, this->r_dec) ? 0 : 1;
-        const int k_g = is_side(SIDES::BOTTOM, this->r_dec) ? 0 : 1;
-
-           for (const auto k : std::views::iota(size_t{1}, static_cast<size_t>( nz + k_g - 1 )))
-               for (const auto j : std::views::iota(size_t{1}, static_cast<size_t>( ny + j_g - 1 )))
-                   for (const auto i : std::views::iota(size_t{1}, static_cast<size_t>( nx - 1 )))
-        */
+        this->compute_div_on_sides();
 
         this->r_dec.exchange_ghosts(m_P_ghosted);
-        this->r_dec.exchange_ghosts(V);
-        for (auto [k, j, i] : V.int_elems())
+        const auto& sz     = this->m_P_ghosted.get_sizes();
+        const auto  k_full = std::views::iota(size_t{0}, static_cast<size_t>(sz[2] - 1));
+        const auto  j_full = std::views::iota(size_t{0}, static_cast<size_t>(sz[1] - 1));
+        const auto  i_full = std::views::iota(size_t{0}, static_cast<size_t>(sz[0] - 1));
+        for (auto [k, j, i] : std::views::cartesian_product(k_full, j_full, i_full))
         {
             const auto dP = grad(m_P_ghosted, i, j, k, h);
             V(i, j, k)    = V(i, j, k) - dt_step * dP;
         }
 
-        this->r_dec.exchange_ghosts(m_P_ghosted);
-        this->r_dec.exchange_ghosts(V);
         // Update P
         P = P + m_P_ghosted;
+        this->r_dec.exchange_ghosts(m_P_ghosted);
         this->r_dec.exchange_ghosts(P);
+        this->r_dec.exchange_ghosts(V);
     }
 
     template <typename T>

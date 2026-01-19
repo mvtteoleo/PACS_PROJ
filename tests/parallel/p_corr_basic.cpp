@@ -5,10 +5,11 @@
 #include "../../include/pressure_solver.hpp"
 #include "../../include/pvts_writer.hpp"
 
+#include <print>
 #include <random>
 #include <vector>
 using Real = double;
-#define MG 1
+#define MG 0
 #define BCS 1 // o DirHomo 1 NeuHomo
 int main(int argc, char* argv[])
 {
@@ -111,7 +112,13 @@ int main(int argc, char* argv[])
     solver.check_sol();
     */
 
+    MPI_Barrier(MPI_COMM_WORLD);
+    auto start = MPI_Wtime();
     solver.pressure_correct(U, P, 1.0, true);
+    MPI_Barrier(MPI_COMM_WORLD);
+    auto time = MPI_Wtime() - start;
+
+    std::println("{:.5e} ", time);
 
     numPDE::Error<Real> err{};
     const auto&         h     = csts.h;
