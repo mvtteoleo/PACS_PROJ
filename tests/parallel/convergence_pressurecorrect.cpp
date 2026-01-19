@@ -41,7 +41,7 @@ void fill_irrot_field(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U,
     std::mt19937       gen(rd());
 
     std::uniform_real_distribution<Real> dist(-1e-5, 1e-5);
-    bool                                 scale_param = 1;
+    bool                                 scale_param = 0;
 
     for (auto [k, j, i] : U.all_elems())
     {
@@ -129,6 +129,16 @@ int main(int argc, char* argv[])
             // Fill (Wall-Compatible TGV)
             fill_velocity_tensor(U, dec_petsc.xStartWGhosts(), csts.h);
 
+            for(auto [k, j, i] : U.int_elems())
+                U(i, j, k) = U(i, j, k) + csts.dt*numPDE::predictor_f(U,i, j,k, csts);
+
+            dec_petsc.exchange_ghosts(U);
+
+
+            // Check Error
+            auto err_     = check_divergence(U, csts.h);
+            err_.print_errs(dec_petsc.rank());
+
             // Timer
             MPI_Barrier(MPI_COMM_WORLD);
             auto start = MPI_Wtime();
@@ -163,6 +173,13 @@ int main(int argc, char* argv[])
             // Fill (Wall-Compatible TGV)
             fill_velocity_tensor(U, dec_fft.xStartWGhosts(), csts.h);
 
+            for(auto [k, j, i] : U.int_elems())
+                U(i, j, k) = U(i, j, k) + csts.dt*numPDE::predictor_f(U,i, j,k, csts);
+
+            dec_fft.exchange_ghosts(U);
+
+            auto err_     = check_divergence(U, csts.h);
+            err_.print_errs(dec_fft.rank());
             // Timer
             MPI_Barrier(MPI_COMM_WORLD);
             auto start = MPI_Wtime();
