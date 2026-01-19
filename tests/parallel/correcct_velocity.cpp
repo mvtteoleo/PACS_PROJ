@@ -1,4 +1,5 @@
-#define MG 1  // 0 Fourier, 1 Multigrid, 2 None
+#include <utility>
+#define MG 0  // 0 Fourier, 1 Multigrid, 2 None
 #define BCS 1 // o DirHomo 1 NeuHomo
 /*
  * Test built to check that given a velocity field u the solver correctly
@@ -56,7 +57,7 @@ void fill_random(numPDE::Tensor<Real, 4, 3, numPDE::ROW_MAJOR>& U)
     std::mt19937       gen(rd());
 
     std::uniform_real_distribution<Real> dist(-1e-6, 1e-6);
-    [[maybe_unused]] Real                scale_param = 0.0;
+    [[maybe_unused]] Real                scale_param = 1.0;
 
     for (auto [k, j, i] : U.int_elems())
     {
@@ -86,8 +87,8 @@ int main(int argc, char* argv[])
     using FunType = numPDE::PressureBC<>::Function;
 
     csts.h  = L / (N - 1);
-    csts.Re = 1;
-    csts.dt = csts.h * csts.h * 0.001;
+    csts.Re = 1.0 / 0.0;
+    csts.dt = csts.h;
 
     std::fill(scal_bc.BC_s.begin(), scal_bc.BC_s.end(), numPDE::NeuHomo);
 
@@ -101,11 +102,53 @@ int main(int argc, char* argv[])
     // fill_taylor_green(U, pos_0, csts.h);
     fill_irrot_field(U, pos_0, csts.h);
 
+    MPI_Barrier(MPI_COMM_WORLD);
     auto err = check_divergence(U, csts.h);
     err.print_errs(dec.rank());
 
+    auto U_new       = U;
+    auto instruction = [&](const auto i, const auto j, const auto k)
+    {
+        const auto f_V = numPDE::predictor_f(U, i, j, k, csts);
+        U_new(i, j, k) = U(i, j, k) + csts.dt * f_V;
+    };
+
+    trd_par::parallel_for_int_elems(P.get_sizes(), instruction);
+
+    dec.exchange_ghosts(U_new);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    U_new = U;
+    err   = numPDE::check_curl(U, csts.h);
+    err.print_errs(dec.rank());
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    err = check_divergence(U, csts.h);
+    err.print_errs(dec.rank());
+
+    MPI_Barrier(MPI_COMM_WORLD);
     solver.pressure_correct(U, P, csts.dt);
 
+    bool is_north  = is_side(numPDE::NORTH, dec);
+    bool is_south  = is_side(numPDE::SOUTH, dec);
+    bool is_east   = is_side(numPDE::EAST, dec);
+    bool is_west   = is_side(numPDE::WEST, dec);
+    bool is_top    = is_side(numPDE::TOP, dec);
+    bool is_bottom = is_side(numPDE::BOTTOM, dec);
+
+    const auto [_, nx, ny, nz] = U.get_sizes();
+
+    for (auto k :
+         std::views::iota(static_cast<size_t>(is_bottom), static_cast<size_t>(ny - is_top)))
+        for (auto j :
+             std::views::iota(static_cast<size_t>(is_east), static_cast<size_t>(ny - is_west)))
+            for (auto i : std::views::iota(static_cast<size_t>(is_south),
+                                           static_cast<size_t>(nz - is_north)))
+            {
+            }
+
+    MPI_Barrier(MPI_COMM_WORLD);
     err = check_divergence(U, csts.h);
     err.print_errs(dec.rank());
 

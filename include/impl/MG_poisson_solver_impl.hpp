@@ -40,7 +40,6 @@ namespace numPDE
         PetscInt NyLoc{ny - 2};
         PetscInt NzLoc{nz - 2};
 
-
         std::array<PetscInt, 1> lx{{NxLoc}};
         std::vector<PetscInt>   ly(py);
         std::vector<PetscInt>   lz(pz);

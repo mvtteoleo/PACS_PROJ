@@ -106,8 +106,8 @@ int main(int argc, char* argv[])
     // 6. Check Results
     numPDE::Error<Real> err_u{};
     numPDE::Error<Real> err_p{};
-    numPDE::Error<Real> err_div{}; 
-      
+    numPDE::Error<Real> err_div{};
+
     // Check Pressure (Should match phi/dt)
     for (auto [kp, jp, ip] : P.int_elems())
     {
@@ -121,7 +121,7 @@ int main(int argc, char* argv[])
         err_p.l_2 += diff_p * diff_p;
         err_p.l_inf = std::max(err_p.l_inf, diff_p);
     }
-      
+
     /*
     for (auto [k, j, i] : P.bou_elems())
     {
@@ -171,11 +171,6 @@ int main(int argc, char* argv[])
         P(i, j, k) = div_val;
     }
 
-
-    
-
-
-
     err_u.reduce(csts.h * csts.h * csts.h);
     err_p.reduce(csts.h * csts.h * csts.h);
     err_div.reduce(csts.h * csts.h * csts.h);
@@ -185,7 +180,8 @@ int main(int argc, char* argv[])
         std::println("\n--- RESULTS ---");
         std::println("Velocity Recovery Error (L2, Linf): {:.5e}, {:.5e}", err_u.l_2, err_u.l_inf);
         std::println("Pressure Error        (L2, Linf): {:.5e}, {:.5e}", err_p.l_2, err_p.l_inf);
-        std::println("Final Divergence      (L2, Linf): {:.5e}, {:.5e}", err_div.l_2, err_div.l_inf);
+        std::println("Final Divergence      (L2, Linf): {:.5e}, {:.5e}", err_div.l_2,
+                     err_div.l_inf);
 
         if (err_u.l_inf < 1e-7)
             std::println("SUCCESS: Original field recovered.");
