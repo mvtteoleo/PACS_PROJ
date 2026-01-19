@@ -176,21 +176,17 @@ namespace numPDE
         assert(a == c);
         const auto adt = a * r_inps.constants.dt;
 
+        const auto t_old = stepper.get_t();
+        const auto t_new = t_old + adt;
         r_dec.exchange_ghosts(Buff);
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
 
-        auto div_pre = check_divergence(m_V, h);
-        if (!r_dec.rank())
-            std::println("Before step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
-                         div_pre.l_inf);
 
-        div_pre.l_2   = 0.0;
-        div_pre.l_inf = 0.0;
 
         auto instruction = [&](const auto i, const auto j, const auto k)
         {
-            const auto pos = get_pos(i, j, k);
+            const auto pos = get_pos(i, j, k, t_old);
             m_V(i, j, k) =
                 m_V(i, j, k) + adt * (Buff(i, j, k) + r_inps.v_BC.f(pos) - grad(m_P, i, j, k, h));
         };
@@ -200,7 +196,7 @@ namespace numPDE
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
 
-        div_pre = check_divergence(m_V, h);
+        auto div_pre = check_divergence(m_V, h);
         if (!r_dec.rank())
             std::println("After predictor step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
                          div_pre.l_inf);
@@ -212,7 +208,7 @@ namespace numPDE
         r_dec.exchange_ghosts(m_P);
         r_dec.exchange_ghosts(m_V);
 
-        this->apply_bc(stepper.get_t());
+        this->apply_bc(t_new);
 
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
@@ -229,20 +225,15 @@ namespace numPDE
     {
         const auto& h  = r_inps.constants.h;
         const auto& dt = r_inps.constants.dt;
+        const auto t_old = stepper.get_t();
+        const auto t_new = t_old + c*dt;
 
         r_dec.exchange_ghosts(Buff);
         r_dec.exchange_ghosts(m_V);
 
-        auto div_pre = check_divergence(m_V, h);
-        if (!r_dec.rank())
-            std::println("Before step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
-                         div_pre.l_inf);
-
-        div_pre.l_2      = 0.0;
-        div_pre.l_inf    = 0.0;
         auto instruction = [&](const auto i, const auto j, const auto k)
         {
-            const auto pos   = get_pos(i, j, k);
+            const auto pos   = get_pos(i, j, k, t_old);
             const auto f_V   = predictor_f(Un, i, j, k, r_inps.constants);
             const auto f_ext = r_inps.v_BC.f(pos);
             m_V(i, j, k)     = Buff(i, j, k) + dt * (a * (f_V + f_ext) - c * grad(m_P, i, j, k, h));
@@ -252,7 +243,7 @@ namespace numPDE
 
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
-        div_pre = check_divergence(m_V, h);
+        auto div_pre = check_divergence(m_V, h);
         if (!r_dec.rank())
             std::println("After predictor step :\n \tl2 : {:.2e}, \tlinf {:.2e}", div_pre.l_2,
                          div_pre.l_inf);
@@ -265,7 +256,7 @@ namespace numPDE
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
 
-        this->apply_bc(stepper.get_t());
+        this->apply_bc(t_new);
 
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
