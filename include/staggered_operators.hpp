@@ -71,7 +71,7 @@ namespace numPDE
         Uy[1]    = C[1];
         Uy[2]    = 0.25 * (C[1] + S[1] + Top[1] + ST);
 
-        ris = ris - Uy * (E - W) * one_over_2h;
+        ris = ris - Uy * (W - E) * one_over_2h;
 
         auto& Uz = U;
         Uz[0]    = 0.25 * (C[2] + B[2] + E[2] + EB);
