@@ -201,22 +201,19 @@ namespace numPDE
 
         div_pre = check_divergence(m_V, h);
         if (!r_dec.rank())
-            std::println("{:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t(), div_pre.l_2,
+            std::println(" Pre-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t(), div_pre.l_2,
                          div_pre.l_inf);
 
         div_pre.l_2   = 0.0;
         div_pre.l_inf = 0.0;
         pSolve.pressure_correct(m_V, m_P, adt, this->m_verbose);
 
-        r_dec.exchange_ghosts(m_P);
+        this->apply_bc(stepper.get_t() + adt);
         r_dec.exchange_ghosts(m_V);
-
-        r_dec.exchange_ghosts(m_V);
-        r_dec.exchange_ghosts(m_P);
 
         div_pre = check_divergence(m_V, h);
         if (!r_dec.rank())
-            std::println("{:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t() + 0.5 * adt, div_pre.l_2,
+            std::println(" Post-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t() + 0.5 * adt, div_pre.l_2,
                          div_pre.l_inf);
     }
 
@@ -248,11 +245,9 @@ namespace numPDE
 
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
-        auto err = check_curl(m_V, h);
-        err.print_errs(r_dec.rank());
         div_pre = check_divergence(m_V, h);
         if (!r_dec.rank())
-            std::println("{:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t(), div_pre.l_2,
+            std::println(" Pre-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t(), div_pre.l_2,
                          div_pre.l_inf);
 
         div_pre.l_2   = 0.0;
@@ -260,12 +255,13 @@ namespace numPDE
 
         pSolve.pressure_correct(m_V, m_P, c * dt, this->m_verbose);
 
+        this->apply_bc(stepper.get_t() + c * dt);
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
 
         div_pre = check_divergence(m_V, h);
         if (!r_dec.rank())
-            std::println("{:.9e},  \t {:.9e}, \t {:.9e}", (stepper.get_t() + 0.5 * c * dt),
+            std::println(" Post-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}", (stepper.get_t() + 0.5 * c * dt),
                          div_pre.l_2, div_pre.l_inf);
     }
 
