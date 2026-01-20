@@ -39,8 +39,8 @@ namespace numPDE
     {
         const auto&         h           = r_cstns.h;
         const auto&         Re          = r_cstns.Re;
-        const auto          one_over_2h = 1 / (h * 2);
-        const auto          inv_4Re_h_2 = 1.0 / (4 * h * h * Re);
+        const auto          one_over_2h = 1.0 / (h * 2.0);
+        const auto          inv_4Re_h_2 = 1.0 / (4.0 * h * h * Re);
         numPDE::Array<T, 3> U, ris;
 
         auto C   = h_U(i, j, k);     // center
@@ -50,15 +50,13 @@ namespace numPDE
         auto S   = h_U(i - 1, j, k); // south
         auto Top = h_U(i, j, k + 1); // top
         auto B   = h_U(i, j, k - 1); // bottom
-
-        ris = (E + W + N + S + Top + B - 6.0 * C) * inv_4Re_h_2;
         // Convective term
         const auto u_on_y = 0.25 * (C[0] + S[0] + W[0] + h_U.at(0, i - 1, j + 1, k));
         const auto u_on_z = 0.25 * (C[0] + S[0] + Top[0] + h_U.at(0, i - 1, j, k + 1));
         U[0]              = C[0];
         U[1]              = u_on_y;
         U[2]              = u_on_z;
-        ris               = ris - U * (N - S) * one_over_2h;
+        ris               = U * (N - S) ;
 
         const auto v_on_x = 0.25 * (C[1] + E[1] + N[1] + h_U.at(1, i + 1, j - 1, k));
         const auto v_on_z = 0.25 * (C[1] + E[1] + Top[1] + h_U.at(1, i, j - 1, k + 1));
@@ -66,7 +64,7 @@ namespace numPDE
         U[1]              = C[1];
         U[2]              = v_on_z;
 
-        ris = ris - U * (W - E) * one_over_2h;
+        ris = ris + U * (W - E) ;
 
         const auto w_on_x = 0.25 * (C[2] + B[2] + N[2] + h_U.at(2, i + 1, j, k - 1));
         const auto w_on_y = 0.25 * (C[2] + B[2] + W[2] + h_U.at(2, i, j + 1, k - 1));
@@ -74,8 +72,10 @@ namespace numPDE
         U[1]              = w_on_y;
         U[2]              = C[2];
 
-        ris = ris - U * (Top - B) * one_over_2h;
+        ris = ris + U * (Top - B) ;
 
+
+        ris = -1.0 * ris * one_over_2h + (E + W + N + S + Top + B - 6.0 * C) * inv_4Re_h_2;
         return ris;
     }
 

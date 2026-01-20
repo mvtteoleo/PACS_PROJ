@@ -28,6 +28,7 @@ namespace numPDE
 
         // Update the neighbours
         this->compute_div_on_sides();
+        this->r_dec.exchange_ghosts(m_P_ghosted);
 
         this->reorder_data<MOVE_TYPE::ToNonGhosted>();
 
@@ -54,9 +55,9 @@ namespace numPDE
             V(i, j, k)    = V(i, j, k) - dt_step * dP;
         }
 
+        this->r_dec.exchange_ghosts(m_P_ghosted);
         // Update P
         P = P + m_P_ghosted;
-        this->r_dec.exchange_ghosts(m_P_ghosted);
         this->r_dec.exchange_ghosts(P);
         this->r_dec.exchange_ghosts(V);
     }

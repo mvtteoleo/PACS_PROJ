@@ -37,12 +37,13 @@ namespace numPDE
             //   - Log time and error once in a while
             //   - Check the exchange of sides
 
+            // Advance one time step (calls compute_buff_init and pseudoTS)
+            stepper.advance(*this);
+
             auto t_curr = stepper.get_t();
             auto err    = compute_err(t_curr);
             errs.emplace_back(err);
 
-            // Advance one time step (calls compute_buff_init and pseudoTS)
-            stepper.advance(*this);
         }
 
         auto err = check_sol(errs);
@@ -143,6 +144,8 @@ namespace numPDE
             err.l_inf = std::max(max_loc, err.l_inf);
         }
 
+        std::println("Err L2: {:.3e}, rank : {:}",  err.l_2*h*h*h, r_dec.rank() );
+
         err.reduce(h * h * h);
         return err;
     }
@@ -210,6 +213,7 @@ namespace numPDE
 
         this->apply_bc(stepper.get_t() + adt);
         r_dec.exchange_ghosts(m_V);
+        r_dec.exchange_ghosts(m_P);
 
         div_pre = check_divergence(m_V, h);
         if (!r_dec.rank())
@@ -226,6 +230,7 @@ namespace numPDE
 
         r_dec.exchange_ghosts(Buff);
         r_dec.exchange_ghosts(m_V);
+        r_dec.exchange_ghosts(m_P);
 
         auto div_pre = check_divergence(m_V, h);
 

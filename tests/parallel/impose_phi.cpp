@@ -7,7 +7,7 @@
 using Real = double;
 
 // Define solver type
-#define MG 1
+#define MG 0
 // We use NeuHomo (1) because our physical walls (Solid box) imply dP/dn = 0
 #define BCS 1
 
@@ -97,8 +97,6 @@ int main(int argc, char* argv[])
         U.at(2, i, j, k) = get_u_sol(pos_w, 2) + get_grad_phi(pos_w, 2);
     }
 
-    auto U_old = U;
-
     // 5. Run Projection
     if (dec.rank() == 0) std::println("Starting Projection...");
     solver.pressure_correct(U, P, csts.dt, false);
@@ -122,26 +120,6 @@ int main(int argc, char* argv[])
         err_p.l_inf = std::max(err_p.l_inf, diff_p);
     }
 
-    /*
-    for (auto [k, j, i] : P.bou_elems())
-    {
-        numPDE::Node<Real> pos_u{.x = csts.h * (i + xsrt[0] + 0.5),
-                                 .y = csts.h * (j + xsrt[1]),
-                                 .z = csts.h * (k + xsrt[2])};
-        numPDE::Node<Real> pos_v{.x = csts.h * (i + xsrt[0]),
-                                 .y = csts.h * (j + xsrt[1] + 0.5),
-                                 .z = csts.h * (k + xsrt[2])};
-        numPDE::Node<Real> pos_w{.x = csts.h * (i + xsrt[0]),
-                                 .y = csts.h * (j + xsrt[1]),
-                                 .z = csts.h * (k + xsrt[2] + 0.5)};
-
-        U.at(0, i, j ,k) = get_u_sol(pos_u, 0);
-        U.at(1, i, j ,k) = get_u_sol(pos_v, 1);
-        U.at(2, i, j ,k) = get_u_sol(pos_w, 2);
-        P(i,  j, k) = 0.0;
-
-    }
-    */
     // Check Velocity Recovery (Should match U_sol)
     numPDE::Array<Real, 3> loc_err;
     for (auto [k, j, i] : U.int_elems())
@@ -167,8 +145,6 @@ int main(int argc, char* argv[])
         Real div_val = std::abs(numPDE::div(U, i, j, k, csts.h));
         err_div.l_2 += div_val * div_val;
         err_div.l_inf = std::max(err_div.l_inf, div_val);
-
-        P(i, j, k) = div_val;
     }
 
     err_u.reduce(csts.h * csts.h * csts.h);
@@ -190,8 +166,10 @@ int main(int argc, char* argv[])
     }
 
     // Write output for Paraview
+    /*
     VTKStructuredWriter<DecompType, numPDE::Tensor<double, 3, 3>> writer(dec);
     writer.write(P, "output/debug_pressure", 1);
+    */
 
     return 0;
 }

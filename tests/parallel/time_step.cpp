@@ -3,7 +3,7 @@
 #include <print>
 #include <utility>
 using Real = double;
-#define MG 0
+#define MG 2
 #include "../../include/navier_stokes.hpp"
 #include <climits>
 #include <cmath>
@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
     Real        h  = 1.0 / static_cast<Real>(nx - 1);
     Real        dt = (argc > 2) ? (std::stod(argv[2]) * h * h) : h * h * 0.1;
     assert(dt <= 1 * h * h && "dt is too big for space discretization");
-    Real Tmax{0.00001};
+    Real Tmax{0.00003};
 
     auto scale = 1;
     nx         = N * scale;
@@ -60,8 +60,11 @@ int main(int argc, char* argv[])
         const auto u_x = numPDE::ux(x_s, p.y, p.z, p.t);
         const auto u_y = numPDE::uy(p.x, y_s, p.z, p.t);
         const auto u_z = numPDE::uz(p.x, p.y, z_s, p.t);
-
-        return numPDE::Array{0.1 * u_x, 0.1 * u_y, 0.1 * u_z};
+        return numPDE::Array{u_x, u_y,u_z};
+    };
+    inputs.v_BC.u_0  = [&](const numPDE::Node<Real> &p) -> numPDE::Array<Real, 3>
+    {
+            return inputs.v_BC.u_ex(p); 
     };
     inputs.v_BC.f = [&](const numPDE::Node<Real>& p) -> numPDE::Array<Real, 3>
     {
