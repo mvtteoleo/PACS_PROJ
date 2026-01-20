@@ -213,8 +213,8 @@ namespace numPDE
 
         div_pre = check_divergence(m_V, h);
         if (!r_dec.rank())
-            std::println(" Post-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t() + 0.5 * adt, div_pre.l_2,
-                         div_pre.l_inf);
+            std::println(" Post-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t() + 0.5 * adt,
+                         div_pre.l_2, div_pre.l_inf);
     }
 
     template <SolvePolicy solveP, DecomposeConc Decomp>
@@ -261,8 +261,8 @@ namespace numPDE
 
         div_pre = check_divergence(m_V, h);
         if (!r_dec.rank())
-            std::println(" Post-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}", (stepper.get_t() + 0.5 * c * dt),
-                         div_pre.l_2, div_pre.l_inf);
+            std::println(" Post-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}",
+                         (stepper.get_t() + 0.5 * c * dt), div_pre.l_2, div_pre.l_inf);
     }
 
     // -------------------------------------------------------------------------

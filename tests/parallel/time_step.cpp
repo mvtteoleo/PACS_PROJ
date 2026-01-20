@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
         const auto  x_s = p.x + 0.5 * inputs.constants.h;
         const auto  y_s = p.y + 0.5 * inputs.constants.h;
         const auto  z_s = p.z + 0.5 * inputs.constants.h;
-    
+
         const auto fx_c = numPDE::fx(x_s, p.y, p.z, p.t, Re);
         const auto fy_c = numPDE::fy(p.x, y_s, p.z, p.t, Re);
         const auto fz_c = numPDE::fz(p.x, p.y, z_s, p.t, Re);
