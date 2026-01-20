@@ -19,7 +19,7 @@ def c(val): return sp.cos(mpi * val)
 u = c(x) * s(y) * c(z) * s(t)
 v = s(x) * c(y) * c(z) * s(t)
 w = 2 * s(x) * s(y) * s(z) * s(t)
-p = s(x) * s(y) * s(z)
+p = c(x) * c(y) * c(z)
 
 # --- 2. Define Derivatives and Navier-Stokes Forces ---
 # Check continuity (optional, good for verification)
