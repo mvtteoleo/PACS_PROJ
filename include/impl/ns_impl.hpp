@@ -50,31 +50,35 @@ namespace numPDE
     template <SolvePolicy solveP, DecomposeConc Decomp>
     auto NSSolver<solveP, Decomp>::get_pos(const auto i, const auto j, const auto k) const noexcept
     {
-        const auto& h = r_inps.constants.h;
-        return Node<T>{.x = r_dec.xStartWGhosts()[0] + h * static_cast<size_t>(i),
-                       .y = r_dec.xStartWGhosts()[1] + h * static_cast<size_t>(j),
-                       .z = r_dec.xStartWGhosts()[2] + h * static_cast<size_t>(k),
-                       .t = stepper.get_t()};
+        const auto& h       = r_inps.constants.h;
+        const auto& strt_wg = r_dec.xStartWGhosts();
+        auto        x       = static_cast<T>(strt_wg[0] + i) * h;
+        auto        y       = static_cast<T>(strt_wg[1] + j) * h;
+        auto        z       = static_cast<T>(strt_wg[2] + k) * h;
+        return numPDE::Node<T>{.x = x, .y = y, .z = z, .t = stepper.get_t()};
     }
 
     template <SolvePolicy solveP, DecomposeConc Decomp>
     auto NSSolver<solveP, Decomp>::get_pos(const auto i, const auto j, const auto k,
                                            const T time) const noexcept
     {
-        const auto& h = r_inps.constants.h;
-        return Node<T>{.x = r_dec.xStartWGhosts()[0] + h * static_cast<size_t>(i),
-                       .y = r_dec.xStartWGhosts()[1] + h * static_cast<size_t>(j),
-                       .z = r_dec.xStartWGhosts()[2] + h * static_cast<size_t>(k),
-                       .t = time};
+        const auto& h       = r_inps.constants.h;
+        const auto& strt_wg = r_dec.xStartWGhosts();
+        auto        x       = static_cast<T>(strt_wg[0] + i) * h;
+        auto        y       = static_cast<T>(strt_wg[1] + j) * h;
+        auto        z       = static_cast<T>(strt_wg[2] + k) * h;
+        return numPDE::Node<T>{.x = x, .y = y, .z = z, .t = time};
     }
 
     template <SolvePolicy solveP, DecomposeConc Decomp>
     auto NSSolver<solveP, Decomp>::get_pos() const noexcept
     {
-        return Node<T>{.x = r_dec.xStartWGhosts()[0],
-                       .y = r_dec.xStartWGhosts()[1],
-                       .z = r_dec.xStartWGhosts()[2],
-                       .t = stepper.get_t()};
+        const auto& h       = r_inps.constants.h;
+        const auto& strt_wg = r_dec.xStartWGhosts();
+        auto        x       = static_cast<T>(strt_wg[0]);
+        auto        y       = static_cast<T>(strt_wg[1]);
+        auto        z       = static_cast<T>(strt_wg[2]);
+        return numPDE::Node<T>{.x = x, .y = y, .z = z, .t = stepper.get_t()};
     }
 
     // -------------------------------------------------------------------------
@@ -322,8 +326,8 @@ namespace numPDE
 
         // Handle corners / edges
         {
-            const int i_i = 0;
-            const int i_e = (nx - 1);
+            const auto i_i = 0;
+            const auto i_e = (nx - 1);
             for (const auto k : k_range)
             {
                 for (const auto j : j_range)

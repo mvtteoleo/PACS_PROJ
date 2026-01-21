@@ -38,7 +38,7 @@ int main(int argc, char* argv[])
     decomp.initialize_decomp(nx, ny, nz);
 
     const auto& neigh = decomp.get_neighbors();
-    
+
     print_vals(decomp);
 
     numPDE::Tensor<double, 3, 3> field(decomp.dimsWithGhosts());

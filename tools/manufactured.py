@@ -21,11 +21,6 @@ v = s(x) * c(y) * c(z) * s(t)
 w = 2 * s(x) * s(y) * s(z) * s(t)
 p = c(x) * c(y) * c(z)
 
-u = y*(1.-y)
-v = x-x
-w = y-y
-p = x+x-2*x
-
 # --- 2. Define Derivatives and Navier-Stokes Forces ---
 # Check continuity (optional, good for verification)
 div = sp.diff(u, x) + sp.diff(v, y) + sp.diff(w, z)

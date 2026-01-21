@@ -3,7 +3,7 @@
 #include <print>
 #include <utility>
 using Real = double;
-#define MG 2
+#define MG 0
 #include "../../include/navier_stokes.hpp"
 #include <climits>
 #include <cmath>

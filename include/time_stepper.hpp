@@ -54,7 +54,7 @@ namespace numPDE
             // Initialize BUFF with forcing(Un) to avoid recomputing twice
             // Needs only t_old (ie current time)
             r_solver.compute_buff_init(m_buff);
-            
+
             // Extract V_old
             m_V_old = r_solver.get_x();
 
