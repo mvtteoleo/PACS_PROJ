@@ -2,7 +2,8 @@ This project is a direct numerical solver for computational fluid dynamic, the
 NSSolver class is templated so that is able to solve the Poisson equation for
 pressure both using Spectral solver and a Multigrid solver.
 
-The C++ standard chpse is C++23, to manage the dependencies I here use nix, the only real dependency.
+The C++ standard of choice is C++23, to manage the dependencies I here use nix,
+the only real dependency.
 
 If one is missing nix can avoid installing it globally using [nix-portable](https://github.com/DavHau/nix-portable).
 
@@ -50,8 +51,7 @@ All the dependency not present in the flake.nix file are inside the include/thir
   -  [MPI_Types](https://gist.github.com/2b-t/50d85115db8b12ed263f8231abf07fa2)
   To handle the MPI types in a consistent way give the template usage.
 
-All the classes have the relative implementation in the impl/ directory.
-The tests are divided in parallel and serial for debug porpouses.
+The tests are divided in parallel and serial for debug purposes.
 All the executables will be in the build directory and then each is divided
 between serial and parallel subdirectory.
 
