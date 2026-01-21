@@ -41,7 +41,7 @@ namespace numPDE
         }
 
         auto err = check_sol(errs);
-        return err; 
+        return err;
     }
 
     // -------------------------------------------------------------------------
@@ -209,7 +209,7 @@ namespace numPDE
         r_dec.exchange_ghosts(m_P);
 
         div_pre = check_divergence(m_V, h);
-        if (m_verbose and!r_dec.rank())
+        if (m_verbose and !r_dec.rank())
             std::println(" Post-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t() + 0.5 * adt,
                          div_pre.l_2, div_pre.l_inf);
     }
