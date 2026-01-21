@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
     inputs.constants.h     = h / scale;
     inputs.constants.dt    = dt / scale;
     inputs.constants.T_max = Tmax;
-    inputs.constants.Re    = 1.0;
+    inputs.constants.Re    = 1.0 / 0.0;
 
     inputs.v_BC.u_ex = [&](const numPDE::Node<Real>& p) -> numPDE::Array<Real, 3>
     {

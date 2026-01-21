@@ -165,61 +165,6 @@ namespace numPDE
          * * @param time Current simulation time.
          */
         void apply_bc(T time);
-
-      public:
-        void sanity_check()
-        {
-
-            auto& U = m_V;
-            auto& h = r_inps.constants.h;
-
-            const auto sizes   = r_dec.xSize();
-            const auto strt_wg = r_dec.xStartWGhosts();
-
-            bool is_east   = is_side(SIDES::EAST, r_dec) ? 0 : 1;
-            bool is_bottom = is_side(SIDES::BOTTOM, r_dec) ? 0 : 1;
-
-            auto k_range = range_st_cs(is_bottom, sizes[2]);
-            auto j_range = range_st_cs(is_east, sizes[1]);
-            auto i_range = range_st_cs(0, sizes[0]);
-
-            auto kji_r = std::views::cartesian_product(k_range, j_range, i_range);
-
-            for (auto [k, j, i] : U.int_elems())
-            {
-                auto p     = get_pos(i, j, k, 0.);
-                auto val   = r_inps.v_BC.u_ex(p);
-                U(i, j, k) = val;
-            }
-
-            apply_bc(0.);
-            MPI_Barrier(MPI_COMM_WORLD);
-            r_dec.exchange_ghosts(U);
-
-            for (auto [k, j, i] : U.all_elems())
-            {
-                auto p = get_pos(i, j, k, 0.);
-                auto v = r_inps.v_BC.u_ex(p);
-
-                if (std::abs(U.at(0, i, j, k) - v[0]) >= 1e-4)
-                {
-                    std::println("Errore in U(0) su rank {:}; in {:}, {:}, {:}", r_dec.rank(), i, j,
-                                 k);
-                }
-
-                if (std::abs(U.at(1, i, j, k) - v[1]) >= 1e-4)
-                {
-                    std::println("Errore in U(1) su rank {:}; in {:}, {:}, {:}", r_dec.rank(), i, j,
-                                 k);
-                }
-
-                if (std::abs(U.at(2, i, j, k) - v[2]) >= 1e-4)
-                {
-                    std::println("Errore in U(2) su rank {:}; in {:}, {:}, {:}", r_dec.rank(), i, j,
-                                 k);
-                }
-            }
-        };
     };
 
 } // namespace numPDE
