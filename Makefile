@@ -61,13 +61,14 @@ NP ?= 4
 .PHONY: all clean distclean tests serial parallel \
         SERIAL_TESTS PARALLEL_TESTS run_tests run_serial run_parallel todays_test
 
-all: $(EXEC)
 
 tests: serial parallel
 serial: $(SERIAL_TESTS)
 parallel: $(PARALLEL_TESTS)
 todays_test: $(TODAYS_TEST)
 
+all: 
+	make serial && make parallel
 # ==============================
 # Compile main program (everything O3)
 $(EXEC): $(OBJS)

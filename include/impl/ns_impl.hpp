@@ -32,12 +32,7 @@ namespace numPDE
 
         while (stepper.get_t() <= r_inps.constants.T_max)
         {
-            // TODO:
-            //   - ADD CHECKS ON DT
-            //   - Log time and error once in a while
-            //   - Check the exchange of sides
-
-            // Advance one time step (calls compute_buff_init and pseudoTS)
+            // Advance one time step
             stepper.advance(*this);
 
             auto t_curr = stepper.get_t();
@@ -46,7 +41,7 @@ namespace numPDE
         }
 
         auto err = check_sol(errs);
-        return err; // Added return to match auto signature implication
+        return err; 
     }
 
     // -------------------------------------------------------------------------
@@ -157,6 +152,8 @@ namespace numPDE
     {
         r_dec.exchange_ghosts(m_V);
 
+        Buff.fill_val(0.);
+
         auto instruction = [&](const auto i, const auto j, const auto k)
         {
             const auto pos   = get_pos(i, j, k);
@@ -193,18 +190,16 @@ namespace numPDE
 
         trd_par::parallel_for_int_elems(m_P.get_sizes(), instruction);
 
-        this->apply_bc(stepper.get_t() + adt);
+        this->apply_bc(t_new);
 
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
 
         auto div_pre = check_divergence(m_V, h);
-        if (!r_dec.rank())
+        if (m_verbose and !r_dec.rank())
             std::println(" Pre-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t(), div_pre.l_2,
                          div_pre.l_inf);
 
-        div_pre.l_2   = 0.0;
-        div_pre.l_inf = 0.0;
         pSolve.pressure_correct(m_V, m_P, adt, this->m_verbose);
 
         r_dec.exchange_ghosts(m_P);
@@ -216,7 +211,7 @@ namespace numPDE
         r_dec.exchange_ghosts(m_P);
 
         div_pre = check_divergence(m_V, h);
-        if (!r_dec.rank())
+        if (m_verbose and!r_dec.rank())
             std::println(" Post-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t() + 0.5 * adt,
                          div_pre.l_2, div_pre.l_inf);
     }
@@ -234,10 +229,6 @@ namespace numPDE
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
 
-        auto div_pre = check_divergence(m_V, h);
-
-        div_pre.l_2      = 0.0;
-        div_pre.l_inf    = 0.0;
         auto instruction = [&](const auto i, const auto j, const auto k)
         {
             const auto pos   = get_pos(i, j, k, t_old);
@@ -248,21 +239,18 @@ namespace numPDE
 
         trd_par::parallel_for_int_elems(m_P.get_sizes(), instruction);
 
-        this->apply_bc(stepper.get_t() + c * dt);
+        this->apply_bc(t_new);
 
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
-        div_pre = check_divergence(m_V, h);
-        if (!r_dec.rank())
+        auto div_pre = check_divergence(m_V, h);
+        if (m_verbose and !r_dec.rank())
             std::println(" Pre-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t(), div_pre.l_2,
                          div_pre.l_inf);
 
-        div_pre.l_2   = 0.0;
-        div_pre.l_inf = 0.0;
-
         pSolve.pressure_correct(m_V, m_P, c * dt, this->m_verbose);
 
-        this->apply_bc(stepper.get_t() + c * dt);
+        this->apply_bc(t_new);
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
 
@@ -272,7 +260,7 @@ namespace numPDE
         r_dec.exchange_ghosts(m_P);
 
         div_pre = check_divergence(m_V, h);
-        if (!r_dec.rank())
+        if (m_verbose and !r_dec.rank())
             std::println(" Post-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}",
                          (stepper.get_t() + 0.5 * c * dt), div_pre.l_2, div_pre.l_inf);
     }

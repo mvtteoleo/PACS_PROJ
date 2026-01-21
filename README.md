@@ -62,6 +62,9 @@ Once inside the nix-shell is enough to call `make parallel` or `make serial` or
 The test are quite a few and each one has its own description on the top of
 the source code.
 
+One notes on the tools/ directory, it contains some .py to handle manufactured
+solutions and in general helpers.
+
 Some more interesting aspect in the project:
 
   - VTK written in parallel using the .pvts format.
