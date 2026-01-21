@@ -40,7 +40,7 @@ The directory is divided as can be seeen below.
 17 directories, 114 files
 ```
 
-All the dependency besides PETSc and fftw are inside the include/third_party/ directory. 
+All the dependency not present in the flake.nix file are inside the include/third_party/ directory. 
 
   -  [2DecompC](https://github.com/emathew1/2Decomp_C) To handle domain
   decomposition and data transpositions necessary for the  FastPoissonSolver.
@@ -63,6 +63,7 @@ the source code.
 
 Some more interesting aspect in the project:
 
+  - VTK written in parallel using the .pvts format.
   - Curiously recurring templates instead of inheritance from virtual
   - Policy based designed instead of a solver class that inherits
   - Expression templates
