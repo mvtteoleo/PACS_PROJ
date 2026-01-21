@@ -255,13 +255,14 @@ namespace numPDE
                 auto   n_min = std::min(std::min(NxLoc, NyLoc), NzLoc);
                 size_t opt   = std::floor(std::log2(n_min) - 2);
 #ifdef PEDANTIC
-		if(false)
-		{
-	            std::println(
-                    "Number of levels of the MG solver modified from {:} to {:}. If this is not "
-                    "wanted modify the parameter enforce_levels to true in the mg_settings",
-                    m_mg_settings.mg_levels, opt);
-		}
+                if (false)
+                {
+                    std::println(
+                        "Number of levels of the MG solver modified from {:} to {:}. If this is "
+                        "not "
+                        "wanted modify the parameter enforce_levels to true in the mg_settings",
+                        m_mg_settings.mg_levels, opt);
+                }
 #endif
                 m_mg_settings.mg_levels = opt;
             }

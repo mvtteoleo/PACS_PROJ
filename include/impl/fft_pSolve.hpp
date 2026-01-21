@@ -43,7 +43,6 @@ namespace numPDE
 #endif
 
         this->reorder_data<MOVE_TYPE::ToGhosted>();
-        this->compute_div_on_sides();
 
         this->r_dec.exchange_ghosts(m_P_ghosted);
         const auto& sz     = this->m_P_ghosted.get_sizes();
