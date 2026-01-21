@@ -72,3 +72,4 @@ Some more interesting aspect in the project:
   - Policy based designed instead of a solver class that inherits
   - Expression templates
   - Static reflections and compile time dispatch
+

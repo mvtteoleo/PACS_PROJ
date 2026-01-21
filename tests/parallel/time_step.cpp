@@ -44,7 +44,7 @@ int main(int argc, char* argv[])
     decomposer.initialize_decomp(nx, ny, nz);
 
     numPDE::NS_input<Real> inputs;
-    std::fill(inputs.p_BC.BC_s.begin(), inputs.p_BC.BC_s.end(), numPDE::DirHomo);
+    std::fill(inputs.p_BC.BC_s.begin(), inputs.p_BC.BC_s.end(), numPDE::NeuHomo);
 
     inputs.constants.h     = h / scale;
     inputs.constants.dt    = dt / scale;

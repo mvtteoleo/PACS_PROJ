@@ -138,8 +138,6 @@ namespace numPDE
             err.l_inf = std::max(max_loc, err.l_inf);
         }
 
-        std::println("Err L2: {:.3e}, rank : {:}", err.l_2 * h * h * h, r_dec.rank());
-
         err.reduce(h * h * h);
         return err;
     }

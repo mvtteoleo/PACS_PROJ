@@ -1,16 +1,13 @@
-
-#include <array>
 #include <cassert>
 #include <fstream>
 #include <iomanip>
-#include <iostream> // Added for cerr
-#include <mpi.h>    // Assuming MPI is used
+#include <iostream>
+#include <mpi.h>
 #include <sstream>
 #include <string>
 #include <vector>
+#include <limits> 
 
-// Simple helper that writes .vts and .pvts using your decomposition info
-// --- REVERTING TO POINT-BASED ASSUMPTION ---
 template <typename Decomp, typename Tensor>
 struct VTKStructuredWriter
 {
@@ -23,50 +20,52 @@ struct VTKStructuredWriter
      */
     void write(const Tensor& field, const std::string& base, double h = 1) const
     {
-        int  rank = decomp.rank();
+        int rank = decomp.rank();
         auto dims = field.get_sizes(); // Local point dimensions (nx, ny, nz)
-        auto start =
-            decomp.xStartWGhosts(); // Global starting point index (start_x, start_y, start_z)
+        auto start = decomp.xStartWGhosts(); // Global starting point index
 
         int nx = dims[0];
         int ny = dims[1];
         int nz = dims[2];
 
-        auto [NxGlob, NyGLob, NzGlob] = decomp.get_global_sizes();
+        // Global topological dimensions (number of nodes, not physical size)
+        auto [NxGlob, NyGlob, NzGlob] = decomp.get_global_sizes();
 
+        // 1. Write the local .vts file
         std::ostringstream fname;
         fname << base << "_" << std::setw(4) << std::setfill('0') << rank << ".vts";
         std::ofstream ofs(fname.str());
-        if (!ofs)
-        {
+        
+        if (!ofs) {
             if (rank == 0) std::cerr << "Cannot open " << fname.str() << "\n";
             return;
         }
 
-        ofs << R"(<?xml version="1.0"?>)"
-            << "\n";
-        ofs << R"(<VTKFile type="StructuredGrid" version="0.1" byte_order="LittleEndian">)"
-            << "\n";
+        // Set high precision for ASCII writing to avoid stepping artifacts
+        ofs << std::scientific << std::setprecision(std::numeric_limits<double>::max_digits10);
 
-        // --- FIX 1 (Point-Based Extent): WholeExtent ---
-        ofs << "  <StructuredGrid WholeExtent=\"" << 0 << " " << NxGlob - 1 << " " << 0 << " "
-            << NyGLob - 1 << " " << 0 << " " << NzGlob - 1 << "\">\n";
+        ofs << R"(<?xml version="1.0"?>)" << "\n";
+        ofs << R"(<VTKFile type="StructuredGrid" version="0.1" byte_order="LittleEndian">)" << "\n";
 
-        // --- FIX 2 (Point-Based Extent): Piece Extent ---
-        // Piece Extent = start to start + size - 1
-        ofs << "    <Piece Extent=\"" << start[0] << " " << start[0] + nx - 1 << " " << start[1]
-            << " " << start[1] + ny - 1 << " " << start[2] << " " << start[2] + nz - 1 << "\">\n";
+        // WholeExtent: The Global range of INDICES (0 to N-1)
+        ofs << "  <StructuredGrid WholeExtent=\"" 
+            << 0 << " " << NxGlob - 1 << " " 
+            << 0 << " " << NyGlob - 1 << " " 
+            << 0 << " " << NzGlob - 1 << "\">\n";
 
-        // --- FIX 3 (Point-Based): Points loop (nx * ny * nz points) ---
+        // Piece Extent: The Local range of INDICES
+        ofs << "    <Piece Extent=\"" 
+            << start[0] << " " << start[0] + nx - 1 << " " 
+            << start[1] << " " << start[1] + ny - 1 << " " 
+            << start[2] << " " << start[2] + nz - 1 << "\">\n";
+
+        // Points
         ofs << "      <Points>\n";
-        ofs << "        <DataArray type=\"Float32\" NumberOfComponents=\"3\" format=\"ascii\">\n";
-        for (int k = 0; k < nz; ++k)
-        {
-            for (int j = 0; j < ny; ++j)
-            {
-                for (int i = 0; i < nx; ++i)
-                {
-                    // Calculate point coordinates
+        // CHANGED: Float32 -> Float64 to match C++ 'double'
+        ofs << "        <DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">\n";
+        for (int k = 0; k < nz; ++k) {
+            for (int j = 0; j < ny; ++j) {
+                for (int i = 0; i < nx; ++i) {
                     double x = (start[0] + i) * h;
                     double y = (start[1] + j) * h;
                     double z = (start[2] + k) * h;
@@ -77,9 +76,10 @@ struct VTKStructuredWriter
         ofs << "        </DataArray>\n";
         ofs << "      </Points>\n";
 
-        // --- FIX 4 (Point-Based): PointData ---
+        // PointData
         ofs << "      <PointData Scalars=\"scalar\">\n";
-        ofs << "        <DataArray Name=\"scalar\" type=\"Float32\" format=\"ascii\">\n";
+        // CHANGED: Float32 -> Float64
+        ofs << "        <DataArray Name=\"scalar\" type=\"Float64\" format=\"ascii\">\n";
         for (int k = 0; k < nz; ++k)
             for (int j = 0; j < ny; ++j)
                 for (int i = 0; i < nx; ++i)
@@ -92,76 +92,67 @@ struct VTKStructuredWriter
         ofs << "</VTKFile>\n";
         ofs.close();
 
-        // --- MPI GATHERING LOGIC (New) ---
-
+        // 2. MPI Gathering for the master .pvts file
         int nproc = decomp.totRank();
 
         // Data array to send: start (3 ints) + dims (3 ints) = 6 integers
-        int local_extent[6] = {start[0], start[1], start[2], nx, ny, nz};
+        int local_extent[6] = {(int)start[0], (int)start[1], (int)start[2], nx, ny, nz};
 
-        // Vector to receive all data on rank 0
         std::vector<int> all_extents;
-        if (rank == 0)
-        {
+        if (rank == 0) {
             all_extents.resize(nproc * 6);
         }
 
-        // Gather all decomposition info onto rank 0
         MPI_Gather(local_extent, 6, MPI_INT, all_extents.data(), 6, MPI_INT, 0, MPI_COMM_WORLD);
 
-        // Removed MPI_Barrier here as MPI_Gather provides synchronization
-        // MPI_Barrier(MPI_COMM_WORLD);
-
-        if (rank == 0)
-        {
-            // Pass gathered data to the writer
+        if (rank == 0) {
+            // Note: Passed 'h' here to help calculate grid spacing if needed, 
+            // but Extents are purely topological integers.
             write_pvts(base, h, nproc, all_extents);
         }
     }
 
-    // --- UPDATED SIGNATURE: Now accepts all_extents ---
     void write_pvts(const std::string& base, double h, int nproc,
                     const std::vector<int>& all_extents) const
     {
         auto [NxGlob, NyGlob, NzGlob] = decomp.get_global_sizes();
+        
         std::ofstream ofs(base + ".pvts");
-        ofs << R"(<?xml version="1.0"?>)"
-            << "\n";
-        ofs << R"(<VTKFile type="PStructuredGrid" version="0.1" byte_order="LittleEndian">)"
-            << "\n";
+        ofs << R"(<?xml version="1.0"?>)" << "\n";
+        ofs << R"(<VTKFile type="PStructuredGrid" version="0.1" byte_order="LittleEndian">)" << "\n";
 
-        // WholeExtent
-        ofs << "  <PStructuredGrid WholeExtent=\"" << 0 << " "
-            << h * static_cast<double>(NxGlob - 1) << " " << 0 << " "
-            << h * static_cast<double>(NyGlob - 1) << " " << 0 << " "
-            << h * static_cast<double>(NzGlob - 1) << "\"\n";
-
-        ofs << "                   GhostLevel=\"1\">\n";
+        // --- CRITICAL FIX HERE ---
+        // WholeExtent must be INTEGERS (indices), not physical coordinates (h * N).
+        // It describes the topological i,j,k range of the entire grid.
+        ofs << "  <PStructuredGrid WholeExtent=\"" 
+            << 0 << " " << NxGlob - 1 << " " 
+            << 0 << " " << NyGlob - 1 << " " 
+            << 0 << " " << NzGlob - 1 << "\"\n";
+            
+        // Assuming you have ghost cells because of 'xStartWGhosts'.
+        // If your decomposition strictly cuts the domain with no overlap, set GhostLevel="0".
+        ofs << "                   GhostLevel=\"1\">\n"; 
 
         ofs << "    <PPoints>\n";
-        ofs << "      <PDataArray type=\"Float32\" NumberOfComponents=\"3\"/>\n";
+        // CHANGED: Float32 -> Float64
+        ofs << "      <PDataArray type=\"Float64\" NumberOfComponents=\"3\"/>\n";
         ofs << "    </PPoints>\n";
 
         ofs << "    <PPointData Scalars=\"scalar\">\n";
-        ofs << "      <PDataArray Name=\"scalar\" type=\"Float32\"/>\n";
+        // CHANGED: Float32 -> Float64
+        ofs << "      <PDataArray Name=\"scalar\" type=\"Float64\"/>\n";
         ofs << "    </PPointData>\n";
 
-        // Find the base filename for relative paths (e.g., "field")
+        // Parse base filename
         std::string base_filename = base;
-        size_t      last_slash    = base.find_last_of("/\\");
-        if (last_slash != std::string::npos)
-        {
+        size_t last_slash = base.find_last_of("/\\");
+        if (last_slash != std::string::npos) {
             base_filename = base.substr(last_slash + 1);
         }
 
-        // --- FIX 7: Add Extent to Piece in .pvts using gathered data ---
-
         for (int r = 0; r < nproc; ++r)
         {
-            // Calculate index offset: 6 integers per rank (3 start + 3 size)
             int offset = r * 6;
-
-            // Retrieve start and size for rank 'r' from the gathered array
             int start_x = all_extents[offset + 0];
             int start_y = all_extents[offset + 1];
             int start_z = all_extents[offset + 2];
@@ -169,11 +160,11 @@ struct VTKStructuredWriter
             int ny_r    = all_extents[offset + 4];
             int nz_r    = all_extents[offset + 5];
 
-            // Piece Extent = start to start + size - 1
-            ofs << "    <Piece Extent=\"" << start_x << " " << start_x + nx_r - 1 << " " << start_y
-                << " " << start_y + ny_r - 1 << " " << start_z << " " << start_z + nz_r - 1 << "\" "
-                << "Source=\"" << base_filename << "_" << std::setw(4) << std::setfill('0') << r
-                << ".vts\"/>\n";
+            ofs << "    <Piece Extent=\"" 
+                << start_x << " " << start_x + nx_r - 1 << " " 
+                << start_y << " " << start_y + ny_r - 1 << " " 
+                << start_z << " " << start_z + nz_r - 1 << "\" "
+                << "Source=\"" << base_filename << "_" << std::setw(4) << std::setfill('0') << r << ".vts\"/>\n";
         }
 
         ofs << "  </PStructuredGrid>\n";

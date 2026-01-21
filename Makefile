@@ -59,7 +59,8 @@ NP ?= 4
 # Default goal
 .DEFAULT_GOAL := all
 .PHONY: all clean distclean tests serial parallel \
-        SERIAL_TESTS PARALLEL_TESTS run_tests run_serial run_parallel todays_test
+        SERIAL_TESTS PARALLEL_TESTS run_tests run_serial run_parallel todays_test \
+		main
 
 
 tests: serial parallel
