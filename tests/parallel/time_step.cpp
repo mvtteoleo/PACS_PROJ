@@ -3,7 +3,7 @@
 #include <print>
 #include <utility>
 using Real = double;
-#define MG 2
+#define MG 0
 #include "../../include/navier_stokes.hpp"
 #include <climits>
 #include <cmath>
@@ -62,8 +62,10 @@ int main(int argc, char* argv[])
         const auto u_z = numPDE::uz(p.x, p.y, z_s, p.t);
         return numPDE::Array{u_x, u_y, u_z};
     };
+
     inputs.v_BC.u_0 = [&](const numPDE::Node<Real>& p) -> numPDE::Array<Real, 3>
     { return inputs.v_BC.u_ex(p); };
+
     inputs.v_BC.f = [&](const numPDE::Node<Real>& p) -> numPDE::Array<Real, 3>
     {
         const auto& Re  = inputs.constants.Re;

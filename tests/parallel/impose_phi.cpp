@@ -107,7 +107,7 @@ int main(int argc, char* argv[])
     numPDE::Error<Real> err_div{};
 
     // Check Pressure (Should match phi/dt)
-    for (auto [kp, jp, ip] : P.int_elems())
+    for (auto [kp, jp, ip] : P.all_elems())
     {
         // P is cell centered
         numPDE::Node<Real> pos{.x = csts.h * (ip + xsrt[0]),
