@@ -1,46 +1,69 @@
-Repo fatta con l'idea di sviluppare il codice per la tesi
+This project is a direct numerical solver for computational fluid dynamic, the
+NSSolver class is templated so that is able to solve the Poisson equation for
+pressure both using Spectral solver and a Multigrid solver.
 
-Nix develop per attivare la shell con tutto.
-tests in ```./tests/```
-```make <nome_test(SENZA.cpp)>``` per generare l'eseguibile
+The C++ standard chpse is C++23, to manage the dependencies I here use nix, the only real dependency.
 
-Milestones: 
-  ✓ Scalar and Vector Fields
-  ✓ Working math operators
-  ✓ Working dumps (binary and VTK format)
-  ✓ time step (Serial)                          
-  ✓ of the pressure correction (Serial and then parallel)
-  - Full solver (And validation)
-  - Test the Poisson solvers for this part:
+If one is missing nix can avoid installing it globally using [nix-portable](https://github.com/DavHau/nix-portable).
 
-Some more notes:
+The [flake.nix](./flake.nix) file is the one that handles dependencies and packages needed.
+
+To run one needs to either call `nix develop` or `./nix-portable nix develop
+--extra-experimental-features "nix-command flakes"` to enter in the
+nix-shell. 
+
+The directory is divided as can be seeen below.
+```
+.
+├── build/
+├── debug.pbs
+├── flake.lock
+├── flake.nix
+├── include/
+│   ├── datastructs/
+│   ├── impl/
+│   └── third_party/
+│       ├── 2Decomp_C/
+│       ├── gnuplot-iostream.h
+│       └── MPI_types.hpp
+├── Makefile
+├── new_flake.nix
+├── output
+├── perf_test.pbs
+├── README.md
+├── scaling.pbs
+├── tests/
+│   ├── parallel/
+│   └── serial/
+└── tools
+
+17 directories, 114 files
+```
+
+All the dependency besides PETSc and fftw are inside the include/third_party/ directory. 
+
+  -  [2DecompC](https://github.com/emathew1/2Decomp_C) To handle domain
+  decomposition and data transpositions necessary for the  FastPoissonSolver.
+  - [gnuplot-iostrem](https://github.com/dstahlke/gnuplot-iostream) In order to
+  make plots in a more fast  way and avoid the complex sintax and verbosity of
+  gnuplot.
+  -  [MPI_Types](https://gist.github.com/2b-t/50d85115db8b12ed263f8231abf07fa2)
+  To handle the MPI types in a consistent way give the template usage.
+
+All the classes have the relative implementation in the impl/ directory.
+The tests are divided in parallel and serial for debug porpouses.
+All the executables will be in the build directory and then each is divided
+between serial and parallel subdirectory.
+
+Once inside the nix-shell is enough to call `make parallel` or `make serial` or
+`make all` to build all the executables.
+
+The test are quite a few and each one has its own description on the top of
+the source code.
+
+Some more interesting aspect in the project:
 
   - Curiously recurring templates instead of inheritance from virtual
   - Policy based designed instead of a solver class that inherits
   - Expression templates
   - Static reflections and compile time dispatch
-
-
-# TODO for the report:
-
-  - Full NS solver templated on the Poisson solver
-  - Write VTK also for the pressure without intermediate Tensor
-  - RK class to handle the time integration (If have time)
-  - Scalability test
-  - Parse from text
-
-
-
-# To produce the container
-
-1. Build the binaries
-nix build .#container
-
-1. Unzip the Nix output into a clean tar file
-gunzip -c result > image.tar
-
-1. Build the Apptainer image from the uncompressed tar
-apptainer build pacs-env.sif docker-archive://image.tar
-
-1. Clean up the temporary tar
-rm image.tar
