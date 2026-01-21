@@ -166,10 +166,8 @@ int main(int argc, char* argv[])
     }
 
     // Write output for Paraview
-    /*
-    VTKStructuredWriter<DecompType, numPDE::Tensor<double, 3, 3>> writer(dec);
-    writer.write(P, "output/debug_pressure", 1);
-    */
+    VTKStructuredWriter<DecompType, numPDE::Tensor<Real, 3, 3>> writer(dec);
+    writer.write(P, "output/debug_pressure", csts.h);
 
     return 0;
 }
