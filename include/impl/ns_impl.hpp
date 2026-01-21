@@ -200,9 +200,6 @@ namespace numPDE
 
         pSolve.pressure_correct(m_V, m_P, adt, this->m_verbose);
 
-        r_dec.exchange_ghosts(m_P);
-        r_dec.exchange_ghosts(m_V);
-
         this->apply_bc(t_new);
 
         r_dec.exchange_ghosts(m_V);
@@ -247,10 +244,6 @@ namespace numPDE
                          div_pre.l_inf);
 
         pSolve.pressure_correct(m_V, m_P, c * dt, this->m_verbose);
-
-        this->apply_bc(t_new);
-        r_dec.exchange_ghosts(m_V);
-        r_dec.exchange_ghosts(m_P);
 
         this->apply_bc(t_new);
 

@@ -4,6 +4,7 @@
 #include <cassert>
 #include <fstream>
 #include <iomanip>
+#include <print>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -31,17 +32,18 @@ int main(int argc, char* argv[])
     if (N < 2) N = 5;
     std::size_t nx = N, ny = N, nz = N;
 
-    /*
-     *PETScDecomp<>
-     */
     using DecompType = NewDecomp<>;
     DecompType decomp(argc, argv);
 
     decomp.initialize_decomp(nx, ny, nz);
 
+    const auto& neigh = decomp.get_neighbors();
+    
+    print_vals(decomp);
+
     numPDE::Tensor<double, 3, 3> field(decomp.dimsWithGhosts());
     field.fill_val(-1.0);
-    for (const auto [k, j, i] : field.int_elems())
+    for (const auto [k, j, i] : field.all_elems())
         field(i, j, k) = decomp.rank();
 
     decomp.exchange_ghosts(field);

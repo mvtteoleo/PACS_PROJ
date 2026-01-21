@@ -48,12 +48,13 @@ namespace numPDE
         template <SolverConc Solver>
         void advance(Solver& r_solver) noexcept
         {
+            m_V_old.fill_val(0.);
             const auto t_old = this->t;
             const auto dt    = r_solver.get_dt();
             // Initialize BUFF with forcing(Un) to avoid recomputing twice
             // Needs only t_old (ie current time)
             r_solver.compute_buff_init(m_buff);
-
+            
             // Extract V_old
             m_V_old = r_solver.get_x();
 
