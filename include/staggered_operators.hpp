@@ -56,7 +56,7 @@ namespace numPDE
         U[0]              = C[0];
         U[1]              = u_on_y;
         U[2]              = u_on_z;
-        ris               = U * (N - S) ;
+        ris               = U * (N - S);
 
         const auto v_on_x = 0.25 * (C[1] + E[1] + N[1] + h_U.at(1, i + 1, j - 1, k));
         const auto v_on_z = 0.25 * (C[1] + E[1] + Top[1] + h_U.at(1, i, j - 1, k + 1));
@@ -64,7 +64,7 @@ namespace numPDE
         U[1]              = C[1];
         U[2]              = v_on_z;
 
-        ris = ris + U * (W - E) ;
+        ris = ris + U * (W - E);
 
         const auto w_on_x = 0.25 * (C[2] + B[2] + N[2] + h_U.at(2, i + 1, j, k - 1));
         const auto w_on_y = 0.25 * (C[2] + B[2] + W[2] + h_U.at(2, i, j + 1, k - 1));
@@ -72,8 +72,7 @@ namespace numPDE
         U[1]              = w_on_y;
         U[2]              = C[2];
 
-        ris = ris + U * (Top - B) ;
-
+        ris = ris + U * (Top - B);
 
         ris = -1.0 * ris * one_over_2h + (E + W + N + S + Top + B - 6.0 * C) * inv_4Re_h_2;
         return ris;

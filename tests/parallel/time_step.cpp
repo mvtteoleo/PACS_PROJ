@@ -60,12 +60,10 @@ int main(int argc, char* argv[])
         const auto u_x = numPDE::ux(x_s, p.y, p.z, p.t);
         const auto u_y = numPDE::uy(p.x, y_s, p.z, p.t);
         const auto u_z = numPDE::uz(p.x, p.y, z_s, p.t);
-        return numPDE::Array{u_x, u_y,u_z};
+        return numPDE::Array{u_x, u_y, u_z};
     };
-    inputs.v_BC.u_0  = [&](const numPDE::Node<Real> &p) -> numPDE::Array<Real, 3>
-    {
-            return inputs.v_BC.u_ex(p); 
-    };
+    inputs.v_BC.u_0 = [&](const numPDE::Node<Real>& p) -> numPDE::Array<Real, 3>
+    { return inputs.v_BC.u_ex(p); };
     inputs.v_BC.f = [&](const numPDE::Node<Real>& p) -> numPDE::Array<Real, 3>
     {
         const auto& Re  = inputs.constants.Re;
