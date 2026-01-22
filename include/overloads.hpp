@@ -22,7 +22,7 @@ concept ElementIterable = requires(std::ranges::range_value_t<T> x) {
 template <ElementIterable Range>
 std::ostream& operator<<(std::ostream& os, const Range&& vec)
 {
-    std::cout << OUT_NAME(vec) << " : ( ";
+    std::cout << " : ( ";
     for (const auto& i : vec)
         std::cout << i << std::endl;
     std::cout << ") " << std::endl;

@@ -110,12 +110,11 @@ struct VTKStructuredWriter
         {
             // Note: Passed 'h' here to help calculate grid spacing if needed,
             // but Extents are purely topological integers.
-            write_pvts(base, h, nproc, all_extents);
+            write_pvts(base, nproc, all_extents);
         }
     }
 
-    void write_pvts(const std::string& base, double h, int nproc,
-                    const std::vector<int>& all_extents) const
+    void write_pvts(const std::string& base, int nproc, const std::vector<int>& all_extents) const
     {
         auto [NxGlob, NyGlob, NzGlob] = decomp.get_global_sizes();
 

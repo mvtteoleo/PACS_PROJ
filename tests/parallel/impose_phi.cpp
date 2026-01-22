@@ -46,14 +46,14 @@ int main(int argc, char* argv[])
 
     // Phi: The scalar potential we will add (Noise).
     // Chosen to satisfy Neumann BCs (grad phi * n = 0) so P_exact is exactly phi/dt
+    Real coeff   = 0.001;
     auto get_phi = [&](const numPDE::Node<Real>& pos) -> Real
-    { return 0.01 * std::cos(pos.x) * std::cos(pos.y) * std::cos(pos.z); };
+    { return coeff * std::cos(pos.x) * std::cos(pos.y) * std::cos(pos.z); };
 
     // Analytical Gradient of Phi to create the perturbed input
     auto get_grad_phi = [&](const numPDE::Node<Real>& pos, int comp) -> Real
     {
         using std::sin, std::cos;
-        Real coeff = 0.01;
         if (comp == 0) return -coeff * sin(pos.x) * cos(pos.y) * cos(pos.z); // dphi/dx
         if (comp == 1) return -coeff * cos(pos.x) * sin(pos.y) * cos(pos.z); // dphi/dy
         if (comp == 2) return -coeff * cos(pos.x) * cos(pos.y) * sin(pos.z); // dphi/dz

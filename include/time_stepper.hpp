@@ -48,7 +48,6 @@ namespace numPDE
         template <SolverConc Solver>
         void advance(Solver& r_solver) noexcept
         {
-            m_V_old.fill_val(0.);
             const auto t_old = this->t;
             const auto dt    = r_solver.get_dt();
             // Initialize BUFF with forcing(Un) to avoid recomputing twice

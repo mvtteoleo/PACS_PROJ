@@ -20,6 +20,15 @@ namespace numPDE
         PETSc
     };
 
+    /*
+     * Handle the steps :
+     * Solve
+     *   Δ Φ = ∇ ⋅ V / dt
+     *
+     * Update
+     *   V += - dt * ∇Φ
+     *   P += Φ
+     */
     // Forward Declaration
     template <SolvePolicy solveP, DecomposeConc Decomp>
     struct PressureSolver;
@@ -95,14 +104,5 @@ namespace numPDE
 
 }; // namespace numPDE
 
-/*
- * Handle the steps :
- * Solve
- *   Δ Φ = ∇ ⋅ V / dt
- *
- * Update
- *   V += - ∇
- *   P += Φ
- */
 #include "impl/fft_pSolve.hpp"
 #include "impl/mg_pSolve.hpp"

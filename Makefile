@@ -34,7 +34,6 @@ BUILD_DIR    := build
 C2DECOMP_DIR := include/third_party/2Decomp_C
 
 # Main target
-EXEC      := main
 
 # ==============================
 # Sources & Objects
@@ -52,6 +51,8 @@ PARALLEL_SRCS  := $(wildcard $(PARALLEL_DIR)/*.cpp)
 PARALLEL_TESTS := $(patsubst $(PARALLEL_DIR)/%.cpp,$(BUILD_DIR)/parallel/%,$(PARALLEL_SRCS))
 TODAYS_TEST := $(patsubst $(PARALLEL_DIR)/clust_test_conv_speed_Psolve.cpp,$(BUILD_DIR)/parallel/clust_test_conv_speed_Psolve,$(PARALLEL_SRCS))
 
+
+
 # Default MPI processes
 NP ?= 4
 
@@ -67,6 +68,7 @@ tests: serial parallel
 serial: $(SERIAL_TESTS)
 parallel: $(PARALLEL_TESTS)
 todays_test: $(TODAYS_TEST)
+
 
 all: 
 	make serial && make parallel
@@ -133,3 +135,17 @@ tidy:
 		echo "Checked $(src)"; \
 	)
 	@echo "clang-tidy output written to log_tidy.txt
+
+
+MAIN_SRC  := main.cpp
+MAIN_EXEC := $(BUILD_DIR)/main
+main: $(MAIN_EXEC)
+
+$(MAIN_EXEC): $(BUILD_DIR)/main.o $(OBJS) $(C2DECOMP_OBJS)
+	@mkdir -p $(dir $@)
+	$(MPICXX) $(GEN_FLAGS) $(CPPFLAGS) $^ -o $@ $(LDFLAGS) $(LDLIBS)
+
+# Rule to compile main.o
+$(BUILD_DIR)/main.o: main.cpp
+	@mkdir -p $(dir $@)
+	$(MPICXX) $(GEN_FLAGS) $(CPPFLAGS) -c $< -o $@
