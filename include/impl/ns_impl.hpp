@@ -30,13 +30,16 @@ namespace numPDE
 
         initialize_u0();
 
-        while (stepper.get_t() <= r_inps.constants.T_max)
+        while (std::fabs(-stepper.get_t() + r_inps.constants.T_max) > 1e-9)
         {
             // Advance one time step
             stepper.advance(*this);
 
             auto t_curr = stepper.get_t();
-            auto err    = compute_err(t_curr);
+            if (!r_dec.rank())
+                std::println("Sim at {:.3e} of {:.3e}", t_curr, r_inps.constants.T_max);
+
+            auto err = compute_err(t_curr);
             errs.emplace_back(err);
         }
 
@@ -112,6 +115,10 @@ namespace numPDE
 
             std::cout << "Time stepper error : \n";
             err.print_errs(r_dec.rank());
+
+            const auto& last = errs[errs.size() - 1];
+            std::println("Last timestep error");
+            last.print_errs(r_dec.rank());
         }
         return err;
     }
@@ -201,6 +208,7 @@ namespace numPDE
 
         this->apply_bc(t_new);
         pSolve.pressure_correct(m_V, m_P, adt, this->m_verbose);
+        this->apply_bc(t_new);
 
         r_dec.exchange_ghosts(m_V);
         r_dec.exchange_ghosts(m_P);
@@ -236,6 +244,7 @@ namespace numPDE
 
         this->apply_bc(t_new);
         r_dec.exchange_ghosts(m_V);
+        this->apply_bc(t_new);
 
         auto div_pre = check_divergence(m_V, h);
         if (m_verbose and !r_dec.rank())

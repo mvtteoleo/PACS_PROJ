@@ -123,7 +123,7 @@ namespace numPDE
             this->l_inf = glob_max;
         };
 
-        void print_errs(int rank0)
+        void print_errs(int rank0) const
         {
             if (!rank0)
             {

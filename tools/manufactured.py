@@ -16,10 +16,10 @@ def s(val): return sp.sin(mpi * val)
 def c(val): return sp.cos(mpi * val)
 
 # Velocity Fields
-u = c(x) * s(y) * c(z) * s(t)
-v = s(x) * c(y) * c(z) * s(t)
-w = 2 * s(x) * s(y) * s(z) * s(t)
-p = c(x) * c(y) * c(z)
+u = c(x) * s(y) * c(z) * sp.sin(t)
+v = s(x) * c(y) * c(z) * sp.sin(t)
+w = 2 * s(x) * s(y) * s(z) * sp.sin(t)
+p = c(x) * c(y) * c(z) * sp.sin(t)
 
 # --- 2. Define Derivatives and Navier-Stokes Forces ---
 # Check continuity (optional, good for verification)

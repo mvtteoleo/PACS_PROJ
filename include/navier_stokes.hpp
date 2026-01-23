@@ -69,7 +69,9 @@ namespace numPDE
             : m_V{numPDE::make_vector_field<T, 3>(dec.dimsWithGhosts())}, m_P{dec.dimsWithGhosts()},
               stepper{m_V}, pSolve{dec, inp.p_BC, inp.constants}, r_inps{inp}, r_dec{dec}
         {
-            assert(r_inps.constants.dt <= r_inps.constants.h * r_inps.constants.h &&
+
+            assert(r_inps.constants.dt <=
+                       r_inps.constants.h * r_inps.constants.h * r_inps.constants.Re * 0.1 &&
                    "dt is too big for space discretization");
         }
 

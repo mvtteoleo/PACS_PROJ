@@ -88,7 +88,7 @@ int main(int argc, char** argv)
     {
         const auto          n_steps = N * std::pow(2, s) + 1;
         std::vector<double> u_s(n_steps), u_exact(n_steps);
-        dts[s]         = T_max / (n_steps - 1);
+        dts[s]         = T_max / (n_steps);
         const auto& dt = dts[s];
 
         auto&      err = errs[s];

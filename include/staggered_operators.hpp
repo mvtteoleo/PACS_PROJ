@@ -75,6 +75,7 @@ namespace numPDE
         ris = ris + U * (Top - B);
 
         ris = -1.0 * ris * one_over_2h + (E + W + N + S + Top + B - 6.0 * C) * inv_4Re_h_2;
+
         return ris;
     }
 
