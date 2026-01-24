@@ -27,7 +27,7 @@
             pkgs.ginac
             pkgs.fftw
             pkgs.eigen
-            pkgs.petsc
+	    pkgs.petsc
             pkgs.boost
             pkgs.gnuplot
             pkgs.tbb

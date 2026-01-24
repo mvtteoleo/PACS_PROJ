@@ -17,12 +17,12 @@ cd /work/u10722968/
 source /etc/profile.d/pbs.sh
 
 # 2. Point to the correct executable 
-EXE="./PACS_PROJ/build/parallel/clust_test_conv_speed_Psolve"
+EXE="./PACS_PROJ/build/parallel/impose_phi"
 
 
 # Default arguments (e.g., passing nothing if your main loop handles N)
 if [ -z "$PROG_ARGS" ]; then
-    PROG_ARGS="" 
+    PROG_ARGS="515" 
 fi
 
 # Initialize the log file
@@ -37,7 +37,7 @@ echo "========================================" >> $LOG_FILE
 # perf stat stat -e cycles,instructions \
 /work/u10722968/nix-portable nix develop --extra-experimental-features "nix-command flakes" --impure ./PACS_PROJ \
     --command \
-    mpirun -np 6 \
+    mpirun  \
     --hostfile $PBS_NODEFILE \
     --bind-to core \
     --map-by core \
