@@ -206,17 +206,17 @@ namespace numPDE
             std::println(" Pre-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t(), div_pre.l_2,
                          div_pre.l_inf);
 
-        this->apply_bc(t_new);
         pSolve.pressure_correct(m_V, m_P, adt, this->m_verbose);
-        this->apply_bc(t_new);
-
-        r_dec.exchange_ghosts(m_V);
-        r_dec.exchange_ghosts(m_P);
 
         div_pre = check_divergence(m_V, h);
         if (m_verbose and !r_dec.rank())
             std::println(" Post-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}", stepper.get_t() + 0.5 * adt,
                          div_pre.l_2, div_pre.l_inf);
+
+        this->apply_bc(t_new);
+
+        r_dec.exchange_ghosts(m_V);
+        r_dec.exchange_ghosts(m_P);
     }
 
     template <SolvePolicy solveP, DecomposeConc Decomp>
@@ -242,9 +242,7 @@ namespace numPDE
 
         trd_par::parallel_for_int_elems(m_P.get_sizes(), instruction);
 
-        this->apply_bc(t_new);
         r_dec.exchange_ghosts(m_V);
-        this->apply_bc(t_new);
 
         auto div_pre = check_divergence(m_V, h);
         if (m_verbose and !r_dec.rank())
@@ -253,13 +251,14 @@ namespace numPDE
 
         pSolve.pressure_correct(m_V, m_P, c * dt, this->m_verbose);
 
-        r_dec.exchange_ghosts(m_V);
-        r_dec.exchange_ghosts(m_P);
 
         div_pre = check_divergence(m_V, h);
         if (m_verbose and !r_dec.rank())
             std::println(" Post-Pcorr {:.9e},  \t {:.9e}, \t {:.9e}",
                          (stepper.get_t() + 0.5 * c * dt), div_pre.l_2, div_pre.l_inf);
+
+        this->apply_bc(t_new);
+        r_dec.exchange_ghosts(m_V);
     }
 
     // -------------------------------------------------------------------------

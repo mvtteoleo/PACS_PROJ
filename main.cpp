@@ -1,8 +1,14 @@
+// The only supperted type as of now due to 2Decomp's limitations
+#include <functional>
+#include <numbers>
+#include <print>
+#include <utility>
 using Real = double;
 #define MG 0
 #include "include/navier_stokes.hpp"
 #include <climits>
 #include <cmath>
+
 
 int main(int argc, char* argv[])
 {
@@ -27,9 +33,19 @@ int main(int argc, char* argv[])
     // TIME AND PROBLEM RELATED CONSTANTS
     std::size_t nx = N, ny = N, nz = N;
     Real        h  = std::numbers::pi_v<Real> / static_cast<Real>(nx - 1);
-    Real        dt = (argc > 2) ? (std::stod(argv[2]) * h * h) : h * h * 0.5;
-    assert(dt <= 1 * h * h && "dt is too big for space discretization");
-    Real Tmax{0.001};
+    Real        dt = (argc > 2) ? (std::stod(argv[2])) : h * h * 0.1;
+
+    Real Tmax = (argc > 3) ? (std::stod(argv[3])) : 5e-4;
+    Real Re   = (argc > 4) ? (std::stod(argv[4])) : 1;
+    // assert(dt <= 1 * h * h && "dt is too big for space discretization");
+    if (!decomposer.rank())
+    {
+        std::println("Setup :");
+        std::println("dt : {:}", dt);
+        std::println("T_max : {:}", Tmax);
+        std::println("h : {:}", h);
+        std::println("Re : {:}", Re);
+    }
 
     auto scale = 1;
     nx         = N * scale;
@@ -43,17 +59,17 @@ int main(int argc, char* argv[])
     inputs.constants.h     = h / scale;
     inputs.constants.dt    = dt / scale;
     inputs.constants.T_max = Tmax;
-    inputs.constants.Re    = 1.0 / 0.0;
-
-    inputs.v_BC.u_ex = [&](const numPDE::Node<Real>& pos) -> numPDE::Array<Real, 3>
+    inputs.constants.Re    = Re;
+    inputs.v_BC.u_ex       = [&](const numPDE::Node<Real>& p) -> numPDE::Array<Real, 3>
     {
-        const auto x_s = pos.x + 0.5 * inputs.constants.h;
-        const auto y_s = pos.y + 0.5 * inputs.constants.h;
+        const auto x_s = p.x + 0.5 * inputs.constants.h;
+        const auto y_s = p.y + 0.5 * inputs.constants.h;
+        const auto z_s = p.z + 0.5 * inputs.constants.h;
 
-        using std::sin, std::cos;
-        const auto u_x = sin(x_s) * cos(pos.y) * cos(pos.z);  // u 
-        const auto u_y = -cos(pos.x) * sin(y_s) * cos(pos.z); // v 
-        const auto u_z = 0.0;                                   // w 
+        const auto u_x = p.y*(p.y-std::numbers::pi_v<Real>);  
+        const auto u_y = p.x*(p.x-std::numbers::pi_v<Real>);  
+        const auto u_z = 0.0;                                   
+
         return numPDE::Array{u_x, u_y, u_z};
     };
 
@@ -62,7 +78,7 @@ int main(int argc, char* argv[])
 
     numPDE::NSSolver<SP, DecompType> ns(decomposer, inputs);
 
-    ns.solve(true);
+    ns.solve();
 
     return 0;
 };

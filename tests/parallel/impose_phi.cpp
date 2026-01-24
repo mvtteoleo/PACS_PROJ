@@ -11,6 +11,7 @@ using Real = double;
 // We use NeuHomo (1) because our physical walls (Solid box) imply dP/dn = 0
 #define BCS 1
 
+
 int main(int argc, char* argv[])
 {
     // 1. Setup Grid
