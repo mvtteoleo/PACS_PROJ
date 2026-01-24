@@ -13,6 +13,12 @@
       in
       {
         devShells.default = pkgs.mkShell {
+          pyEnv = pkgs.python311.withPackages (ps: with ps; [
+          sympy
+          matplotlib
+          numpy
+          black
+        ]);
           buildInputs = [
             # Version control
             pkgs.git
@@ -35,7 +41,9 @@
             # Tools
             pkgs.heaptrack
             pkgs.gdb
-	    pkgs.neovim
+            pkgs.neovim
+
+            pyEnv
           ];
 
           shellHook = ''
