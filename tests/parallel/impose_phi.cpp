@@ -7,10 +7,9 @@
 using Real = double;
 
 // Define solver type
-#define MG 0
+#define MG 1
 // We use NeuHomo (1) because our physical walls (Solid box) imply dP/dn = 0
 #define BCS 1
-
 
 int main(int argc, char* argv[])
 {
@@ -101,6 +100,21 @@ int main(int argc, char* argv[])
     // 5. Run Projection
     if (dec.rank() == 0) std::println("Starting Projection...");
     solver.pressure_correct(U, P, csts.dt, false);
+    for(const auto [k, j,i] : U.bou_elems())
+    {
+        numPDE::Node<Real> pos_u{.x = csts.h * (i + xsrt[0] + 0.5),
+                                 .y = csts.h * (j + xsrt[1]),
+                                 .z = csts.h * (k + xsrt[2])};
+        numPDE::Node<Real> pos_v{.x = csts.h * (i + xsrt[0]),
+                                 .y = csts.h * (j + xsrt[1] + 0.5),
+                                 .z = csts.h * (k + xsrt[2])};
+        numPDE::Node<Real> pos_w{.x = csts.h * (i + xsrt[0]),
+                                 .y = csts.h * (j + xsrt[1]),
+                                 .z = csts.h * (k + xsrt[2] + 0.5)};
+        U.at(0, i, j, k) = get_u_sol(pos_u, 0);
+        U.at(1, i, j, k) = get_u_sol(pos_v, 1);
+        U.at(2, i, j, k) = get_u_sol(pos_w, 2);
+    }
 
     // 6. Check Results
     numPDE::Error<Real> err_u{};

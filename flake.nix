@@ -10,15 +10,17 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-      in
-      {
-        devShells.default = pkgs.mkShell {
           pyEnv = pkgs.python311.withPackages (ps: with ps; [
           sympy
           matplotlib
           numpy
           black
         ]);
+      in
+      {
+        devShells.default = pkgs.mkShell {
+                    
+
           buildInputs = [
             # Version control
             pkgs.git
