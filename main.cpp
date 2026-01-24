@@ -66,8 +66,8 @@ int main(int argc, char* argv[])
         const auto y_s = p.y + 0.5 * inputs.constants.h;
         const auto z_s = p.z + 0.5 * inputs.constants.h;
 
-        const auto u_x = p.y*(p.y-std::numbers::pi_v<Real>);  
-        const auto u_y = p.x*(p.x-std::numbers::pi_v<Real>);  
+        const auto u_x = p.y *  p.t;  
+        const auto u_y = 0.0;
         const auto u_z = 0.0;                                   
 
         return numPDE::Array{u_x, u_y, u_z};

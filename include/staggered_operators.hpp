@@ -50,6 +50,8 @@ namespace numPDE
         auto S   = h_U(i - 1, j, k); // south
         auto Top = h_U(i, j, k + 1); // top
         auto B   = h_U(i, j, k - 1); // bottom
+        ris = (E + W + N + S + Top + B - 6.0 * C) * inv_4Re_h_2;
+    /*
         // Convective term
         const auto u_on_y = 0.25 * (C[0] + S[0] + W[0] + h_U.at(0, i - 1, j + 1, k));
         const auto u_on_z = 0.25 * (C[0] + S[0] + Top[0] + h_U.at(0, i - 1, j, k + 1));
@@ -75,6 +77,7 @@ namespace numPDE
         ris = ris + U * (Top - B);
 
         ris = -1.0 * ris * one_over_2h + (E + W + N + S + Top + B - 6.0 * C) * inv_4Re_h_2;
+    */
 
         return ris;
     }

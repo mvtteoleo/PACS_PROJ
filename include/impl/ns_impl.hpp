@@ -30,10 +30,15 @@ namespace numPDE
 
         initialize_u0();
 
+        auto div = check_divergence(m_V, r_inps.constants.h);
+        div.print_errs(r_dec.rank());
+
         while (std::fabs(-stepper.get_t() + r_inps.constants.T_max) > 1e-9)
         {
             // Advance one time step
             stepper.advance(*this);
+            div = check_divergence(m_V, r_inps.constants.h);
+            div.print_errs(r_dec.rank());
 
             auto t_curr = stepper.get_t();
             if (!r_dec.rank())

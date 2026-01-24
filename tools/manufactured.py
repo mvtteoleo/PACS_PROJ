@@ -46,6 +46,9 @@ fx_calc = material_derivative(u_calc, u_calc, v_calc, w_calc) + sp.diff(p_calc, 
 fy_calc = material_derivative(v_calc, u_calc, v_calc, w_calc) + sp.diff(p_calc, y) - lap(v_calc)
 fz_calc = material_derivative(w_calc, u_calc, v_calc, w_calc) + sp.diff(p_calc, z) - lap(w_calc)
 
+fx_calc = sp.diff(u_calc, t) - lap(u_calc)
+fy_calc = sp.diff(v_calc, t) - lap(v_calc)
+fz_calc = sp.diff(w_calc, t) - lap(w_calc)
 # Substitute sp.pi back to M_PI symbol for the final C++ code
 replacements = {sp.pi: mpi}
 expressions = {
