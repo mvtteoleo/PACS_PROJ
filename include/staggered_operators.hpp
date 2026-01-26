@@ -41,7 +41,7 @@ namespace numPDE
         const auto&         Re          = r_cstns.Re;
         const auto          one_over_2h = 1.0 / (h * 2.0);
         const auto          inv_4Re_h_2 = 1.0 / (4.0 * h * h * Re);
-        numPDE::Array<T, 3> U, ris;
+        numPDE::Array<T, 3>  ris;
 
         auto C   = h_U(i, j, k);     // center
         auto W   = h_U(i, j + 1, k); // west
@@ -51,30 +51,34 @@ namespace numPDE
         auto Top = h_U(i, j, k + 1); // top
         auto B   = h_U(i, j, k - 1); // bottom
         // Convective term
+        numPDE::Array<T, 3> U_x;
         const auto u_on_y = 0.25 * (C[0] + S[0] + W[0] + h_U.at(0, i - 1, j + 1, k));
         const auto u_on_z = 0.25 * (C[0] + S[0] + Top[0] + h_U.at(0, i - 1, j, k + 1));
-        U[0]              = C[0];
-        U[1]              = u_on_y;
-        U[2]              = u_on_z;
-        ris               = U * (N - S);
+        U_x[0]              = C[0];
+        U_x[1]              = u_on_y;
+        U_x[2]              = u_on_z;
+        
 
+        numPDE::Array<T, 3> U_y;
         const auto v_on_x = 0.25 * (C[1] + E[1] + N[1] + h_U.at(1, i + 1, j - 1, k));
         const auto v_on_z = 0.25 * (C[1] + E[1] + Top[1] + h_U.at(1, i, j - 1, k + 1));
-        U[0]              = v_on_x;
-        U[1]              = C[1];
-        U[2]              = v_on_z;
+        U_y[0]              = v_on_x;
+        U_y[1]              = C[1];
+        U_y[2]              = v_on_z;
+        
 
-        ris = ris + U * (W - E);
-
+        numPDE::Array<T, 3> U_z;
         const auto w_on_x = 0.25 * (C[2] + B[2] + N[2] + h_U.at(2, i + 1, j, k - 1));
         const auto w_on_y = 0.25 * (C[2] + B[2] + W[2] + h_U.at(2, i, j + 1, k - 1));
-        U[0]              = w_on_x;
-        U[1]              = w_on_y;
-        U[2]              = C[2];
+        U_z[0]              = w_on_x;
+        U_z[1]              = w_on_y;
+        U_z[2]              = C[2];
 
-        ris = ris + U * (Top - B);
+        // !! * IS ELEMENT-WISE PRODUCT !!
+        ris = - 1.0 * (U_x * (N - S) * one_over_2h + U_y * (W - E)* one_over_2h + U_z *
+        (Top - B)* one_over_2h);
 
-        ris = -1.0 * ris * one_over_2h + (E + W + N + S + Top + B - 6.0 * C) * inv_4Re_h_2;
+        ris = ris +  (E + W + N + S + Top + B - 6.0 * C) * inv_4Re_h_2;
 
         return ris;
     }
