@@ -30,7 +30,7 @@ namespace numPDE
 
         initialize_u0();
 
-        while (std::fabs(-stepper.get_t() + r_inps.constants.T_max) > 1e-9)
+        while (stepper.get_t() < r_inps.constants.T_max)
         {
             // Advance one time step
             stepper.advance(*this);
@@ -42,6 +42,27 @@ namespace numPDE
             auto err = compute_err(t_curr);
             errs.emplace_back(err);
         }
+        
+        /* Restrict them in a scope because I prefer to do so*/
+        {
+            const auto dt_last = r_inps.constants.T_max - stepper.get_t();
+            const auto dt_imposed =r_inps.constants.dt;  
+            r_inps.constants.dt =    dt_last;
+            
+            stepper.advance(*this);
+
+            auto t_curr = stepper.get_t();
+            if (!r_dec.rank())
+                std::println("Sim at {:.3e} of {:.3e}", t_curr, r_inps.constants.T_max);
+
+            auto err = compute_err(t_curr);
+            errs.emplace_back(err);
+        
+            // Restore the correct dt in the r_inps struct
+            r_inps.constants.dt = dt_imposed;  
+        }
+
+
 
         auto err = check_sol(errs);
         return err;
