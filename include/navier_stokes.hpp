@@ -70,9 +70,12 @@ namespace numPDE
               stepper{m_V}, pSolve{dec, inp.p_BC, inp.constants}, r_inps{inp}, r_dec{dec}
         {
 
-            assert(r_inps.constants.dt <=
-                       r_inps.constants.h * r_inps.constants.h * r_inps.constants.Re * 0.1 &&
-                   "dt is too big for space discretization");
+            if (r_inps.constants.dt <=
+                r_inps.constants.h * r_inps.constants.h * r_inps.constants.Re * 0.1)
+            {
+                /* Log the error, one may want to run the sim anyway */
+                std::cerr << "dt is too big for space discretization";
+            }
         }
 
         // --- Public Interface ---

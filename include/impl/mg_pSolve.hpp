@@ -66,12 +66,12 @@ namespace numPDE
 
         this->r_dec.exchange_ghosts(m_P_loc);
 
-        const auto& sz     = this->m_P_loc.get_sizes();
-        size_t is_west = is_side(SIDES::WEST, this->r_dec) ? 1 : 0;
-        size_t is_bott = is_side(SIDES::BOTTOM, this->r_dec) ? 1 : 0;
-        const auto  k_full = std::views::iota(is_bott, static_cast<size_t>(sz[2] - 1));
-        const auto  j_full = std::views::iota(is_west, static_cast<size_t>(sz[1] - 1));
-        const auto  i_full = std::views::iota(size_t{1}, static_cast<size_t>(sz[0] - 1));
+        const auto& sz      = this->m_P_loc.get_sizes();
+        size_t      is_west = is_side(SIDES::WEST, this->r_dec) ? 1 : 0;
+        size_t      is_bott = is_side(SIDES::BOTTOM, this->r_dec) ? 1 : 0;
+        const auto  k_full  = std::views::iota(is_bott, static_cast<size_t>(sz[2] - 1));
+        const auto  j_full  = std::views::iota(is_west, static_cast<size_t>(sz[1] - 1));
+        const auto  i_full  = std::views::iota(size_t{1}, static_cast<size_t>(sz[0] - 1));
         for (auto [k, j, i] : std::views::cartesian_product(k_full, j_full, i_full))
         {
             const auto dP    = grad(m_P_loc, i, j, k, h);

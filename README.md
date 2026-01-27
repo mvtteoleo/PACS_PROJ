@@ -45,7 +45,7 @@ The directory is divided as can be seeen below.
 All the dependency not present in the flake.nix file are inside the include/third_party/ directory. 
 
   -  [2DecompC](https://github.com/emathew1/2Decomp_C) To handle domain
-  decomposition and data transpositions necessary for the  FastPoissonSolver.
+  decomposition and data transpositions necessary for the FastPoissonSolver.
   - [gnuplot-iostrem](https://github.com/dstahlke/gnuplot-iostream) In order to
   make plots in a more fast  way and avoid the complex sintax and verbosity of
   gnuplot.
@@ -57,19 +57,19 @@ All the executables will be in the build directory and then each is divided
 between serial and parallel subdirectory.
 
 Once inside the nix-shell is enough to call `make parallel` or `make serial` or
-`make all` to build all the executables.
+`make all` to build all the executables `make main` will build main.cpp.
+
 
 The test are quite a few and each one has its own description on the top of
 the source code.
 
-One notes on the tools/ directory, it contains some .py to handle manufactured
+One note on the tools/ directory, it contains some .py to handle manufactured
 solutions and in general helpers.
 
 Some more interesting aspect in the project:
 
-  - VTK written in parallel using the .pvts format.
+  - VTK written in parallel using the .pvts format, only support for the scalar fields. (Like pressure)
   - Curiously recurring templates instead of inheritance from virtual
-  - Policy based designed instead of a solver class that inherits
+  - Policy based designed
   - Expression templates
-  - Static reflections and compile time dispatch
 

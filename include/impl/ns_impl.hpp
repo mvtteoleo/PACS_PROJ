@@ -42,13 +42,13 @@ namespace numPDE
             auto err = compute_err(t_curr);
             errs.emplace_back(err);
         }
-        
+
         /* Restrict them in a scope because I prefer to do so*/
         {
-            const auto dt_last = r_inps.constants.T_max - stepper.get_t();
-            const auto dt_imposed =r_inps.constants.dt;  
-            r_inps.constants.dt =    dt_last;
-            
+            const auto dt_last    = r_inps.constants.T_max - stepper.get_t();
+            const auto dt_imposed = r_inps.constants.dt;
+            r_inps.constants.dt   = dt_last;
+
             stepper.advance(*this);
 
             auto t_curr = stepper.get_t();
@@ -57,12 +57,10 @@ namespace numPDE
 
             auto err = compute_err(t_curr);
             errs.emplace_back(err);
-        
+
             // Restore the correct dt in the r_inps struct
-            r_inps.constants.dt = dt_imposed;  
+            r_inps.constants.dt = dt_imposed;
         }
-
-
 
         auto err = check_sol(errs);
         return err;
@@ -271,7 +269,6 @@ namespace numPDE
                          div_pre.l_inf);
 
         pSolve.pressure_correct(m_V, m_P, c * dt, this->m_verbose);
-
 
         div_pre = check_divergence(m_V, h);
         if (m_verbose and !r_dec.rank())

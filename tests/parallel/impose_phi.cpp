@@ -103,53 +103,63 @@ int main(int argc, char* argv[])
     solver.pressure_correct(U, P, csts.dt, false);
 
     const auto& [nx, ny, nz] = P.get_sizes();
-    auto k_range = std::views::iota(size_t{0}, nz-1);
-    auto j_range = std::views::iota(size_t{0}, ny-1);
-    auto i_range = std::views::iota(size_t{0}, nx-1);
-    auto bc_fun = [&](auto i,  auto j,  auto  k)
+    auto k_range             = std::views::iota(size_t{0}, nz - 1);
+    auto j_range             = std::views::iota(size_t{0}, ny - 1);
+    auto i_range             = std::views::iota(size_t{0}, nx - 1);
+    auto bc_fun              = [&](auto i, auto j, auto k)
     {
         numPDE::Node<Real> pos_u{.x = csts.h * (i + xsrt[0] + 0.5),
                                  .y = csts.h * (j + xsrt[1]),
-                                 .z = csts.h * (k + xsrt[2]), .t=0};
+                                 .z = csts.h * (k + xsrt[2]),
+                                 .t = 0};
         numPDE::Node<Real> pos_v{.x = csts.h * (i + xsrt[0]),
                                  .y = csts.h * (j + xsrt[1] + 0.5),
-                                 .z = csts.h * (k + xsrt[2]), .t=0};
+                                 .z = csts.h * (k + xsrt[2]),
+                                 .t = 0};
         numPDE::Node<Real> pos_w{.x = csts.h * (i + xsrt[0]),
                                  .y = csts.h * (j + xsrt[1]),
                                  .z = csts.h * (k + xsrt[2] + 0.5),
-                                 .t=0};
+                                 .t = 0};
         U.at(0, i, j, k) = get_u_sol(pos_u, 0);
         U.at(1, i, j, k) = get_u_sol(pos_v, 1);
         U.at(2, i, j, k) = get_u_sol(pos_w, 2);
     };
 
-    if(is_side(numPDE::SIDES::EAST, dec)) 
+    if (is_side(numPDE::SIDES::EAST, dec))
     {
         size_t j = 0;
-        for(auto k : k_range) for(auto i : i_range) bc_fun(i, j, k);
+        for (auto k : k_range)
+            for (auto i : i_range)
+                bc_fun(i, j, k);
     }
-    if(is_side(numPDE::SIDES::WEST, dec)) 
+    if (is_side(numPDE::SIDES::WEST, dec))
     {
-        size_t j = ny-1;
-        for(auto k : k_range) for(auto i : i_range) bc_fun(i, j, k);
+        size_t j = ny - 1;
+        for (auto k : k_range)
+            for (auto i : i_range)
+                bc_fun(i, j, k);
     }
-    if(is_side(numPDE::SIDES::BOTTOM, dec)) 
+    if (is_side(numPDE::SIDES::BOTTOM, dec))
     {
         size_t k = 0;
-        for(auto j : j_range) for(auto i : i_range) bc_fun(i, j, k);
+        for (auto j : j_range)
+            for (auto i : i_range)
+                bc_fun(i, j, k);
     }
-    if(is_side(numPDE::SIDES::TOP, dec)) 
+    if (is_side(numPDE::SIDES::TOP, dec))
     {
-        size_t k = nz-1;
-        for(auto j : j_range) for(auto i : i_range) bc_fun(i, j, k);
+        size_t k = nz - 1;
+        for (auto j : j_range)
+            for (auto i : i_range)
+                bc_fun(i, j, k);
     }
 
     {
-        for(auto k : k_range)
-            for(auto j : j_range)
+        for (auto k : k_range)
+            for (auto j : j_range)
             {
                 bc_fun(0, j, k);
-                bc_fun(nx-1, j, k);
+                bc_fun(nx - 1, j, k);
             }
     }
 

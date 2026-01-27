@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
 
     D = E;
 
-    D = E*A;
+    D = E * A;
 
     // Check a sample
 
