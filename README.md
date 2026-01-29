@@ -1,8 +1,7 @@
 This project is a direct numerical solver for computational fluid dynamic using
 Chorin-Themam decomposition, the NSSolver class is templated so that is able to
 solve the Poisson equation for pressure both using Spectral solver and a
-Multigrid solver.
-
+Multigrid solver, a better explanation can be seen [here](./doc/pacs_rep.pdf) 
 The C++ standard of choice is C++23, to manage the dependencies I here use nix,
 the only real dependency.
 
