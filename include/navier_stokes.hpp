@@ -70,7 +70,9 @@ namespace numPDE
               stepper{m_V}, pSolve{dec, inp.p_BC, inp.constants}, r_inps{inp}, r_dec{dec}
         {
 
-            if (r_inps.constants.dt <=
+            // FINDING: The stability warning was inverted; dt is "too big" when it exceeds
+            // the limit, not when it is smaller or equal.
+            if (r_inps.constants.dt >
                 r_inps.constants.h * r_inps.constants.h * r_inps.constants.Re * 0.1)
             {
                 /* Log the error, one may want to run the sim anyway */
