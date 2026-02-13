@@ -30,7 +30,9 @@ namespace numPDE
 
         initialize_u0();
 
-        while (stepper.get_t() < r_inps.constants.T_max)
+        // FINDING: Advancing with fixed dt while only checking t < T_max can overshoot
+        // and make the final "partial" step negative.
+        while (stepper.get_t() + r_inps.constants.dt < r_inps.constants.T_max)
         {
             // Advance one time step
             stepper.advance(*this);
@@ -45,21 +47,24 @@ namespace numPDE
 
         /* Restrict them in a scope because I prefer to do so*/
         {
-            const auto dt_last    = r_inps.constants.T_max - stepper.get_t();
-            const auto dt_imposed = r_inps.constants.dt;
-            r_inps.constants.dt   = dt_last;
+            const auto dt_last = r_inps.constants.T_max - stepper.get_t();
+            if (dt_last > T{0})
+            {
+                const auto dt_imposed = r_inps.constants.dt;
+                r_inps.constants.dt   = dt_last;
 
-            stepper.advance(*this);
+                stepper.advance(*this);
 
-            auto t_curr = stepper.get_t();
-            if (!r_dec.rank())
-                std::println("Sim at {:.3e} of {:.3e}", t_curr, r_inps.constants.T_max);
+                auto t_curr = stepper.get_t();
+                if (!r_dec.rank())
+                    std::println("Sim at {:.3e} of {:.3e}", t_curr, r_inps.constants.T_max);
 
-            auto err = compute_err(t_curr);
-            errs.emplace_back(err);
+                auto err = compute_err(t_curr);
+                errs.emplace_back(err);
 
-            // Restore the correct dt in the r_inps struct
-            r_inps.constants.dt = dt_imposed;
+                // Restore the correct dt in the r_inps struct
+                r_inps.constants.dt = dt_imposed;
+            }
         }
 
         auto err = check_sol(errs);
@@ -122,6 +127,13 @@ namespace numPDE
     NSSolver<solveP, Decomp>::check_sol(const std::vector<Error<T>>& errs) const
     {
         Error<T> err{};
+        // FINDING: When no steps are taken, errs is empty and errs.back() would be UB.
+        if (errs.empty())
+        {
+            if (!r_dec.rank())
+                std::cout << "0 timesteps \n";
+            return err;
+        }
         if (!r_dec.rank())
         {
             std::cout << errs.size() << " timesteps \n";
